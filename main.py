@@ -25,10 +25,6 @@ async def generate_pdf_and_email(request: EmailRequest):
         raise HTTPException(status_code=500, detail="Failed to send email")
     return {"message": "PDF generated and email sent successfully"}
 
-@app.get("/test")
-async def test_endpoint():
-    return {"message": "Your FastAPI app is working!"}
-
 @app.get("/rabbit")
 async def test_endpoint():
     return {"message": "Your Rabbit app is working!"}
