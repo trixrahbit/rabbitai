@@ -1,6 +1,4 @@
-from urllib.request import Request
-
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from config import settings
 from models import DataAggregationRequest, EmailRequest
 from security.auth import get_api_key
@@ -11,7 +9,6 @@ from typing import List
 from models import TicketData
 
 app = FastAPI()
-
 
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
