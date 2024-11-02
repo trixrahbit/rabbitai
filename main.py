@@ -1,3 +1,5 @@
+from urllib.request import Request
+
 from fastapi import FastAPI, Depends, HTTPException
 from config import settings
 from models import DataAggregationRequest, EmailRequest
@@ -10,10 +12,24 @@ from models import TicketData
 
 app = FastAPI()
 
-@app.post("/count-open-tickets", dependencies=[Depends(get_api_key)])
-async def count_tickets(tickets: List[TicketData]):
+
+@app.post("/count-tickets", dependencies=[Depends(get_api_key)])
+async def count_tickets(request: Request):
     """
-    Endpoint to count the number of open tickets.
+    Endpoint to receive JSON data containing tickets and return the count.
     """
-    open_ticket_count = count_open_tickets(tickets)
-    return {"open_ticket_count": open_ticket_count}
+    try:
+        # Parse the incoming JSON
+        payload = await request.json()
+
+        # Ensure 'data' key exists and is a list
+        if "data" not in payload or not isinstance(payload["data"], list):
+            raise HTTPException(status_code=400, detail="Invalid format: 'data' should be a list of tickets.")
+
+        # Get the count of tickets
+        ticket_count = len(payload["data"])
+
+        return {"ticket_count": ticket_count}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
