@@ -4,27 +4,16 @@ from models import DataAggregationRequest, EmailRequest
 from security.auth import get_api_key
 from services.pdf_service import generate_pdf
 from services.email_service import send_email_with_pdf
+from services.data_processing import count_open_tickets
+from typing import List
+from models import TicketData
 
 app = FastAPI()
 
-@app.post("/aggregate-data", dependencies=[Depends(get_api_key)])
-async def aggregate_data(request: DataAggregationRequest):
+@app.post("/count-open-tickets", dependencies=[Depends(get_api_key)])
+async def count_tickets(tickets: List[TicketData]):
     """
-    Endpoint to receive JSON data, aggregate it, and generate a PDF report.
+    Endpoint to count the number of open tickets.
     """
-    pdf_path = generate_pdf(request.data)  # Generate PDF with aggregated data
-    return {"message": "Data aggregated and PDF generated", "pdf_path": pdf_path}
-
-@app.post("/generate-pdf-email", dependencies=[Depends(get_api_key)])
-async def generate_pdf_and_email(request: EmailRequest):
-    """
-    Endpoint to send an aggregated PDF report via email.
-    """
-    pdf_path = "/tmp/report.pdf"  # Path to previously generated PDF (or re-generate if needed)
-    if not send_email_with_pdf(request.email, pdf_path):
-        raise HTTPException(status_code=500, detail="Failed to send email")
-    return {"message": "PDF generated and email sent successfully"}
-
-@app.get("/rabbit")
-async def test_endpoint():
-    return {"message": "Your Rabbit app is working!"}
+    open_ticket_count = count_open_tickets(tickets)
+    return {"open_ticket_count": open_ticket_count}
