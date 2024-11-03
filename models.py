@@ -36,7 +36,7 @@ class TicketData(BaseModel):
     userDefinedFields: Optional[List[UserDefinedField]] = None
 
 class DeviceData(BaseModel):
-    device_name: str = Field(alias="device_name")
+    Name: str = Field(alias="device_name")
     LastLoggedOnUser: Optional[str] = "N/A"
     IPv4Address: Optional[str] = "N/A"
     OperatingSystem: Optional[str] = "N/A"
