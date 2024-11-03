@@ -37,8 +37,8 @@ class TicketData(BaseModel):
 
 
 class DeviceData(BaseModel):
-    Name: str
-    device_name: str  # Removed alias to avoid mismatch
+    Name: Optional[str] = "N/A"
+    device_name: Optional[str] = "N/A"
     LastLoggedOnUser: Optional[str] = "N/A"
     IPv4Address: Optional[str] = "N/A"
     OperatingSystem: Optional[str] = "N/A"
