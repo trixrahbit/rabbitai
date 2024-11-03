@@ -45,7 +45,8 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     }
 
     for device in device_data:
-        device_name = device.Name or device.device_name or "Unknown Device"
+        # Ensure we get the correct device name from either Name or device_name
+        device_name = device.Name if device.Name != "N/A" else device.device_name or "Unknown Device"
         device_integrations = []
         missing_integrations = []
         integration_ids = {}
