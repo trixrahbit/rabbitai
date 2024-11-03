@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, validator
-from typing import Optional,List, Dict
+from typing import Optional, List, Dict, Union
+
 
 class DataAggregationRequest(BaseModel):
     data: list[dict]
@@ -46,8 +47,8 @@ class DeviceData(BaseModel):
     patchStatus: Optional[str] = "N/A"
     rebootRequired: Optional[bool] = False  # Use bool for consistent handling
     warrantyDate: Optional[str] = "N/A"     # Same as above if date needed
-    datto_id: Optional[str] = "N/A"
-    huntress_id: Optional[str] = "N/A"
+    datto_id: Union[int, str] = "N/A"
+    huntress_id: Union[int, str] = "N/A"
     immy_id: Optional[str] = "N/A"
     auvik_id: Optional[str] = "N/A"
     Datto_RMM: bool = False
