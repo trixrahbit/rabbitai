@@ -8,16 +8,16 @@ logging.basicConfig(filename="/var/www/rabbitai/webhook.log", level=logging.INFO
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
     """
-    Endpoint to receive raw JSON data containing tickets (either a single object or an array) and return the count.
+    Endpoint to receive raw JSON data (either a single ticket object or a list of tickets) and return the count.
     """
     try:
-        # Parse the incoming JSON
+        # Parse the raw JSON input directly
         payload = await request.json()
 
-        # Check if payload is a list
+        # Handle case where payload is a list of tickets
         if isinstance(payload, list):
             ticket_count = len(payload)
-        # If payload is a single dictionary, treat it as one ticket
+        # Handle case where payload is a single ticket object
         elif isinstance(payload, dict):
             ticket_count = 1
         else:
