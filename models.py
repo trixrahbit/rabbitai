@@ -45,7 +45,7 @@ class DeviceData(BaseModel):
     lastReboot: Optional[str] = "N/A"  # Consider using datetime if dates are required
     lastSeen: Optional[str] = "N/A"    # Same as above
     patchStatus: Optional[str] = "N/A"
-    rebootRequired: Optional[bool] = False  # Use bool for consistent handling
+    rebootRequired: Optional[bool] = None
     warrantyDate: Optional[str] = "N/A"     # Same as above if date needed
     datto_id: Union[int, str] = "N/A"
     huntress_id: Union[int, str] = "N/A"
