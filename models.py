@@ -42,15 +42,17 @@ class DeviceData(BaseModel):
     OperatingSystem: Optional[str] = "N/A"
     antivirusProduct: Optional[str] = "N/A"
     antivirusStatus: Optional[str] = "N/A"
-    lastReboot: Optional[str] = "N/A"  # Consider using datetime if dates are required
-    lastSeen: Optional[str] = "N/A"    # Same as above
+    lastReboot: Optional[str] = "N/A"
+    lastSeen: Optional[str] = "N/A"
     patchStatus: Optional[str] = "N/A"
     rebootRequired: Optional[bool] = None
-    warrantyDate: Optional[str] = "N/A"     # Same as above if date needed
+    warrantyDate: Optional[str] = "N/A"
     datto_id: Union[int, str] = "N/A"
     huntress_id: Union[int, str] = "N/A"
     immy_id: Optional[str] = "N/A"
     auvik_id: Optional[str] = "N/A"
+    itglue_id: Optional[str] = "N/A"
+    locationName: Optional[str] = "N/A"
     Datto_RMM: bool = False
     Huntress: bool = False
     Workstation_AD: bool = False
@@ -69,9 +71,6 @@ class DeviceData(BaseModel):
         if v == "N/A":
             return None
         return bool(v)
-
-    class Config:
-        allow_population_by_field_name = True
 
     class Config:
         allow_population_by_field_name = True

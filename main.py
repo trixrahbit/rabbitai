@@ -133,9 +133,8 @@ async def ticket_stats(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/report/")
+@app.post("/report/", dependencies=[Depends(get_api_key)])
 async def generate_report(device_data: list[DeviceData]):
-    # Organize data based on integration presence
     summary_list = []
     for device in device_data:
         device_summary = {
@@ -160,11 +159,12 @@ async def generate_report(device_data: list[DeviceData]):
             "datto_id": device.datto_id,
             "huntress_id": device.huntress_id,
             "immy_id": device.immy_id,
-            "auvik_id": device.auvik_id
+            "auvik_id": device.auvik_id,
+            "locationName": device.locationName if hasattr(device, "locationName") else "N/A",
+            "itglue_id": device.itglue_id if hasattr(device, "itglue_id") else "N/A"
         }
         summary_list.append(device_summary)
 
-    # Perform analytics on the data
+    # Generate analytics based on the device data
     analytics = generate_analytics(device_data)
-
     return {"report": summary_list, "analytics": analytics}
