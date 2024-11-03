@@ -8,18 +8,20 @@ logging.basicConfig(filename="/var/www/rabbitai/webhook.log", level=logging.INFO
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
     """
-    Endpoint to receive raw JSON array data containing tickets and return the count.
+    Endpoint to receive raw JSON data containing tickets (either a single object or an array) and return the count.
     """
     try:
-        # Parse the incoming JSON and expect it to be a list directly
+        # Parse the incoming JSON
         payload = await request.json()
 
         # Check if payload is a list
-        if not isinstance(payload, list):
-            raise HTTPException(status_code=400, detail="Invalid format: Expected a JSON array of tickets.")
-
-        # Get the count of tickets
-        ticket_count = len(payload)
+        if isinstance(payload, list):
+            ticket_count = len(payload)
+        # If payload is a single dictionary, treat it as one ticket
+        elif isinstance(payload, dict):
+            ticket_count = 1
+        else:
+            raise HTTPException(status_code=400, detail="Invalid format: Expected a JSON array or single ticket object.")
 
         return {"ticket_count": ticket_count}
 
