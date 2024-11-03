@@ -52,9 +52,15 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         }
     }
 
-    # Process each device
     for device in device_data:
-        device_name = getattr(device, 'hostname', None) or getattr(device, 'Name', None) or "Unnamed Device"
+        # Adjusted logic to explicitly check for each potential device name field
+        device_name = (
+                getattr(device, 'Name', None) or
+                getattr(device, 'device_name', None) or
+                getattr(device, 'hostname', None) or
+                "Unnamed Device"
+        )
+
         logger.debug(f"Processing device: {device_name}")
 
         device_integrations = []
