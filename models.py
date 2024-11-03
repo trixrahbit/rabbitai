@@ -52,14 +52,15 @@ class DeviceData(BaseModel):
     immy_id: Optional[str] = "N/A"
     auvik_id: Optional[str] = "N/A"
     itglue_id: Optional[str] = "N/A"
-    locationName: Optional[str] = "N/A"
+
+    # Integration flags
     Datto_RMM: bool = False
     Huntress: bool = False
     Workstation_AD: bool = False
     Server_AD: bool = False
     ImmyBot: bool = False
     Auvik: bool = False
-    Inactive_Computer: bool = False
+    ITGlue: bool = False  # Add this attribute
 
     @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "Inactive_Computer", pre=True)
     def parse_yes_no(cls, v):
