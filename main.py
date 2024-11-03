@@ -8,6 +8,8 @@ from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from services.data_processing import generate_analytics
+
 
 # Define the Middleware Class
 class MaxBodySizeMiddleware(BaseHTTPMiddleware):
@@ -162,7 +164,7 @@ async def generate_report(device_data: list[DeviceData]):
         }
         summary_list.append(device_summary)
 
-    # Optionally, add any additional categorization or summaries here.
-    categorized_data = json.dumps(summary_list)
+    # Perform analytics on the data
+    analytics = generate_analytics(device_data)
 
-    return {"report": categorized_data}
+    return {"report": summary_list, "analytics": analytics}
