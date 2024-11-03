@@ -37,7 +37,7 @@ class TicketData(BaseModel):
 
 
 class DeviceData(BaseModel):
-    Name: str = Field(alias="device_name")
+    device_name: str = Field(alias="Name")  # Set 'Name' as alias for `device_name`
     LastLoggedOnUser: Optional[str] = "N/A"
     IPv4Address: Optional[str] = "N/A"
     OperatingSystem: Optional[str] = "N/A"
@@ -64,8 +64,7 @@ class DeviceData(BaseModel):
     ITGlue: bool = False
     Inactive_Computer: bool = False  # Ensure this attribute is included
 
-    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue",
-               "Inactive_Computer", pre=True)
+    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue", "Inactive_Computer", pre=True)
     def parse_yes_no(cls, v):
         if isinstance(v, str):
             return v == "Yes"
