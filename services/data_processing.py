@@ -6,9 +6,11 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+
 def count_open_tickets(tickets: List[TicketData]) -> int:
     open_tickets = [ticket for ticket in tickets if ticket.status != 5]
     return len(open_tickets)
+
 
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
@@ -26,7 +28,11 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "ImmyBot": 0,
                 "Auvik": 0,
                 "ITGlue": 0
-            }
+            },
+            "os_distribution": {},
+            "end_of_life": 0,
+            "end_of_support": 0,
+            "supported_os": 0
         },
         "issues": {
             "no_antivirus_installed": [],
@@ -34,7 +40,8 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             "missing_sentinel_one_on_server": [],
             "not_seen_recently": [],
             "reboot_required": [],
-            "expired_warranty": []
+            "expired_warranty": [],
+            "missing_critical_integrations": []
         },
         "trends": {
             "recently_active_devices": 0,
@@ -45,43 +52,64 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     }
 
     for device in device_data:
-        # Ensure we get the correct device name from either Name or device_name
         device_name = device.Name if device.Name != "N/A" else device.device_name or "Unknown Device"
         device_integrations = []
         missing_integrations = []
-        integration_ids = {}
+        integration_ids = {
+            "Datto_RMM": device.datto_id if device.Datto_RMM else "N/A",
+            "Huntress": device.huntress_id if device.Huntress else "N/A",
+            "Workstation_AD": "N/A",
+            "Server_AD": "N/A",
+            "ImmyBot": device.immy_id if device.ImmyBot else "N/A",
+            "Auvik": device.auvik_id if device.Auvik else "N/A",
+            "ITGlue": device.itglue_id if device.ITGlue else "N/A"
+        }
 
-        # Check each integration and update counts
+        # Track integration counts and statuses
         for integration in ["Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue"]:
             if getattr(device, integration, False):
                 analytics["counts"]["integrations"][integration] += 1
                 device_integrations.append(integration)
-                integration_ids[integration] = getattr(device, f"{integration.lower()}_id", "N/A")
+                if integration_ids[integration] == "N/A":
+                    integration_ids[integration] = getattr(device, f"{integration.lower()}_id", "N/A")
                 logger.debug(f"Counted {integration} for device: {device_name}")
             else:
                 missing_integrations.append(integration)
 
-        # Check if device has two or more integrations and add integration IDs
-        if len(device_integrations) > 1:
-            analytics["integration_matches"].append({
+        # Ensure critical integrations (Datto RMM and ImmyBot) are present
+        if not (device.Datto_RMM and device.ImmyBot):
+            analytics["issues"]["missing_critical_integrations"].append({
                 "device_name": device_name,
-                "matched_integrations": device_integrations,
-                "integration_ids": {integration: integration_ids[integration] for integration in device_integrations}
-            })
-            logger.debug(f"Device {device_name} has multiple integrations: {device_integrations}")
-
-        # Record missing integrations for the device along with IDs of present integrations
-        if missing_integrations:
-            analytics["missing_integrations"][device_name] = {
-                "missing": missing_integrations,
                 "integration_ids": integration_ids
-            }
-            logger.debug(f"Device {device_name} is missing integrations: {missing_integrations}")
+            })
+            logger.debug(f"Device {device_name} is missing critical integrations.")
+
+        # OS metrics and end-of-life/support checks
+        os_type = device.OperatingSystem or "Unknown"
+        analytics["counts"]["os_distribution"][os_type] = analytics["counts"]["os_distribution"].get(os_type, 0) + 1
+
+        if "Windows Server 2016" in os_type or "Windows 10" in os_type:
+            analytics["counts"]["end_of_support"] += 1
+            os_status = "end_of_support"
+        elif "Windows Server" in os_type and "2012" in os_type or "Windows 7" in os_type:
+            analytics["counts"]["end_of_life"] += 1
+            os_status = "end_of_life"
+        elif "Windows 11" in os_type or "Windows Server 2019" in os_type or "Windows Server 2022" in os_type:
+            analytics["counts"]["supported_os"] += 1
+            os_status = "supported"
+
+        # Record OS with device details if it's end-of-life or nearing end-of-support
+        if os_status in ["end_of_life", "end_of_support"]:
+            analytics["issues"][os_status].append({
+                "device_name": device_name,
+                "os_type": os_type,
+                "integration_ids": integration_ids
+            })
 
         # Antivirus checks only if Datto_RMM is present
         if device.Datto_RMM:
             if device.Workstation_AD and (
-                device.antivirusProduct != "Windows Defender Antivirus" or device.antivirusStatus != "RunningAndUpToDate"
+                    device.antivirusProduct != "Windows Defender Antivirus" or device.antivirusStatus != "RunningAndUpToDate"
             ):
                 analytics["issues"]["missing_defender_on_workstation"].append({
                     "device_name": device_name,
@@ -90,7 +118,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 logger.debug(f"Missing Defender on workstation: {device_name}")
 
             elif device.Server_AD and (
-                device.antivirusProduct != "Sentinel Agent" or device.antivirusStatus != "RunningAndUpToDate"
+                    device.antivirusProduct != "Sentinel Agent" or device.antivirusStatus != "RunningAndUpToDate"
             ):
                 analytics["issues"]["missing_sentinel_one_on_server"].append({
                     "device_name": device_name,
@@ -98,7 +126,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 })
                 logger.debug(f"Missing SentinelOne on server: {device_name}")
 
-            # Generic antivirus check for Datto_RMM devices
             if not device.antivirusProduct or device.antivirusStatus != "RunningAndUpToDate":
                 analytics["counts"]["no_antivirus"] += 1
                 analytics["issues"]["no_antivirus_installed"].append({
@@ -113,7 +140,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "integration_ids": integration_ids
             })
 
-        # Inactivity and warranty checks with integration IDs
+        # Inactivity and warranty checks
         if device.Inactive_Computer:
             analytics["counts"]["inactive_devices"] += 1
             analytics["trends"]["recently_inactive_devices"] += 1
