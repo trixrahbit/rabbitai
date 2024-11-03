@@ -1,7 +1,6 @@
 from typing import List, Dict
-from models import TicketData
 from datetime import datetime
-from models import DeviceData
+from models import DeviceData, TicketData
 
 
 def count_open_tickets(tickets: List[TicketData]) -> int:
@@ -14,10 +13,8 @@ def count_open_tickets(tickets: List[TicketData]) -> int:
     Returns:
         int: Count of open tickets.
     """
-    # Assuming status 5 means closed
     open_tickets = [ticket for ticket in tickets if ticket.status != 5]
     return len(open_tickets)
-
 
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
@@ -40,6 +37,8 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         },
         "issues": {
             "no_antivirus_installed": [],
+            "missing_defender_on_workstation": [],
+            "missing_sentinel_one_on_server": [],
             "not_seen_recently": [],
             "reboot_required": [],
             "expired_warranty": []
@@ -57,14 +56,21 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             if getattr(device, integration, False):
                 analytics["counts"]["integrations"][integration] += 1
 
-        # Antivirus check
+        # Antivirus presence check based on device type
+        if device.Workstation_AD:
+            if device.antivirusProduct != "Microsoft Defender" or device.antivirusStatus != "RunningAndUpToDate":
+                analytics["issues"]["missing_defender_on_workstation"].append(device.Name)
+        elif device.Server_AD:
+            if device.antivirusProduct != "Sentinel One" or device.antivirusStatus != "RunningAndUpToDate":
+                analytics["issues"]["missing_sentinel_one_on_server"].append(device.Name)
+
+        # Generic antivirus check for devices without expected antivirus products
         if not device.antivirusProduct or device.antivirusStatus != "RunningAndUpToDate":
             analytics["counts"]["no_antivirus"] += 1
             analytics["issues"]["no_antivirus_installed"].append(device.Name)
 
-        # Last reboot check
-        if device.lastReboot == "N/A":
-            analytics["counts"]["no_last_reboot"] += 1
+        # Last reboot check, ignoring inactive devices (rebootRequired = "N/A")
+        if device.rebootRequired not in ["N/A", None]:
             analytics["issues"]["reboot_required"].append(device.Name)
 
         # Inactivity check
@@ -77,8 +83,11 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
         # Warranty check
         if device.warrantyDate != "N/A":
-            warranty_date = datetime.strptime(device.warrantyDate, "%Y-%m-%d")
-            if warranty_date < now:
-                analytics["issues"]["expired_warranty"].append(device.Name)
+            try:
+                warranty_date = datetime.strptime(device.warrantyDate, "%Y-%m-%d")
+                if warranty_date < now:
+                    analytics["issues"]["expired_warranty"].append(device.Name)
+            except ValueError:
+                pass  # Handle incorrect date formats if necessary
 
     return analytics
