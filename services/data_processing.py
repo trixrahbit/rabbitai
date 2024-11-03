@@ -52,24 +52,21 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     }
 
     for device in device_data:
-        # Ensure correct device name retrieval
+        # Explicitly retrieve device name with fallback
         device_name = getattr(device, 'Name', None) or getattr(device, 'device_name', None) or "Unnamed Device"
+        logger.debug(f"Processing device: {device_name}")
+
         device_integrations = []
         missing_integrations = []
         integration_ids = {}
 
-        # List of all integrations
-        integrations_list = ["Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue"]
-
-        # Initialize integration IDs
-        for integration in integrations_list:
+        # Initialize integration IDs and check for presence
+        for integration in ["Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue"]:
             integration_ids[integration] = getattr(device, f"{integration.lower()}_id", "N/A")
 
-        # Track integration counts and statuses
-        for integration in integrations_list:
             integration_value = getattr(device, integration, None)
 
-            # Adjust the condition based on the data type of integration_value
+            # Determine presence for boolean or string-based integrations
             if isinstance(integration_value, str):
                 is_integration_present = integration_value.lower() == "yes"
             else:
@@ -78,11 +75,11 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             if is_integration_present:
                 analytics["counts"]["integrations"][integration] += 1
                 device_integrations.append(integration)
-                logger.debug(f"Counted {integration} for device: {device_name}")
+                logger.debug(f"{integration} present for device: {device_name}")
             else:
                 missing_integrations.append(integration)
 
-        # Check for devices with multiple integrations
+        # Multiple integrations check
         if len(device_integrations) > 1:
             analytics["integration_matches"].append({
                 "device_name": device_name,
@@ -91,7 +88,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             })
             logger.debug(f"Device {device_name} has multiple integrations: {device_integrations}")
 
-        # Record missing integrations
+        # Missing integrations for this device
         if missing_integrations:
             analytics["missing_integrations"][device_name] = {
                 "missing": missing_integrations,
@@ -99,7 +96,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             }
             logger.debug(f"Device {device_name} is missing integrations: {missing_integrations}")
 
-        # Ensure critical integrations (Datto RMM and ImmyBot) are present
+        # Ensure critical integrations (Datto RMM and ImmyBot)
         if not (getattr(device, 'Datto_RMM', False) and getattr(device, 'ImmyBot', False)):
             analytics["issues"]["missing_critical_integrations"].append({
                 "device_name": device_name,
