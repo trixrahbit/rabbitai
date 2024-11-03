@@ -60,13 +60,14 @@ class DeviceData(BaseModel):
     Server_AD: bool = False
     ImmyBot: bool = False
     Auvik: bool = False
-    ITGlue: bool = False  # Add this attribute
+    ITGlue: bool = False
 
-    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "Inactive_Computer", pre=True)
+    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue", pre=True, check_fields=False)
     def parse_yes_no(cls, v):
         if isinstance(v, str):
             return v == "Yes"
         return v
+
     @validator("rebootRequired", pre=True)
     def parse_reboot_required(cls, v):
         if v == "N/A":
