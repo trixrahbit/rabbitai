@@ -6,9 +6,11 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+
 def count_open_tickets(tickets: List[TicketData]) -> int:
     open_tickets = [ticket for ticket in tickets if ticket.status != 5]
     return len(open_tickets)
+
 
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
@@ -51,19 +53,19 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     }
 
     for device in device_data:
-        # Check all possible fields for device name and log the values
+        # Explicit check and log for each name attribute
         device_name = (
-            getattr(device, 'Name', None) or
-            getattr(device, 'device_name', None) or
-            getattr(device, 'hostname', None) or
-            "Unnamed Device"
+                getattr(device, 'Name', None) or
+                getattr(device, 'device_name', None) or
+                getattr(device, 'hostname', None) or
+                "Unnamed Device"
         )
 
-        # Log each name attribute separately to see where the issue might be
-        logger.debug(f"Device 'Name' field: {getattr(device, 'Name', 'Not Found')}")
-        logger.debug(f"Device 'device_name' field: {getattr(device, 'device_name', 'Not Found')}")
-        logger.debug(f"Device 'hostname' field: {getattr(device, 'hostname', 'Not Found')}")
-        logger.debug(f"Assigned device_name: {device_name}")
+        logger.debug(f"Device attributes - Name: {getattr(device, 'Name', 'Not Found')}, "
+                     f"device_name: {getattr(device, 'device_name', 'Not Found')}, "
+                     f"hostname: {getattr(device, 'hostname', 'Not Found')}")
+
+        logger.debug(f"Resolved device_name: {device_name}")
 
         if device_name == "Unnamed Device":
             logger.warning("Device name could not be determined from 'Name', 'device_name', or 'hostname'.")
