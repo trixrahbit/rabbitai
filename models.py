@@ -37,7 +37,7 @@ class TicketData(BaseModel):
 
 
 class DeviceData(BaseModel):
-    device_name: str = Field(alias="Name")  # Set 'Name' as alias for `device_name`
+    device_name: str  # Removed alias to avoid mismatch
     LastLoggedOnUser: Optional[str] = "N/A"
     IPv4Address: Optional[str] = "N/A"
     OperatingSystem: Optional[str] = "N/A"
@@ -62,7 +62,7 @@ class DeviceData(BaseModel):
     ImmyBot: bool = False
     Auvik: bool = False
     ITGlue: bool = False
-    Inactive_Computer: bool = False  # Ensure this attribute is included
+    Inactive_Computer: bool = False
 
     @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue", "Inactive_Computer", pre=True)
     def parse_yes_no(cls, v):
@@ -77,4 +77,4 @@ class DeviceData(BaseModel):
         return bool(v)
 
     class Config:
-        populate_by_name = True  # Updated to reflect Pydantic v2 config key
+        populate_by_name = True  # Ensure compatibility with Pydantic v2
