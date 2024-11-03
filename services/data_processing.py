@@ -58,10 +58,10 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
         # Antivirus presence check based on device type
         if device.Workstation_AD:
-            if device.antivirusProduct != "Microsoft Defender" or device.antivirusStatus != "RunningAndUpToDate":
+            if device.antivirusProduct != "Windows Defender Antivirus" or device.antivirusStatus != "RunningAndUpToDate":
                 analytics["issues"]["missing_defender_on_workstation"].append(device.Name)
         elif device.Server_AD:
-            if device.antivirusProduct != "Sentinel One" or device.antivirusStatus != "RunningAndUpToDate":
+            if device.antivirusProduct != "Sentinel Agent" or device.antivirusStatus != "RunningAndUpToDate":
                 analytics["issues"]["missing_sentinel_one_on_server"].append(device.Name)
 
         # Generic antivirus check for devices without expected antivirus products
