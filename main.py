@@ -11,13 +11,16 @@ async def count_tickets(request: Request):
     Endpoint to receive raw JSON data (either a single ticket object or a list of tickets) and return the count.
     """
     try:
-        # Parse the raw JSON input directly
+        # Log raw request body
+        body = await request.body()
+        logging.info("Raw request body: %s", body)
+
+        # Parse JSON data
         payload = await request.json()
 
-        # Handle case where payload is a list of tickets
+        # Check if payload is a list or a single dictionary (ticket)
         if isinstance(payload, list):
             ticket_count = len(payload)
-        # Handle case where payload is a single ticket object
         elif isinstance(payload, dict):
             ticket_count = 1
         else:
@@ -26,5 +29,5 @@ async def count_tickets(request: Request):
         return {"ticket_count": ticket_count}
 
     except Exception as e:
-        # Log and handle unexpected errors
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error("Error processing request: %s", str(e))
+        raise HTTPException(status_code=500, detail="Error processing JSON data")
