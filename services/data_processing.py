@@ -53,7 +53,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
     for device in device_data:
         # Ensure correct device name retrieval
-        device_name = getattr(device, 'Name', None) or getattr(device, 'device_name', "Unknown Device")
+        device_name = getattr(device, 'Name', None) or getattr(device, 'device_name', None) or "Unnamed Device"
         device_integrations = []
         missing_integrations = []
         integration_ids = {}
