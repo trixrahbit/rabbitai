@@ -33,3 +33,27 @@ class TicketData(BaseModel):
     createDate: str
     completedDate: Optional[str] = None
     userDefinedFields: Optional[List[UserDefinedField]] = None
+
+class DeviceData(BaseModel):
+    Name: str
+    LastLoggedOnUser: str = "N/A"
+    IPv4Address: str = "N/A"
+    OperatingSystem: str = "N/A"
+    antivirusProduct: str = "N/A"
+    antivirusStatus: str = "N/A"
+    lastReboot: str = "N/A"
+    lastSeen: str = "N/A"
+    patchStatus: str = "N/A"
+    rebootRequired: str = "N/A"
+    warrantyDate: str = "N/A"
+    datto_id: str = "N/A"
+    huntress_id: str = "N/A"
+    immy_id: str = "N/A"
+    auvik_id: str = "N/A"
+    Datto_RMM: str = "No"
+    Huntress: str = "No"
+    Workstation_AD: str = "No"
+    Server_AD: str = "No"
+    ImmyBot: str = "No"
+    Auvik: str = "No"
+    Inactive_Computer: str = "No"

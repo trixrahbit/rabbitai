@@ -1,6 +1,9 @@
+import json
 from datetime import datetime
 
 from fastapi import FastAPI, Depends, HTTPException, Request
+
+from models import DeviceData
 from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -127,3 +130,39 @@ async def ticket_stats(request: Request):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/report/")
+async def generate_report(device_data: list[DeviceData]):
+    # Organize data based on integration presence
+    summary_list = []
+    for device in device_data:
+        device_summary = {
+            "device_name": device.Name,
+            "Datto_RMM": device.Datto_RMM,
+            "Huntress": device.Huntress,
+            "Workstation_AD": device.Workstation_AD,
+            "Server_AD": device.Server_AD,
+            "ImmyBot": device.ImmyBot,
+            "Auvik": device.Auvik,
+            "Inactive_Computer": device.Inactive_Computer,
+            "LastLoggedInUser": device.LastLoggedOnUser,
+            "IPv4Address": device.IPv4Address,
+            "OperatingSystem": device.OperatingSystem,
+            "antivirusProduct": device.antivirusProduct,
+            "antivirusStatus": device.antivirusStatus,
+            "lastReboot": device.lastReboot,
+            "lastSeen": device.lastSeen,
+            "patchStatus": device.patchStatus,
+            "rebootRequired": device.rebootRequired,
+            "warrantyDate": device.warrantyDate,
+            "datto_id": device.datto_id,
+            "huntress_id": device.huntress_id,
+            "immy_id": device.immy_id,
+            "auvik_id": device.auvik_id
+        }
+        summary_list.append(device_summary)
+
+    # Optionally, add any additional categorization or summaries here.
+    categorized_data = json.dumps(summary_list)
+
+    return {"report": categorized_data}
