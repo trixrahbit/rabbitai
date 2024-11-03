@@ -57,7 +57,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         missing_integrations = []
         integration_ids = {}
 
-        # Initialize integration IDs to "N/A"
+        # Initialize integration IDs to "N/A" by default
         for integration in ["Datto_RMM", "Huntress", "ImmyBot", "Auvik", "ITGlue"]:
             integration_ids[integration] = "N/A"
 
@@ -73,7 +73,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             else:
                 missing_integrations.append(integration)
 
-        # Check if device has two or more integrations
+        # Check for devices with multiple integrations and populate `integration_matches`
         if len(device_integrations) > 1:
             analytics["integration_matches"].append({
                 "device_name": device_name,
