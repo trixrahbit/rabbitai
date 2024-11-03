@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Union
 
 
@@ -59,12 +59,12 @@ class DeviceData(BaseModel):
     Auvik: bool = False
     Inactive_Computer: bool = False
 
-    @field_validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "Inactive_Computer", pre=True)
+    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "Inactive_Computer", pre=True)
     def parse_yes_no(cls, v):
         if isinstance(v, str):
             return v == "Yes"
         return v
-    @field_validator("rebootRequired", pre=True)
+    @validator("rebootRequired", pre=True)
     def parse_reboot_required(cls, v):
         if v == "N/A":
             return None
