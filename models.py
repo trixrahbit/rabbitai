@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional,List, Dict
 
 class DataAggregationRequest(BaseModel):
@@ -46,8 +46,8 @@ class DeviceData(BaseModel):
     patchStatus: Optional[str] = "N/A"
     rebootRequired: Optional[bool] = False  # Use bool for consistent handling
     warrantyDate: Optional[str] = "N/A"     # Same as above if date needed
-    datto_id: Optional[int] = "N/A"
-    huntress_id: Optional[int] = "N/A"
+    datto_id: Optional[str] = "N/A"
+    huntress_id: Optional[str] = "N/A"
     immy_id: Optional[str] = "N/A"
     auvik_id: Optional[str] = "N/A"
     Datto_RMM: bool = False
@@ -57,3 +57,12 @@ class DeviceData(BaseModel):
     ImmyBot: bool = False
     Auvik: bool = False
     Inactive_Computer: bool = False
+
+    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "Inactive_Computer", pre=True)
+    def parse_yes_no(cls, v):
+        if isinstance(v, str):
+            return v == "Yes"
+        return v
+
+    class Config:
+        allow_population_by_field_name = True
