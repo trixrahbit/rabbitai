@@ -35,6 +35,7 @@ class TicketData(BaseModel):
     completedDate: Optional[str] = None
     userDefinedFields: Optional[List[UserDefinedField]] = None
 
+
 class DeviceData(BaseModel):
     Name: str = Field(alias="device_name")
     LastLoggedOnUser: Optional[str] = "N/A"
@@ -61,8 +62,10 @@ class DeviceData(BaseModel):
     ImmyBot: bool = False
     Auvik: bool = False
     ITGlue: bool = False
+    Inactive_Computer: bool = False  # Ensure this attribute is included
 
-    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue", pre=True, check_fields=False)
+    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue",
+               "Inactive_Computer", pre=True)
     def parse_yes_no(cls, v):
         if isinstance(v, str):
             return v == "Yes"
@@ -75,4 +78,4 @@ class DeviceData(BaseModel):
         return bool(v)
 
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True  # Updated to reflect Pydantic v2 config key
