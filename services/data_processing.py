@@ -96,7 +96,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             analytics["missing_integrations"][device_name] = missing_integrations
 
         # Antivirus checks
-        if device.Datato_RMM and (
+        if device.Datto_RMM and (
                 device.antivirusProduct != "Windows Defender Antivirus" or device.antivirusStatus != "RunningAndUpToDate"):
             analytics["issues"]["missing_defender_on_workstation"].append({
                 "device_name": device_name,
@@ -111,7 +111,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             })
             logger.debug(f"Missing SentinelOne on server: {device_name}")
 
-        if device.Datato_RMM and (not device.antivirusProduct or device.antivirusStatus != "RunningAndUpToDate"):
+        if device.Datto_RMM and (not device.antivirusProduct or device.antivirusStatus != "RunningAndUpToDate"):
             analytics["counts"]["no_antivirus"] += 1
             analytics["issues"]["no_antivirus_installed"].append({
                 "device_name": device_name,
