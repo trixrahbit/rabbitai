@@ -53,13 +53,17 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     }
 
     for device in device_data:
-        # Adjusted logic to explicitly check for each potential device name field
+        # Explicitly try each possible attribute for device name, adding logging for clarity
         device_name = (
                 getattr(device, 'Name', None) or
                 getattr(device, 'device_name', None) or
                 getattr(device, 'hostname', None) or
                 "Unnamed Device"
         )
+
+        if device_name == "Unnamed Device":
+            logger.warning(
+                f"Device name not found in fields 'Name', 'device_name', or 'hostname'. Defaulting to 'Unnamed Device'.")
 
         logger.debug(f"Processing device: {device_name}")
 
