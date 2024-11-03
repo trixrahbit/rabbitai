@@ -3,9 +3,25 @@ from datetime import datetime
 from fastapi import FastAPI, Depends, HTTPException, Request
 from security.auth import get_api_key
 import logging
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+# Define the Middleware Class
+class MaxBodySizeMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, max_body_size: int):
+        super().__init__(app)
+        self.max_body_size = max_body_size
+
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.max_body_size:
+            raise HTTPException(status_code=413, detail="Request body too large")
+        return await call_next(request)
+
 
 app = FastAPI()
 logging.basicConfig(filename="/var/www/rabbitai/webhook.log", level=logging.INFO)
+app.add_middleware(MaxBodySizeMiddleware, max_body_size=100_000_000)  # 100 MB
 
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
