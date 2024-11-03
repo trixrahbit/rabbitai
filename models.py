@@ -36,24 +36,24 @@ class TicketData(BaseModel):
 
 class DeviceData(BaseModel):
     Name: str
-    LastLoggedOnUser: str = "N/A"
-    IPv4Address: str = "N/A"
-    OperatingSystem: str = "N/A"
-    antivirusProduct: str = "N/A"
-    antivirusStatus: str = "N/A"
-    lastReboot: str = "N/A"
-    lastSeen: str = "N/A"
-    patchStatus: str = "N/A"
-    rebootRequired: str = "N/A"
-    warrantyDate: str = "N/A"
-    datto_id: str = "N/A"
-    huntress_id: str = "N/A"
-    immy_id: str = "N/A"
-    auvik_id: str = "N/A"
-    Datto_RMM: str = "No"
-    Huntress: str = "No"
-    Workstation_AD: str = "No"
-    Server_AD: str = "No"
-    ImmyBot: str = "No"
-    Auvik: str = "No"
-    Inactive_Computer: str = "No"
+    LastLoggedOnUser: Optional[str] = "N/A"
+    IPv4Address: Optional[str] = "N/A"
+    OperatingSystem: Optional[str] = "N/A"
+    antivirusProduct: Optional[str] = "N/A"
+    antivirusStatus: Optional[str] = "N/A"
+    lastReboot: Optional[str] = "N/A"  # Consider using datetime if dates are required
+    lastSeen: Optional[str] = "N/A"    # Same as above
+    patchStatus: Optional[str] = "N/A"
+    rebootRequired: Optional[bool] = False  # Use bool for consistent handling
+    warrantyDate: Optional[str] = "N/A"     # Same as above if date needed
+    datto_id: Optional[str] = "N/A"
+    huntress_id: Optional[str] = "N/A"
+    immy_id: Optional[str] = "N/A"
+    auvik_id: Optional[str] = "N/A"
+    Datto_RMM: bool = False
+    Huntress: bool = False
+    Workstation_AD: bool = False
+    Server_AD: bool = False
+    ImmyBot: bool = False
+    Auvik: bool = False
+    Inactive_Computer: bool = False
