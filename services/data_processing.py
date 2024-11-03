@@ -100,7 +100,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             logger.debug(f"Device {device_name} is missing integrations: {missing_integrations}")
 
         # Ensure critical integrations (Datto RMM and ImmyBot) are present
-        if not (getattr(device, 'Datto_RMM', "").lower() == "yes" and getattr(device, 'ImmyBot', "").lower() == "yes"):
+        if not (getattr(device, 'Datto_RMM', False) and getattr(device, 'ImmyBot', False)):
             analytics["issues"]["missing_critical_integrations"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids
@@ -129,14 +129,13 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             })
 
         # Antivirus checks only if Datto_RMM is present
-        datto_rmm_value = getattr(device, 'Datto_RMM', "").lower()
-        if datto_rmm_value == "yes":
+        if getattr(device, 'Datto_RMM', False):
             antivirusProduct = getattr(device, 'antivirusProduct', "")
             antivirusStatus = getattr(device, 'antivirusStatus', "")
-            workstation_ad_value = getattr(device, 'Workstation_AD', "").lower()
-            server_ad_value = getattr(device, 'Server_AD', "").lower()
+            workstation_ad_value = getattr(device, 'Workstation_AD', False)
+            server_ad_value = getattr(device, 'Server_AD', False)
 
-            if workstation_ad_value == "yes" and (
+            if workstation_ad_value and (
                 antivirusProduct != "Windows Defender Antivirus" or antivirusStatus != "RunningAndUpToDate"
             ):
                 analytics["issues"]["missing_defender_on_workstation"].append({
@@ -144,7 +143,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                     "integration_ids": integration_ids
                 })
 
-            elif server_ad_value == "yes" and (
+            elif server_ad_value and (
                 antivirusProduct != "Sentinel Agent" or antivirusStatus != "RunningAndUpToDate"
             ):
                 analytics["issues"]["missing_sentinel_one_on_server"].append({
@@ -161,15 +160,15 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
         # Last reboot check
         reboot_required = getattr(device, 'rebootRequired', None)
-        if reboot_required and reboot_required.lower() != "n/a":
+        if reboot_required and reboot_required != "N/A":
             analytics["issues"]["reboot_required"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids
             })
 
         # Inactivity and warranty checks
-        inactive_computer = getattr(device, 'Inactive_Computer', "").lower()
-        if inactive_computer == "yes":
+        inactive_computer = getattr(device, 'Inactive_Computer', False)
+        if inactive_computer:
             analytics["counts"]["inactive_devices"] += 1
             analytics["trends"]["recently_inactive_devices"] += 1
             analytics["issues"]["not_seen_recently"].append({
