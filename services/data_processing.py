@@ -66,17 +66,25 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         device_integrations = []
         missing_integrations = []
 
-        integrations_list = ["Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue"]
+        integrations_list = [
+            {"name": "Datto_RMM", "id_attr": "datto_id"},
+            {"name": "Huntress", "id_attr": "huntress_id"},
+            {"name": "Workstation_AD", "id_attr": "workstation_ad_id"},
+            {"name": "Server_AD", "id_attr": "server_ad_id"},
+            {"name": "ImmyBot", "id_attr": "immy_id"},
+            {"name": "Auvik", "id_attr": "auvik_id"},
+            {"name": "ITGlue", "id_attr": "itglue_id"}
+        ]
 
-        # Assign integration IDs based on device attributes
+        # Process each integration, determining presence and setting the ID correctly
         for integration in integrations_list:
-            # Extract the integration ID attribute
-            integration_id_attr = f"{integration.lower()}_id"
+            integration_name = integration["name"]
+            integration_id_attr = integration["id_attr"]
             integration_id = getattr(device, integration_id_attr, "N/A")
-            integration_ids[integration] = integration_id  # Ensure the ID is always assigned
+            integration_ids[integration_name] = integration_id
 
-            # Determine if the integration is present based on value (yes/no or boolean)
-            integration_value = getattr(device, integration, "No")
+            # Determine if the integration is present based on "Yes"/"No" or boolean
+            integration_value = getattr(device, integration_name, "No")
             if isinstance(integration_value, bool):
                 is_integration_present = integration_value
             elif isinstance(integration_value, str):
@@ -84,17 +92,17 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             else:
                 is_integration_present = bool(integration_value)
 
-            # Track integration presence and log ID
+            # Track presence and log ID if present
             if is_integration_present:
-                analytics["counts"]["integrations"][integration] += 1
-                device_integrations.append(integration)
-                logger.debug(f"{integration} is present for device: {device_name} with ID: {integration_id}")
+                analytics["counts"]["integrations"][integration_name] += 1
+                device_integrations.append(integration_name)
+                logger.debug(f"{integration_name} is present for device: {device_name} with ID: {integration_id}")
             else:
-                missing_integrations.append(integration)
-                logger.debug(f"{integration} is not present for device: {device_name}; ID: {integration_id}")
+                missing_integrations.append(integration_name)
+                logger.debug(f"{integration_name} is not present for device: {device_name}; ID: {integration_id}")
 
         # Add to integration matches if any integrations were found
-        if len(device_integrations) > 0:
+        if device_integrations:
             analytics["integration_matches"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
