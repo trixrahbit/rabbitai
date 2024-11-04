@@ -28,6 +28,11 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "ImmyBot": 0,
                 "Auvik": 0,
                 "ITGlue": 0
+            },
+            "match_summary": {
+                "full_matches": 0,
+                "partial_matches": 0,
+                "no_matches": 0
             }
         },
         "issues": {
@@ -109,15 +114,26 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 missing_integrations.append(integration_name)
                 logger.debug(f"{integration_name} is not present for device: {device_name}; ID: {integration_id}")
 
-        # Add to integration matches if any integrations were found
-        if device_integrations:
+        # Determine match type
+        match_count = len(device_integrations)
+        if match_count == len(integrations_list):  # Full match
+            analytics["counts"]["match_summary"]["full_matches"] += 1
             analytics["integration_matches"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
                 "matched_integrations": device_integrations
             })
-
-        if missing_integrations:
+        elif match_count >= 2:  # Partial match (2 or more)
+            analytics["counts"]["match_summary"]["partial_matches"] += 1
+            analytics["integration_matches"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids,
+                "matched_integrations": device_integrations
+            })
+        else:  # No match or only one integration
+            analytics["counts"]["match_summary"]["no_matches"] += 1
+            if match_count == 1:
+                missing_integrations.append(device_integrations[0])  # Single integration as "not matched"
             analytics["missing_integrations"][device_name] = missing_integrations
 
         # Antivirus checks based on Datto_RMM or Server_AD
@@ -166,21 +182,18 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
         # Classify OS based on support status
         if os_name in older_os_versions:
-            # Older OS versions are classified as "end of life"
             analytics["os_metrics"]["end_of_life"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
                 "os": os_name
             })
         elif os_name.lower() in ["windows 10", "windows server 2016"]:
-            # Windows 10 and Windows Server 2016 are considered "end of support"
             analytics["os_metrics"]["end_of_support"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
                 "os": os_name
             })
         else:
-            # Other versions are considered "supported"
             analytics["os_metrics"]["supported"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
