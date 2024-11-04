@@ -52,6 +52,13 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         }
     }
 
+    # List of unsupported or end-of-life OS versions
+    older_os_versions = [
+        "Windows 7", "Windows 8", "Windows 8.1", "Windows Vista",
+        "Windows XP", "Windows Server 2008", "Windows Server 2008 R2",
+        "Windows Server 2012", "Windows Server 2012 R2"
+    ]
+
     for device in device_data:
         # Set device name, handle "N/A" separately
         device_name = getattr(device, 'device_name', None)
@@ -91,9 +98,10 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             else:
                 is_integration_present = bool(integration_value)
 
-            # Only add to integration_ids if the integration is present and has a valid ID
-            if is_integration_present and integration_id != "N/A":
-                integration_ids[integration_name] = integration_id
+            # Only add to integration_ids and update counts if integration is present
+            if is_integration_present:
+                if integration_id != "N/A":
+                    integration_ids[integration_name] = integration_id
                 analytics["counts"]["integrations"][integration_name] += 1
                 device_integrations.append(integration_name)
                 logger.debug(f"{integration_name} is present for device: {device_name} with ID: {integration_id}")
@@ -157,19 +165,22 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         analytics["os_metrics"]["os_counts"][os_name] += 1
 
         # Classify OS based on support status
-        if os_name.lower().startswith("windows server") and "2016" not in os_name:
+        if os_name in older_os_versions:
+            # Older OS versions are classified as "end of life"
             analytics["os_metrics"]["end_of_life"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
                 "os": os_name
             })
         elif os_name.lower() in ["windows 10", "windows server 2016"]:
+            # Windows 10 and Windows Server 2016 are considered "end of support"
             analytics["os_metrics"]["end_of_support"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
                 "os": os_name
             })
         else:
+            # Other versions are considered "supported"
             analytics["os_metrics"]["supported"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
