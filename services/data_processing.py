@@ -81,7 +81,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             integration_name = integration["name"]
             integration_id_attr = integration["id_attr"]
             integration_id = getattr(device, integration_id_attr, "N/A")
-            integration_ids[integration_name] = integration_id
 
             # Determine if the integration is present based on "Yes"/"No" or boolean
             integration_value = getattr(device, integration_name, "No")
@@ -92,8 +91,9 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             else:
                 is_integration_present = bool(integration_value)
 
-            # Track presence and log ID if present
-            if is_integration_present:
+            # Only add to integration_ids if the integration is present and has a valid ID
+            if is_integration_present and integration_id != "N/A":
+                integration_ids[integration_name] = integration_id
                 analytics["counts"]["integrations"][integration_name] += 1
                 device_integrations.append(integration_name)
                 logger.debug(f"{integration_name} is present for device: {device_name} with ID: {integration_id}")
@@ -113,7 +113,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             analytics["missing_integrations"][device_name] = missing_integrations
 
         # Antivirus checks based on Datto_RMM or Server_AD
-        if integration_ids["Datto_RMM"] != "N/A" and device.antivirusProduct == "N/A":
+        if integration_ids.get("Datto_RMM") and device.antivirusProduct == "N/A":
             analytics["counts"]["no_antivirus"] += 1
             analytics["issues"]["no_antivirus_installed"].append({
                 "device_name": device_name,
