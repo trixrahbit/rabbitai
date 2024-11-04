@@ -79,8 +79,17 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
         # Check integration presence and count
         for integration in integrations_list:
-            integration_value = getattr(device, integration, "No").lower()
-            if integration_value == "yes":
+            integration_value = getattr(device, integration, "No")
+
+            # Ensure we handle boolean and string values correctly
+            if isinstance(integration_value, bool):
+                is_integration_present = integration_value
+            elif isinstance(integration_value, str):
+                is_integration_present = integration_value.lower() == "yes"
+            else:
+                is_integration_present = bool(integration_value)
+
+            if is_integration_present:
                 analytics["counts"]["integrations"][integration] += 1
                 device_integrations.append(integration)
                 logger.debug(f"{integration} is present for device: {device_name}")
