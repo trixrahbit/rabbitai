@@ -53,47 +53,37 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     }
 
     for device in device_data:
-        # Determine device name using various possible attributes
-        device_name = (
-                getattr(device, 'Name', None) or
-                getattr(device, 'device_name', None) or
-                getattr(device, 'hostname', None) or
-                "Unnamed Device"
-        )
+        # Set device name, handle "N/A" separately
+        device_name = getattr(device, 'device_name', None)
+        if not device_name or device_name == "N/A":
+            device_name = "Unnamed Device"
+            logger.warning(f"Device name is missing or 'N/A' for one of the devices.")
+
         logger.debug(f"Resolved device name: {device_name}")
 
-        # Track integration IDs and presence
+        # Initialize integration IDs and flags
+        integration_ids = {}
         device_integrations = []
         missing_integrations = []
-        integration_ids = {}
 
         integrations_list = ["Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue"]
 
-        # Populate integration IDs and log if any integration ID is missing
+        # Assign integration IDs based on device attributes
         for integration in integrations_list:
             integration_id_attr = f"{integration.lower()}_id"
             integration_ids[integration] = getattr(device, integration_id_attr, "N/A")
-            if integration == "Datto_RMM" and integration_ids[integration] == "N/A":
-                logger.warning(f"Datto_RMM ID is missing for device: {device_name}")
+            if integration_ids[integration] == "N/A":
+                logger.warning(f"{integration} ID is missing for device: {device_name}")
             else:
                 logger.debug(f"{integration} ID for {device_name}: {integration_ids[integration]}")
 
-        # Check for presence of each integration
+        # Check integration presence and count
         for integration in integrations_list:
-            integration_value = getattr(device, integration, None)
-
-            is_integration_present = False
-            if isinstance(integration_value, str):
-                is_integration_present = integration_value.lower() == "yes"
-            elif isinstance(integration_value, bool):
-                is_integration_present = integration_value
-            else:
-                is_integration_present = bool(integration_value)
-
-            if is_integration_present:
+            integration_value = getattr(device, integration, "No").lower()
+            if integration_value == "yes":
                 analytics["counts"]["integrations"][integration] += 1
                 device_integrations.append(integration)
-                logger.debug(f"{integration} present for device: {device_name}")
+                logger.debug(f"{integration} is present for device: {device_name}")
             else:
                 missing_integrations.append(integration)
 
@@ -107,16 +97,14 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         if missing_integrations:
             analytics["missing_integrations"][device_name] = missing_integrations
 
-        # Antivirus checks
-        if integration_ids["Datto_RMM"] != "N/A":  # Only check if Datto_RMM ID is present
-            if device.antivirusProduct not in ["Windows Defender Antivirus",
-                                               "Sentinel Agent"] or device.antivirusStatus != "RunningAndUpToDate":
-                analytics["issues"]["no_antivirus_installed"].append({
-                    "device_name": device_name,
-                    "integration_ids": integration_ids
-                })
-                analytics["counts"]["no_antivirus"] += 1
-                logger.debug(f"Antivirus issue on device: {device_name}")
+        # Antivirus checks based on Datto_RMM or Server_AD
+        if integration_ids["Datto_RMM"] != "N/A" and device.antivirusProduct == "N/A":
+            analytics["counts"]["no_antivirus"] += 1
+            analytics["issues"]["no_antivirus_installed"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids
+            })
+            logger.debug(f"Antivirus missing on device: {device_name}")
 
         if device.rebootRequired not in ["N/A", None]:
             analytics["issues"]["reboot_required"].append({
@@ -124,7 +112,8 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "integration_ids": integration_ids
             })
 
-        if device.Inactive_Computer:
+        # Track inactive devices
+        if device.Inactive_Computer == "Yes":
             analytics["counts"]["inactive_devices"] += 1
             analytics["trends"]["recently_inactive_devices"] += 1
             analytics["issues"]["not_seen_recently"].append({
@@ -134,6 +123,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         else:
             analytics["trends"]["recently_active_devices"] += 1
 
+        # Warranty checks
         if device.warrantyDate != "N/A":
             try:
                 warranty_date = datetime.strptime(device.warrantyDate, "%Y-%m-%d")
@@ -143,14 +133,15 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                         "integration_ids": integration_ids
                     })
             except ValueError:
-                logger.warning(f"Invalid warranty date for device: {device_name}")
+                logger.warning(f"Invalid warranty date format for device: {device_name}")
 
-        # OS version check and metrics
+        # OS metrics
         os_name = device.OperatingSystem or "Unknown OS"
         if os_name not in analytics["os_metrics"]["os_counts"]:
             analytics["os_metrics"]["os_counts"][os_name] = 0
         analytics["os_metrics"]["os_counts"][os_name] += 1
 
+        # Classify OS based on support status
         if os_name.lower().startswith("windows server") and "2016" not in os_name:
             analytics["os_metrics"]["end_of_life"].append({
                 "device_name": device_name,
