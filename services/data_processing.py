@@ -53,33 +53,32 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     }
 
     for device in device_data:
-        # Explicit check and log for each name attribute
+        # Determine device name using various possible attributes
         device_name = (
                 getattr(device, 'Name', None) or
                 getattr(device, 'device_name', None) or
                 getattr(device, 'hostname', None) or
                 "Unnamed Device"
         )
+        logger.debug(f"Resolved device name: {device_name}")
 
-        logger.debug(f"Device attributes - Name: {getattr(device, 'Name', 'Not Found')}, "
-                     f"device_name: {getattr(device, 'device_name', 'Not Found')}, "
-                     f"hostname: {getattr(device, 'hostname', 'Not Found')}")
-
-        logger.debug(f"Resolved device_name: {device_name}")
-
-        if device_name == "Unnamed Device":
-            logger.warning("Device name could not be determined from 'Name', 'device_name', or 'hostname'.")
-
+        # Track integration IDs and presence
         device_integrations = []
         missing_integrations = []
         integration_ids = {}
 
         integrations_list = ["Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue"]
 
+        # Populate integration IDs and log if any integration ID is missing
         for integration in integrations_list:
             integration_id_attr = f"{integration.lower()}_id"
             integration_ids[integration] = getattr(device, integration_id_attr, "N/A")
+            if integration == "Datto_RMM" and integration_ids[integration] == "N/A":
+                logger.warning(f"Datto_RMM ID is missing for device: {device_name}")
+            else:
+                logger.debug(f"{integration} ID for {device_name}: {integration_ids[integration]}")
 
+        # Check for presence of each integration
         for integration in integrations_list:
             integration_value = getattr(device, integration, None)
 
@@ -109,27 +108,15 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             analytics["missing_integrations"][device_name] = missing_integrations
 
         # Antivirus checks
-        if device.Datto_RMM and (
-                device.antivirusProduct != "Windows Defender Antivirus" or device.antivirusStatus != "RunningAndUpToDate"):
-            analytics["issues"]["missing_defender_on_workstation"].append({
-                "device_name": device_name,
-                "integration_ids": integration_ids
-            })
-            logger.debug(f"Missing Defender on workstation: {device_name}")
-        elif device.Server_AD and (
-                device.antivirusProduct != "Sentinel Agent" or device.antivirusStatus != "RunningAndUpToDate"):
-            analytics["issues"]["missing_sentinel_one_on_server"].append({
-                "device_name": device_name,
-                "integration_ids": integration_ids
-            })
-            logger.debug(f"Missing SentinelOne on server: {device_name}")
-
-        if device.Datto_RMM and (not device.antivirusProduct or device.antivirusStatus != "RunningAndUpToDate"):
-            analytics["counts"]["no_antivirus"] += 1
-            analytics["issues"]["no_antivirus_installed"].append({
-                "device_name": device_name,
-                "integration_ids": integration_ids
-            })
+        if integration_ids["Datto_RMM"] != "N/A":  # Only check if Datto_RMM ID is present
+            if device.antivirusProduct not in ["Windows Defender Antivirus",
+                                               "Sentinel Agent"] or device.antivirusStatus != "RunningAndUpToDate":
+                analytics["issues"]["no_antivirus_installed"].append({
+                    "device_name": device_name,
+                    "integration_ids": integration_ids
+                })
+                analytics["counts"]["no_antivirus"] += 1
+                logger.debug(f"Antivirus issue on device: {device_name}")
 
         if device.rebootRequired not in ["N/A", None]:
             analytics["issues"]["reboot_required"].append({
