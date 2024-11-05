@@ -169,7 +169,19 @@ async def generate_report(device_data: List[DeviceData]):
 @app.get("/download/{filename}")
 async def download_report(filename: str):
     pdf_path = os.path.join("/tmp", filename)
+
     if os.path.exists(pdf_path):
-        return FileResponse(path=pdf_path, filename=filename)
+        # Define a custom cleanup function to delete the file after sending
+        def cleanup_file(path):
+            try:
+                os.remove(path)
+                print(f"Deleted file: {path}")
+            except Exception as e:
+                print(f"Error deleting file: {e}")
+
+        # Return the FileResponse with the cleanup function
+        response = FileResponse(path=pdf_path, filename=filename)
+        response.call_on_close(lambda: cleanup_file(pdf_path))
+        return response
     else:
         raise HTTPException(status_code=404, detail="File not found")

@@ -28,7 +28,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "Auvik": 0,
                 "ITGlue": 0
             },
-
             "match_summary": {
                 "full_matches": 0,
                 "partial_matches": 0,
@@ -91,6 +90,10 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         device_integrations = []
         missing_integrations = []
 
+        # Determine device type for integration validation
+        is_server = getattr(device, "Server_AD", False)
+        is_workstation = getattr(device, "Workstation_AD", False)
+
         integrations_list = [
             {"name": "Datto_RMM", "id_attr": "datto_id"},
             {"name": "Huntress", "id_attr": "huntress_id"},
@@ -108,6 +111,10 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
             integration_value = getattr(device, integration_name, "No")
             is_integration_present = integration_value == "Yes" if isinstance(integration_value, str) else bool(integration_value)
+
+            # Apply filtering logic for incompatible integrations
+            if (integration_name == "Workstation_AD" and is_server) or (integration_name == "Server_AD" and is_workstation):
+                continue  # Skip incompatible integration for device type
 
             if is_integration_present:
                 if integration_id != "N/A":
