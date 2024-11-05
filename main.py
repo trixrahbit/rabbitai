@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from typing import List
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 
@@ -8,6 +9,7 @@ from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from services.ai_processing import generate_recommendations
 from services.data_processing import generate_analytics
 
 
@@ -133,8 +135,9 @@ async def ticket_stats(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/report/", dependencies=[Depends(get_api_key)])
-async def generate_report(device_data: list[DeviceData]):
+async def generate_report(device_data: List[DeviceData]):
     summary_list = []
     for device in device_data:
         device_summary = {
@@ -165,6 +168,15 @@ async def generate_report(device_data: list[DeviceData]):
         }
         summary_list.append(device_summary)
 
-    # Generate analytics based on the device data
+    # Step 1: Generate analytics based on the device data
     analytics = generate_analytics(device_data)
-    return {"report": summary_list, "analytics": analytics}
+
+    # Step 2: Generate recommendations based on the analytics data
+    recommendations = generate_recommendations(analytics)
+
+    # Step 3: Return both analytics and recommendations in the response
+    return {
+        "report": summary_list,
+        "analytics": analytics,
+        "recommendations": recommendations
+    }
