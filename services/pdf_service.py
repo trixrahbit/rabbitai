@@ -1,70 +1,118 @@
 from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 from reportlab.lib import colors
+from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 import os
 
-def generate_pdf_report(analytics: dict, recommendations: list, filename="board_report.pdf"):
-    # Define the PDF path
+
+def generate_pdf_report(analytics: dict, recommendations: dict, filename="report.pdf"):
     pdf_path = os.path.join("/tmp", filename)
     doc = SimpleDocTemplate(pdf_path, pagesize=letter)
     elements = []
     styles = getSampleStyleSheet()
 
-    # Title Section
-    title = Paragraph("Board-Approved Device Analytics Report", styles['Title'])
-    elements.append(title)
-    elements.append(Spacer(1, 12))
+    # Title
+    elements.append(Paragraph("Board-Approved Report", styles['Title']))
+    elements.append(Spacer(1, 0.2 * inch))
 
-    # Analytics Sections
-    elements.append(Paragraph("1. Device Analytics Summary", styles['Heading1']))
-    counts = analytics["counts"]
+    # Manufacturers Section
+    elements.append(Paragraph("Manufacturers Count", styles['Heading2']))
+    manufacturers_data = [["Manufacturer", "Count"]] + [[name, count] for name, count in
+                                                        analytics["counts"]["unique_manufacturers"].items()]
+    manufacturers_table = Table(manufacturers_data, colWidths=[3 * inch, 2 * inch])
+    manufacturers_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+    elements.append(manufacturers_table)
+    elements.append(Spacer(1, 0.2 * inch))
 
-    # Integration Counts Table
-    elements.append(Paragraph("1.1 Integration Counts", styles['Heading2']))
-    integration_data = [["Integration", "Count"]]
-    for integration, count in counts["integrations"].items():
-        integration_data.append([integration, count])
-    table = Table(integration_data)
-    table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                               ('GRID', (0, 0), (-1, -1), 0.5, colors.black)]))
-    elements.append(table)
-    elements.append(Spacer(1, 12))
+    # Integration Matches Section
+    elements.append(Paragraph("Integration Matches", styles['Heading2']))
+    integration_data = [["Device Name", "Matched Integrations"]]
+    for match in analytics["integration_matches"]:
+        device_name = match["device_name"]
+        matched_integrations = ", ".join(match["matched_integrations"])
+        integration_data.append([device_name, matched_integrations])
+    integration_table = Table(integration_data, colWidths=[3 * inch, 3 * inch])
+    integration_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.lightyellow),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+    elements.append(integration_table)
+    elements.append(Spacer(1, 0.2 * inch))
 
-    # Unique Device Counts
-    elements.append(Paragraph("1.2 Unique Device Identifiers", styles['Heading2']))
-    unique_data = [
-        ["Attribute", "Count"],
-        ["Manufacturers", len(counts["unique_manufacturers"])],
-        ["Models", len(counts["unique_models"])],
-        ["Serial Numbers", counts["unique_serial_numbers"]]
+    # Missing Integrations Section
+    elements.append(Paragraph("Missing Integrations", styles['Heading2']))
+    missing_integrations_data = [["Device Name", "Missing Integrations"]]
+    for device_name, missing_list in analytics["missing_integrations"].items():
+        missing_integrations_data.append([device_name, ", ".join(missing_list)])
+    missing_integrations_table = Table(missing_integrations_data, colWidths=[3 * inch, 3 * inch])
+    missing_integrations_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.lightpink),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+    elements.append(missing_integrations_table)
+    elements.append(Spacer(1, 0.2 * inch))
+
+    # Trends Section
+    elements.append(Paragraph("Device Trends", styles['Heading2']))
+    trends_data = [
+        ["Recently Active Devices", analytics["trends"]["recently_active_devices"]],
+        ["Recently Inactive Devices", analytics["trends"]["recently_inactive_devices"]]
     ]
-    unique_table = Table(unique_data)
-    unique_table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                                      ('GRID', (0, 0), (-1, -1), 0.5, colors.black)]))
-    elements.append(unique_table)
-    elements.append(Spacer(1, 12))
+    trends_table = Table(trends_data, colWidths=[4 * inch, 2 * inch])
+    trends_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.lightblue),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+    elements.append(trends_table)
+    elements.append(Spacer(1, 0.2 * inch))
 
-    # Issues Section
-    elements.append(Paragraph("2. Issues Detected", styles['Heading1']))
-    for issue_type, issues in analytics["issues"].items():
-        elements.append(Paragraph(f"{issue_type.replace('_', ' ').title()}", styles['Heading2']))
-        if issues:
-            issue_data = [["Device Name", "Integration IDs"]]
-            for issue in issues:
-                issue_data.append([issue["device_name"], issue["integration_ids"]])
-            issue_table = Table(issue_data)
-            issue_table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), 0.5, colors.black)]))
-            elements.append(issue_table)
-        else:
-            elements.append(Paragraph("No issues detected.", styles['Normal']))
-        elements.append(Spacer(1, 12))
+    # Recommendations and Strategic Plan
+    elements.append(Paragraph("Device Recommendations", styles['Heading2']))
+    if recommendations.get("device_recommendations"):
+        for rec in recommendations["device_recommendations"]:
+            elements.append(Paragraph(rec, styles['BodyText']))
+            elements.append(Spacer(1, 0.1 * inch))
+    else:
+        elements.append(Paragraph("No recommendations available.", styles['BodyText']))
 
-    # Recommendations Section
-    elements.append(Paragraph("3. Recommendations", styles['Heading1']))
-    for recommendation in recommendations:
-        elements.append(Paragraph(f"- {recommendation}", styles['Normal']))
+    elements.append(Spacer(1, 0.2 * inch))
+    elements.append(Paragraph("Strategic Plan", styles['Heading2']))
+    if recommendations.get("strategic_plan"):
+        for strategy in recommendations["strategic_plan"]:
+            elements.append(Paragraph(strategy, styles['BodyText']))
+            elements.append(Spacer(1, 0.1 * inch))
+    else:
+        elements.append(Paragraph("No strategic plan details available.", styles['BodyText']))
 
-    # Build the PDF
+    # Build and save PDF
     doc.build(elements)
     return pdf_path

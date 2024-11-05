@@ -163,7 +163,7 @@ async def generate_report(device_data: List[DeviceData]):
     filename = f"board_report_{uuid.uuid4()}.pdf"
     pdf_path = generate_pdf_report(analytics, recommendations, filename=filename)
 
-    return {"download_url": f"/download/{filename}"}
+    return {"download_url": f"https://rabbit.webitservices.com/download/{filename}"}
 
 
 @app.get("/download/{filename}")
