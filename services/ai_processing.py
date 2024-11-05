@@ -73,10 +73,13 @@ def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, st
     }
     data = {
         "prompt": prompt,
-        "max_tokens": 150
+        "max_tokens": 150,
+        "temperature": 1.0,
+        "n": 1
     }
+
     response = requests.post(
-        f"{AZURE_OPENAI_ENDPOINT}openai/deployments/{AZURE_OPENAI_DEPLOYMENT}/completions?api-version=2022-12-01",
+        f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_OPENAI_DEPLOYMENT}/completions?api-version=2023-05-15",
         headers=headers,
         json=data
     )
@@ -91,15 +94,12 @@ def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, st
 
     try:
         # Ensure 'choices' is in the response
-        recommendation_text = response.json().get("choices", [{}])[0].get("text", "").strip()
-        if not recommendation_text:
-            raise KeyError("No recommendation text found in response.")
-
+        recommendation_text = response.json()["choices"][0]["text"].strip()
         return {
             "issue_type": issue_type,
             "recommendation": recommendation_text
         }
-    except KeyError as e:
+    except (KeyError, IndexError) as e:
         logger.error(f"Failed to retrieve recommendation text from response: {response.json()}")
         return {
             "issue_type": issue_type,
