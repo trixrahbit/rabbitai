@@ -1,5 +1,6 @@
 from typing import List, Dict
 from datetime import datetime
+from collections import defaultdict
 from config import logger
 from models import DeviceData, TicketData
 
@@ -24,8 +25,8 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "Auvik": 0,
                 "ITGlue": 0
             },
-            "unique_manufacturers": set(),
-            "unique_models": set(),
+            "unique_manufacturers": defaultdict(int),  # Track manufacturer names and counts
+            "unique_models": defaultdict(int),
             "unique_serial_numbers": set(),
             "match_summary": {
                 "full_matches": 0,
@@ -74,8 +75,9 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         model = getattr(device, "model_name", "Unknown")
         serial_number = getattr(device, "serial_number", "Unknown")
 
-        analytics["counts"]["unique_manufacturers"].add(manufacturer)
-        analytics["counts"]["unique_models"].add(model)
+        # Update counts for manufacturer and model
+        analytics["counts"]["unique_manufacturers"][manufacturer] += 1
+        analytics["counts"]["unique_models"][model] += 1
         analytics["counts"]["unique_serial_numbers"].add(serial_number)
 
         integration_ids = {}
@@ -187,8 +189,8 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "os": os_name
             })
 
-    analytics["counts"]["unique_manufacturers"] = len(analytics["counts"]["unique_manufacturers"])
-    analytics["counts"]["unique_models"] = len(analytics["counts"]["unique_models"])
+    analytics["counts"]["unique_manufacturers"] = dict(analytics["counts"]["unique_manufacturers"])
+    analytics["counts"]["unique_models"] = dict(analytics["counts"]["unique_models"])
     analytics["counts"]["unique_serial_numbers"] = len(analytics["counts"]["unique_serial_numbers"])
 
     logger.debug(f"Final analytics counts: {analytics['counts']['integrations']}")
