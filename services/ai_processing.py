@@ -35,13 +35,16 @@ def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, st
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment_name}/completions?api-version=2023-05-15"
 
     try:
-        # Constructing the payload to match the expected format for Azure OpenAI completions endpoint
+        # Constructing the payload to match Azure's expected format
         data = {
             "prompt": prompt,
             "max_tokens": 150,
             "temperature": 0.7,
             "n": 1
         }
+
+        # Debugging: Log the payload being sent
+        logger.debug(f"Sending payload to Azure OpenAI: {json.dumps(data)}")
 
         response = httpx.post(
             url,
@@ -52,18 +55,27 @@ def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, st
             json=data
         )
 
-        # Check for errors in the response
+        # Raise for any HTTP error statuses
         response.raise_for_status()
+
+        # Extract recommendation from the response
         recommendation_text = response.json()['choices'][0]['text'].strip()
         return {
             "issue_type": issue_type,
             "recommendation": recommendation_text
         }
+
     except httpx.HTTPStatusError as e:
-        logger.error(f"Failed to retrieve recommendation text: {e}")
+        logger.error(f"Failed to retrieve recommendation text: {e} - Response: {response.text}")
         return {
             "issue_type": issue_type,
             "recommendation": "Error: Unable to generate recommendation due to API error."
+        }
+    except KeyError:
+        logger.error(f"Unexpected response format: {response.json()}")
+        return {
+            "issue_type": issue_type,
+            "recommendation": "Error: Unexpected response format from Azure OpenAI API."
         }
 
 def build_recommendation_prompt(issue_type: str, issue_details: List[Dict[str, str]]) -> str:
