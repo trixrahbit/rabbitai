@@ -31,24 +31,30 @@ def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[
 
 def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
     prompt = build_recommendation_prompt(issue_type, issue_details)
-    messages = [{"role": "user", "content": prompt}]
 
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment_name}/completions?api-version=2023-05-15"
 
     try:
-        # Make the HTTP request directly with httpx
+        # Constructing the payload to match the expected format for Azure OpenAI completions endpoint
+        data = {
+            "prompt": prompt,
+            "max_tokens": 150,
+            "temperature": 0.7,
+            "n": 1
+        }
+
         response = httpx.post(
             url,
             headers={
                 "Content-Type": "application/json",
                 "api-key": AZURE_API_KEY
             },
-            json={"model": deployment_name, "messages": messages}
+            json=data
         )
 
         # Check for errors in the response
         response.raise_for_status()
-        recommendation_text = response.json()['choices'][0]['message']['content'].strip()
+        recommendation_text = response.json()['choices'][0]['text'].strip()
         return {
             "issue_type": issue_type,
             "recommendation": recommendation_text
@@ -59,7 +65,6 @@ def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, st
             "issue_type": issue_type,
             "recommendation": "Error: Unable to generate recommendation due to API error."
         }
-
 
 def build_recommendation_prompt(issue_type: str, issue_details: List[Dict[str, str]]) -> str:
     # Generate a descriptive prompt based on the issue type and details
