@@ -16,7 +16,6 @@ def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[
         "general_recommendations": []
     }
 
-    # Mapping each issue type to a descriptive prompt
     issue_prompts = {
         "no_antivirus_installed": "Some devices are missing antivirus protection. Here are the devices: {}. Generate recommendations on how to address this issue, including actions to install and enforce antivirus protection.",
         "missing_defender_on_workstation": "Some workstations are missing Windows Defender. Here are the devices: {}. Provide recommendations for ensuring antivirus coverage on all workstations.",
@@ -28,10 +27,16 @@ def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[
         "end_of_support": "Some devices are running operating systems that are nearing or at end of support. Here are the devices: {}. Suggest strategies for upgrading these devices to supported OS versions."
     }
 
-    # Generate recommendations for each issue type
     for issue_type, devices in analytics["issues"].items():
         if devices:  # Only generate recommendation if there are devices with this issue
-            device_names = [device["device_name"] for device in devices]
+            # Check if devices is a list of dictionaries with 'device_name' key
+            if isinstance(devices, list) and all(isinstance(device, dict) and "device_name" in device for device in devices):
+                device_names = [device["device_name"] for device in devices]
+            else:
+                # Fallback if data structure is not as expected
+                device_names = ["Unknown device"]
+
+            # Create the prompt
             prompt = issue_prompts.get(issue_type, "").format(device_names)
 
             if prompt:
@@ -40,6 +45,7 @@ def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[
                 recommendations["general_recommendations"].append(recommendation)
 
     return recommendations
+
 
 
 def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
