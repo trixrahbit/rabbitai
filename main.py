@@ -160,11 +160,17 @@ async def generate_report(device_data: List[DeviceData]):
     analytics = generate_analytics(device_data)
     recommendations = generate_recommendations(analytics)
 
-    filename = f"board_report_{uuid.uuid4()}.pdf"
+    filename = f"rabbit_report_{uuid.uuid4()}.pdf"
     pdf_path = generate_pdf_report(analytics, recommendations, filename=filename)
 
-    return {"download_url": f"https://rabbit.webitservices.com/download/{filename}"}
-
+    return {
+        "download_url": f"https://rabbit.webitservices.com/download/{filename}",
+        "report": {
+            "summary": summary_list,
+            "analytics": analytics,
+            "recommendations": recommendations
+        }
+    }
 
 def cleanup_file(path: str):
     try:

@@ -4,12 +4,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from collections import Counter
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
 import os
-
-# Register a custom font if desired
-#pdfmetrics.registerFont(TTFont('Helvetica', 'Helvetica.ttf'))
 
 def add_section_header(elements, title, color=colors.darkblue):
     """Utility function to add a styled section header."""
@@ -23,7 +18,23 @@ def add_section_header(elements, title, color=colors.darkblue):
     )
     elements.append(Paragraph(title, header_style))
     elements.append(Spacer(1, 0.05 * inch))
-    elements.append(Spacer(1, 0.02 * inch))
+
+def create_wrapped_table(data, col_widths):
+    """Creates a table with wrapped text cells to prevent overflow."""
+    table_data = [[Paragraph(cell, getSampleStyleSheet()["BodyText"]) if isinstance(cell, str) else cell for cell in row] for row in data]
+    table = Table(table_data, colWidths=col_widths)
+    table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+    ]))
+    return table
 
 def generate_pdf_report(analytics: dict, recommendations: dict, filename="report.pdf"):
     pdf_path = os.path.join("/tmp", filename)
@@ -42,20 +53,7 @@ def generate_pdf_report(analytics: dict, recommendations: dict, filename="report
     add_section_header(elements, "Manufacturers Count", color=colors.Color(0.2, 0.4, 0.6))
     manufacturer_counts = Counter(analytics["counts"]["unique_manufacturers"])
     manufacturers_data = [["Manufacturer", "Count"]] + [[name, count] for name, count in manufacturer_counts.items()]
-    manufacturers_table = Table(manufacturers_data, colWidths=[4 * inch, 1.5 * inch])
-    manufacturers_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.2, 0.4, 0.6)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
-        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    elements.append(manufacturers_table)
+    elements.append(create_wrapped_table(manufacturers_data, col_widths=[4 * inch, 1.5 * inch]))
     elements.append(Spacer(1, 0.2 * inch))
 
     # Integration Matches Section
@@ -65,19 +63,7 @@ def generate_pdf_report(analytics: dict, recommendations: dict, filename="report
         device_name = match["device_name"]
         matched_integrations = ", ".join(match["matched_integrations"])
         integration_data.append([device_name, matched_integrations])
-    integration_table = Table(integration_data, colWidths=[3 * inch, 3 * inch])
-    integration_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.3, 0.5, 0.3)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.Color(0.9, 0.9, 0.9)),
-        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8 if len(matched_integrations) > 50 else 10),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    elements.append(integration_table)
+    elements.append(create_wrapped_table(integration_data, col_widths=[3 * inch, 3 * inch]))
     elements.append(Spacer(1, 0.2 * inch))
 
     # Missing Integrations Section
@@ -86,19 +72,7 @@ def generate_pdf_report(analytics: dict, recommendations: dict, filename="report
     for device_name, missing_list in analytics["missing_integrations"].items():
         missing_text = ", ".join(missing_list)
         missing_integrations_data.append([device_name, missing_text])
-    missing_integrations_table = Table(missing_integrations_data, colWidths=[3 * inch, 3 * inch])
-    missing_integrations_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.8, 0.2, 0.2)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.Color(0.95, 0.9, 0.9)),
-        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8 if len(missing_text) > 50 else 10),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    elements.append(missing_integrations_table)
+    elements.append(create_wrapped_table(missing_integrations_data, col_widths=[3 * inch, 3 * inch]))
     elements.append(Spacer(1, 0.2 * inch))
 
     # Trends Section
@@ -107,19 +81,7 @@ def generate_pdf_report(analytics: dict, recommendations: dict, filename="report
         ["Recently Active Devices", analytics["trends"]["recently_active_devices"]],
         ["Recently Inactive Devices", analytics["trends"]["recently_inactive_devices"]]
     ]
-    trends_table = Table(trends_data, colWidths=[4 * inch, 2 * inch])
-    trends_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.5, 0.4, 0.6)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.Color(0.95, 0.95, 0.9)),
-        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    elements.append(trends_table)
+    elements.append(create_wrapped_table(trends_data, col_widths=[4 * inch, 2 * inch]))
     elements.append(Spacer(1, 0.2 * inch))
 
     # Expiring Warranties Section
@@ -129,20 +91,7 @@ def generate_pdf_report(analytics: dict, recommendations: dict, filename="report
         device_name = device["device_name"]
         warranty_date = device.get("warranty_date", "N/A")
         expiring_warranties_data.append([device_name, warranty_date])
-    expiring_warranties_table = Table(expiring_warranties_data, colWidths=[3 * inch, 3 * inch])
-    expiring_warranties_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.8, 0.6, 0.2)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.lightyellow),
-        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    elements.append(expiring_warranties_table)
+    elements.append(create_wrapped_table(expiring_warranties_data, col_widths=[3 * inch, 3 * inch]))
     elements.append(Spacer(1, 0.2 * inch))
 
     # Recommendations and Strategic Plan
