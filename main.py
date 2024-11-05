@@ -1,178 +1,197 @@
-import json
+from typing import List, Dict
 from datetime import datetime
-from typing import List
-from fastapi import FastAPI, Depends, HTTPException, Request
-from models import DeviceData
-from security.auth import get_api_key
-import logging
-from starlette.middleware.base import BaseHTTPMiddleware
-from services.ai_processing import generate_recommendations
-from services.data_processing import generate_analytics
+from collections import defaultdict
+from config import logger
+from models import DeviceData, TicketData
 
-# Define the Middleware Class
-class MaxBodySizeMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, max_body_size: int):
-        super().__init__(app)
-        self.max_body_size = max_body_size
+def count_open_tickets(tickets: List[TicketData]) -> int:
+    open_tickets = [ticket for ticket in tickets if ticket.status != 5]
+    return len(open_tickets)
 
-    async def dispatch(self, request: Request, call_next):
-        content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > self.max_body_size:
-            raise HTTPException(status_code=413, detail="Request body too large")
-        return await call_next(request)
-
-
-app = FastAPI()
-logging.basicConfig(filename="/var/www/rabbitai/webhook.log", level=logging.INFO)
-app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
-
-@app.post("/count-tickets", dependencies=[Depends(get_api_key)])
-async def count_tickets(request: Request):
-    try:
-        # Log raw request body
-        body = await request.body()
-        logging.info("Raw request body: %s", body)
-
-        # Parse JSON data
-        payload = await request.json()
-
-        # Check if payload is a list or a single dictionary (ticket)
-        if isinstance(payload, list):
-            ticket_count = len(payload)
-        elif isinstance(payload, dict):
-            ticket_count = 1
-        else:
-            raise HTTPException(status_code=400, detail="Invalid format: Expected a JSON array or single ticket object.")
-
-        return {"ticket_count": ticket_count}
-
-    except Exception as e:
-        logging.error("Error processing request: %s", str(e))
-        raise HTTPException(status_code=500, detail="Error processing JSON data")
-
-
-# Define a helper function to calculate resolution time in hours
-def calculate_resolution_time(create_date, resolved_date):
-    if create_date and resolved_date:
-        return (datetime.fromisoformat(resolved_date[:-1]) - datetime.fromisoformat(
-            create_date[:-1])).total_seconds() / 3600
-    return None
-
-
-# Define a helper function to calculate SLA met or not
-def check_sla_met(ticket):
-    return ticket.get("serviceLevelAgreementHasBeenMet") is True
-
-
-@app.post("/ticket-stats")
-async def ticket_stats(request: Request):
-    try:
-        tickets = await request.json()
-
-        if not isinstance(tickets, list):
-            raise HTTPException(status_code=400, detail="Expected a JSON array of tickets.")
-
-        stats = {
-            "total_tickets": len(tickets),
-            "by_company": {},
-            "by_contact": {},
-            "sla_met_count": 0,
-            "priority_count": {1: 0, 2: 0, 3: 0, 4: 0},
-            "average_resolution_time": 0.0,
-            "issue_type_count": {},
-            "sub_issue_type_count": {}
+def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
+    now = datetime.utcnow()
+    analytics = {
+        "counts": {
+            "total_devices": len(device_data),
+            "inactive_devices": 0,
+            "no_antivirus": 0,
+            "no_last_reboot": 0,
+            "integrations": {
+                "Datto_RMM": 0,
+                "Huntress": 0,
+                "Workstation_AD": 0,
+                "Server_AD": 0,
+                "ImmyBot": 0,
+                "Auvik": 0,
+                "ITGlue": 0
+            },
+            "unique_manufacturers": defaultdict(int),  # Track manufacturer names and counts
+            "unique_models": defaultdict(int),
+            "unique_serial_numbers": set(),
+            "match_summary": {
+                "full_matches": 0,
+                "partial_matches": 0,
+                "no_matches": 0
+            }
+        },
+        "issues": {
+            "no_antivirus_installed": [],
+            "missing_defender_on_workstation": [],
+            "missing_sentinel_one_on_server": [],
+            "not_seen_recently": [],
+            "reboot_required": [],
+            "expired_warranty": []
+        },
+        "trends": {
+            "recently_active_devices": 0,
+            "recently_inactive_devices": 0
+        },
+        "integration_matches": [],
+        "missing_integrations": {},
+        "os_metrics": {
+            "end_of_life": [],
+            "end_of_support": [],
+            "supported": [],
+            "os_counts": {}
         }
-
-        total_resolution_time = 0
-        resolved_tickets_count = 0
-
-        for ticket in tickets:
-            # Count by company and contact
-            company_id = ticket.get("companyID")
-            contact_id = ticket.get("contactID")
-
-            stats["by_company"][company_id] = stats["by_company"].get(company_id, 0) + 1
-            stats["by_contact"][contact_id] = stats["by_contact"].get(contact_id, 0) + 1
-
-            # SLA check
-            if check_sla_met(ticket):
-                stats["sla_met_count"] += 1
-
-            # Priority count
-            priority = ticket.get("priority")
-            if priority in stats["priority_count"]:
-                stats["priority_count"][priority] += 1
-
-            # Resolution time
-            create_date = ticket.get("createDate")
-            resolved_date = ticket.get("resolvedDateTime")
-            resolution_time = calculate_resolution_time(create_date, resolved_date)
-
-            if resolution_time is not None:
-                total_resolution_time += resolution_time
-                resolved_tickets_count += 1
-
-            # Issue and sub-issue type counts
-            issue_type = ticket.get("issueType")
-            sub_issue_type = ticket.get("subIssueType")
-
-            stats["issue_type_count"][issue_type] = stats["issue_type_count"].get(issue_type, 0) + 1
-            stats["sub_issue_type_count"][sub_issue_type] = stats["sub_issue_type_count"].get(sub_issue_type, 0) + 1
-
-        # Calculate average resolution time
-        if resolved_tickets_count > 0:
-            stats["average_resolution_time"] = total_resolution_time / resolved_tickets_count
-
-        return stats
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/report/", dependencies=[Depends(get_api_key)])
-async def generate_report(device_data: List[DeviceData]):
-    summary_list = []
-    for device in device_data:
-        device_summary = {
-            "device_name": device.Name,
-            "Datto_RMM": device.Datto_RMM,
-            "Huntress": device.Huntress,
-            "Workstation_AD": device.Workstation_AD,
-            "Server_AD": device.Server_AD,
-            "ImmyBot": device.ImmyBot,
-            "Auvik": device.Auvik,
-            "Inactive_Computer": device.Inactive_Computer,
-            "LastLoggedInUser": device.LastLoggedOnUser,
-            "IPv4Address": device.IPv4Address,
-            "OperatingSystem": device.OperatingSystem,
-            "antivirusProduct": device.antivirusProduct,
-            "antivirusStatus": device.antivirusStatus,
-            "lastReboot": device.lastReboot,
-            "lastSeen": device.lastSeen,
-            "patchStatus": device.patchStatus,
-            "rebootRequired": device.rebootRequired,
-            "warrantyDate": device.warrantyDate,
-            "datto_id": device.datto_id,
-            "huntress_id": device.huntress_id,
-            "immy_id": device.immy_id,
-            "auvik_id": device.auvik_id,
-            "locationName": device.locationName if hasattr(device, "locationName") else "N/A",
-            "itglue_id": device.itglue_id if hasattr(device, "itglue_id") else "N/A",
-            "manufacturer_name": device.manufacturer_name if hasattr(device, "manufacturer_name") else "N/A",
-            "model_name": device.model_name if hasattr(device, "model_name") else "N/A",
-            "serial_number": device.serial_number if hasattr(device, "serial_number") else "N/A"
-        }
-        summary_list.append(device_summary)
-
-    # Step 1: Generate analytics based on the device data
-    analytics = generate_analytics(device_data)
-
-    # Step 2: Generate recommendations based on the analytics data
-    recommendations = generate_recommendations(analytics)
-
-    # Step 3: Return both analytics and recommendations in the response
-    return {
-        "report": summary_list,
-        "analytics": analytics,
-        "recommendations": recommendations
     }
+
+    older_os_versions = [
+        "Windows 7", "Windows 8", "Windows 8.1", "Windows Vista",
+        "Windows XP", "Windows Server 2008", "Windows Server 2008 R2",
+        "Windows Server 2012", "Windows Server 2012 R2"
+    ]
+
+    for device in device_data:
+        device_name = getattr(device, 'device_name', None)
+        if not device_name or device_name == "N/A":
+            device_name = "Unnamed Device"
+            logger.warning(f"Device name is missing or 'N/A' for one of the devices.")
+
+        logger.debug(f"Resolved device name: {device_name}")
+
+        # Track unique manufacturer, model, and serial number
+        manufacturer = getattr(device, "manufacturer_name", "Unknown")
+        model = getattr(device, "model_name", "Unknown")
+        serial_number = getattr(device, "serial_number", "Unknown")
+
+        # Update counts for manufacturer and model
+        analytics["counts"]["unique_manufacturers"][manufacturer] += 1
+        analytics["counts"]["unique_models"][model] += 1
+        analytics["counts"]["unique_serial_numbers"].add(serial_number)
+
+        integration_ids = {}
+        device_integrations = []
+        missing_integrations = []
+
+        integrations_list = [
+            {"name": "Datto_RMM", "id_attr": "datto_id"},
+            {"name": "Huntress", "id_attr": "huntress_id"},
+            {"name": "Workstation_AD", "id_attr": "workstation_ad_id"},
+            {"name": "Server_AD", "id_attr": "server_ad_id"},
+            {"name": "ImmyBot", "id_attr": "immy_id"},
+            {"name": "Auvik", "id_attr": "auvik_id"},
+            {"name": "ITGlue", "id_attr": "itglue_id"}
+        ]
+
+        for integration in integrations_list:
+            integration_name = integration["name"]
+            integration_id_attr = integration["id_attr"]
+            integration_id = getattr(device, integration_id_attr, "N/A")
+
+            integration_value = getattr(device, integration_name, "No")
+            is_integration_present = integration_value == "Yes" if isinstance(integration_value, str) else bool(integration_value)
+
+            if is_integration_present:
+                if integration_id != "N/A":
+                    integration_ids[integration_name] = integration_id
+                analytics["counts"]["integrations"][integration_name] += 1
+                device_integrations.append(integration_name)
+                logger.debug(f"{integration_name} is present for device: {device_name} with ID: {integration_id}")
+            else:
+                missing_integrations.append(integration_name)
+                logger.debug(f"{integration_name} is not present for device: {device_name}; ID: {integration_id}")
+
+        match_count = len(device_integrations)
+        if match_count == len(integrations_list):
+            analytics["counts"]["match_summary"]["full_matches"] += 1
+            analytics["integration_matches"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids,
+                "matched_integrations": device_integrations
+            })
+        elif match_count >= 2:
+            analytics["counts"]["match_summary"]["partial_matches"] += 1
+            analytics["integration_matches"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids,
+                "matched_integrations": device_integrations
+            })
+        else:
+            analytics["counts"]["match_summary"]["no_matches"] += 1
+            analytics["missing_integrations"][device_name] = missing_integrations
+
+        if integration_ids.get("Datto_RMM") and device.antivirusProduct == "N/A":
+            analytics["counts"]["no_antivirus"] += 1
+            analytics["issues"]["no_antivirus_installed"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids
+            })
+
+        if device.rebootRequired not in ["N/A", None]:
+            analytics["issues"]["reboot_required"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids
+            })
+
+        if device.Inactive_Computer == "Yes":
+            analytics["counts"]["inactive_devices"] += 1
+            analytics["trends"]["recently_inactive_devices"] += 1
+            analytics["issues"]["not_seen_recently"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids
+            })
+        else:
+            analytics["trends"]["recently_active_devices"] += 1
+
+        if device.warrantyDate != "N/A":
+            try:
+                warranty_date = datetime.strptime(device.warrantyDate, "%Y-%m-%d")
+                if warranty_date < now:
+                    analytics["issues"]["expired_warranty"].append({
+                        "device_name": device_name,
+                        "integration_ids": integration_ids
+                    })
+            except ValueError:
+                logger.warning(f"Invalid warranty date format for device: {device_name}")
+
+        os_name = device.OperatingSystem or "Unknown OS"
+        if os_name not in analytics["os_metrics"]["os_counts"]:
+            analytics["os_metrics"]["os_counts"][os_name] = 0
+        analytics["os_metrics"]["os_counts"][os_name] += 1
+
+        if os_name in older_os_versions:
+            analytics["os_metrics"]["end_of_life"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids,
+                "os": os_name
+            })
+        elif os_name.lower() in ["windows 10", "windows server 2016"]:
+            analytics["os_metrics"]["end_of_support"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids,
+                "os": os_name
+            })
+        else:
+            analytics["os_metrics"]["supported"].append({
+                "device_name": device_name,
+                "integration_ids": integration_ids,
+                "os": os_name
+            })
+
+    analytics["counts"]["unique_manufacturers"] = dict(analytics["counts"]["unique_manufacturers"])
+    analytics["counts"]["unique_models"] = dict(analytics["counts"]["unique_models"])
+    analytics["counts"]["unique_serial_numbers"] = len(analytics["counts"]["unique_serial_numbers"])
+
+    logger.debug(f"Final analytics counts: {analytics['counts']['integrations']}")
+    return analytics
