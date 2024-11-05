@@ -2,6 +2,8 @@ import os
 import json
 from typing import List, Dict
 
+import httpx
+
 from config import client, logger
 
 # Initialize the Azure OpenAI client with Azure-specific endpoint, key, and API version
@@ -35,28 +37,31 @@ def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[
 
 
 def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
-    # Build the prompt using `build_recommendation_prompt`
     prompt = build_recommendation_prompt(issue_type, issue_details)
-
     messages = [{"role": "user", "content": prompt}]
 
     try:
-        response = client.chat.completions.create(
-            model=deployment_name,
-            messages=messages
+        # Explicitly include deployment name in the request URL
+        response = client.post(
+            f"{client.api_base}/openai/deployments/{deployment_name}/completions?api-version=2023-05-15",
+            headers={"api-key": os.getenv("AZURE_API_KEY")},
+            json={"model": deployment_name, "messages": messages}
         )
 
-        recommendation_text = response.choices[0].message['content'].strip()
+        # Check for errors in the response
+        response.raise_for_status()
+        recommendation_text = response.json()['choices'][0]['message']['content'].strip()
         return {
             "issue_type": issue_type,
             "recommendation": recommendation_text
         }
-    except Exception as e:
+    except httpx.HTTPStatusError as e:
         logger.error(f"Failed to retrieve recommendation text: {e}")
         return {
             "issue_type": issue_type,
-            "recommendation": "Error: Unable to generate recommendation due to unexpected API response format."
+            "recommendation": "Error: Unable to generate recommendation due to API error."
         }
+
 
 
 def build_recommendation_prompt(issue_type: str, issue_details: List[Dict[str, str]]) -> str:
