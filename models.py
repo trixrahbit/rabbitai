@@ -36,11 +36,21 @@ class TicketData(BaseModel):
     userDefinedFields: Optional[List[UserDefinedField]] = None
 
 
+from typing import Optional, Union, List
+from pydantic import BaseModel, Field, validator
+
 class DeviceData(BaseModel):
-    Name: Optional[str] = "N/A"
-    device_name: Optional[str] = "N/A"
-    LastLoggedOnUser: Optional[str] = "N/A"
-    IPv4Address: Optional[str] = "N/A"
+    device_name: str = "N/A"
+    Datto_RMM: str = "No"
+    Huntress: str = "No"
+    Workstation_AD: str = "No"
+    Server_AD: str = "No"
+    ImmyBot: str = "No"
+    Auvik: str = "No"
+    ITGlue: str = "No"
+    Inactive_Computer: str = "No"
+    LastLoggedInUser: Optional[str] = "N/A"
+    IPv4Address: Union[str, List[str]] = "N/A"  # Adjust for list format if needed
     OperatingSystem: Optional[str] = "N/A"
     antivirusProduct: Optional[str] = "N/A"
     antivirusStatus: Optional[str] = "N/A"
@@ -54,16 +64,10 @@ class DeviceData(BaseModel):
     immy_id: Optional[str] = "N/A"
     auvik_id: Optional[str] = "N/A"
     itglue_id: Optional[str] = "N/A"
-
-    # Integration flags
-    Datto_RMM: bool = False
-    Huntress: bool = False
-    Workstation_AD: bool = False
-    Server_AD: bool = False
-    ImmyBot: bool = False
-    Auvik: bool = False
-    ITGlue: bool = False
-    Inactive_Computer: bool = False
+    manufacturer_name: Optional[str] = "N/A"
+    model_name: Optional[str] = "N/A"
+    serial_number: Optional[str] = "N/A"
+    locationName: Optional[str] = "N/A"
 
     @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue", "Inactive_Computer", pre=True)
     def parse_yes_no(cls, v):
@@ -73,9 +77,5 @@ class DeviceData(BaseModel):
 
     @validator("rebootRequired", pre=True)
     def parse_reboot_required(cls, v):
-        if v == "N/A":
-            return None
-        return bool(v)
+        return v if v not in ["N/A", None] else False
 
-    class Config:
-        populate_by_name = True  # Ensure compatibility with Pydantic v2

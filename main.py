@@ -137,6 +137,7 @@ async def generate_report(device_data: List[DeviceData]):
             "device_name": device.Name,
             "Datto_RMM": device.Datto_RMM,
             "Huntress": device.Huntress,
+            "IT_Glue": device.ITGlue,
             "Workstation_AD": device.Workstation_AD,
             "Server_AD": device.Server_AD,
             "ImmyBot": device.ImmyBot,

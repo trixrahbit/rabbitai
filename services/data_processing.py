@@ -13,6 +13,9 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     analytics = {
         "counts": {
             "total_devices": len(device_data),
+            "unique_manufacturers": set(),
+            "unique_models": set(),
+            "unique_serial_numbers": set(),
             "inactive_devices": 0,
             "no_antivirus": 0,
             "no_last_reboot": 0,
@@ -25,9 +28,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "Auvik": 0,
                 "ITGlue": 0
             },
-            "unique_manufacturers": defaultdict(int),
-            "unique_models": defaultdict(int),
-            "unique_serial_numbers": set(),
+
             "match_summary": {
                 "full_matches": 0,
                 "partial_matches": 0,
@@ -79,11 +80,11 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         logger.debug(f"Device {device_name} - Manufacturer: {manufacturer}, Model: {model}, Serial: {serial_number}")
 
         # Only update if values are valid
-        if manufacturer:
-            analytics["counts"]["unique_manufacturers"][manufacturer] += 1
-        if model:
-            analytics["counts"]["unique_models"][model] += 1
-        if serial_number:
+        if manufacturer and manufacturer != "N/A":
+            analytics["counts"]["unique_manufacturers"].add(manufacturer)
+        if model and model != "N/A":
+            analytics["counts"]["unique_models"].add(model)
+        if serial_number and serial_number != "N/A":
             analytics["counts"]["unique_serial_numbers"].add(serial_number)
 
         integration_ids = {}
@@ -195,8 +196,8 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "os": os_name
             })
 
-    analytics["counts"]["unique_manufacturers"] = dict(analytics["counts"]["unique_manufacturers"])
-    analytics["counts"]["unique_models"] = dict(analytics["counts"]["unique_models"])
+    analytics["counts"]["unique_manufacturers"] = list(analytics["counts"]["unique_manufacturers"])
+    analytics["counts"]["unique_models"] = list(analytics["counts"]["unique_models"])
     analytics["counts"]["unique_serial_numbers"] = len(analytics["counts"]["unique_serial_numbers"])
 
     logger.debug(f"Final analytics counts: {analytics['counts']['integrations']}")
