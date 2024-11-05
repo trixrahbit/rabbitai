@@ -25,7 +25,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "Auvik": 0,
                 "ITGlue": 0
             },
-            "unique_manufacturers": defaultdict(int),  # Track manufacturer names and counts
+            "unique_manufacturers": defaultdict(int),
             "unique_models": defaultdict(int),
             "unique_serial_numbers": set(),
             "match_summary": {
@@ -70,15 +70,18 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
         logger.debug(f"Resolved device name: {device_name}")
 
-        # Track unique manufacturer, model, and serial number
-        manufacturer = getattr(device, "manufacturer_name", "Unknown")
-        model = getattr(device, "model_name", "Unknown")
-        serial_number = getattr(device, "serial_number", "Unknown")
+        # Retrieve and validate manufacturer, model, and serial number
+        manufacturer = getattr(device, "manufacturer_name", "").strip() or "Unknown"
+        model = getattr(device, "model_name", "").strip() or "Unknown"
+        serial_number = getattr(device, "serial_number", "").strip() or "Unknown"
 
-        # Update counts for manufacturer and model
-        analytics["counts"]["unique_manufacturers"][manufacturer] += 1
-        analytics["counts"]["unique_models"][model] += 1
-        analytics["counts"]["unique_serial_numbers"].add(serial_number)
+        # Update only if values are meaningful
+        if manufacturer != "Unknown":
+            analytics["counts"]["unique_manufacturers"][manufacturer] += 1
+        if model != "Unknown":
+            analytics["counts"]["unique_models"][model] += 1
+        if serial_number != "Unknown":
+            analytics["counts"]["unique_serial_numbers"].add(serial_number)
 
         integration_ids = {}
         device_integrations = []
