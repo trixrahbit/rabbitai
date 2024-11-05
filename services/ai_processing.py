@@ -61,8 +61,9 @@ def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[
 
     return recommendations
 
+
 def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
-    # Generate an AI-based recommendation for each type of issue
+    # Generate a descriptive prompt based on the issue type and details
     prompt = build_recommendation_prompt(issue_type, issue_details)
 
     # Azure OpenAI API call
@@ -80,13 +81,30 @@ def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, st
         json=data
     )
 
-    # Extract recommendation from the response
-    recommendation_text = response.json()["choices"][0]["text"].strip()
+    # Check for errors in the response
+    if response.status_code != 200:
+        logger.error(f"API call failed with status code {response.status_code}: {response.text}")
+        return {
+            "issue_type": issue_type,
+            "recommendation": f"Error: Unable to generate recommendation due to API error: {response.status_code}"
+        }
 
-    return {
-        "issue_type": issue_type,
-        "recommendation": recommendation_text
-    }
+    try:
+        # Ensure 'choices' is in the response
+        recommendation_text = response.json().get("choices", [{}])[0].get("text", "").strip()
+        if not recommendation_text:
+            raise KeyError("No recommendation text found in response.")
+
+        return {
+            "issue_type": issue_type,
+            "recommendation": recommendation_text
+        }
+    except KeyError as e:
+        logger.error(f"Failed to retrieve recommendation text from response: {response.json()}")
+        return {
+            "issue_type": issue_type,
+            "recommendation": "Error: Unable to generate recommendation due to unexpected API response format."
+        }
 
 def build_recommendation_prompt(issue_type: str, issue_details: List[Dict[str, str]]) -> str:
     # Generate a descriptive prompt based on the issue type and details
