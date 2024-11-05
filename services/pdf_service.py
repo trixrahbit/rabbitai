@@ -9,7 +9,7 @@ from reportlab.pdfbase import pdfmetrics
 import os
 
 # Register a custom font if desired
-pdfmetrics.registerFont(TTFont('Helvetica', 'Helvetica.ttf'))
+#pdfmetrics.registerFont(TTFont('Helvetica', 'Helvetica.ttf'))
 
 def add_section_header(elements, title, color=colors.darkblue):
     """Utility function to add a styled section header."""
