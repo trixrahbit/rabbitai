@@ -70,17 +70,20 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
         logger.debug(f"Resolved device name: {device_name}")
 
-        # Retrieve and validate manufacturer, model, and serial number
-        manufacturer = getattr(device, "manufacturer_name", "").strip() or "Unknown"
-        model = getattr(device, "model_name", "").strip() or "Unknown"
-        serial_number = getattr(device, "serial_number", "").strip() or "Unknown"
+        # Retrieve manufacturer, model, and serial number without default values to debug data availability
+        manufacturer = getattr(device, "manufacturer_name", None)
+        model = getattr(device, "model_name", None)
+        serial_number = getattr(device, "serial_number", None)
 
-        # Update only if values are meaningful
-        if manufacturer != "Unknown":
+        # Log retrieved values for debugging
+        logger.debug(f"Device {device_name} - Manufacturer: {manufacturer}, Model: {model}, Serial: {serial_number}")
+
+        # Only update if values are valid
+        if manufacturer:
             analytics["counts"]["unique_manufacturers"][manufacturer] += 1
-        if model != "Unknown":
+        if model:
             analytics["counts"]["unique_models"][model] += 1
-        if serial_number != "Unknown":
+        if serial_number:
             analytics["counts"]["unique_serial_numbers"].add(serial_number)
 
         integration_ids = {}
