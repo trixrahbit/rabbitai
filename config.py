@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from openai import AzureOpenAI
+import logging
 
 class Settings(BaseSettings):
     CLIENT_ID: str
@@ -18,3 +19,9 @@ client = AzureOpenAI(
     api_key="91b76cbcc9da4055bd966a0809476c04",
     api_version="2024-05-01-preview"
 )
+
+
+
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)

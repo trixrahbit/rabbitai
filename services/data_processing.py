@@ -1,10 +1,9 @@
 from typing import List, Dict
 from datetime import datetime
-from models import DeviceData, TicketData
-import logging
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+from config import logger
+from models import DeviceData, TicketData
+
 
 
 def count_open_tickets(tickets: List[TicketData]) -> int:
