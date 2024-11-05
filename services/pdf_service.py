@@ -5,6 +5,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 import os
+from collections import Counter
 
 
 def generate_pdf_report(analytics: dict, recommendations: dict, filename="report.pdf"):
@@ -17,10 +18,10 @@ def generate_pdf_report(analytics: dict, recommendations: dict, filename="report
     elements.append(Paragraph("Board-Approved Report", styles['Title']))
     elements.append(Spacer(1, 0.2 * inch))
 
-    # Manufacturers Section
+    # Manufacturers Section with Counts
     elements.append(Paragraph("Manufacturers Count", styles['Heading2']))
-    manufacturers_data = [["Manufacturer", "Count"]] + [[name, count] for name, count in
-                                                        analytics["counts"]["unique_manufacturers"].items()]
+    manufacturer_counts = Counter(analytics["counts"]["unique_manufacturers"])
+    manufacturers_data = [["Manufacturer", "Count"]] + [[name, count] for name, count in manufacturer_counts.items()]
     manufacturers_table = Table(manufacturers_data, colWidths=[3 * inch, 2 * inch])
     manufacturers_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
