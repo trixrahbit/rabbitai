@@ -14,12 +14,10 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
-client = AzureOpenAI(
-    azure_endpoint="https://webit.openai.azure.com",
-    api_key="91b76cbcc9da4055bd966a0809476c04",
-    api_version="2023-05-15"
-)
 
+AZURE_OPENAI_ENDPOINT = "https://webit.openai.azure.com"
+AZURE_API_KEY = "91b76cbcc9da4055bd966a0809476c04"
+deployment_name = "rabbit_smart"
 
 
 

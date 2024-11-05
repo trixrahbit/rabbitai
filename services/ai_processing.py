@@ -4,7 +4,7 @@ from typing import List, Dict
 
 import httpx
 
-from config import client, logger
+from config import logger, AZURE_API_KEY, AZURE_OPENAI_ENDPOINT
 
 # Initialize the Azure OpenAI client with Azure-specific endpoint, key, and API version
 
@@ -34,17 +34,20 @@ def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[
     return recommendations
 
 
-
-
 def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
     prompt = build_recommendation_prompt(issue_type, issue_details)
     messages = [{"role": "user", "content": prompt}]
 
+    url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment_name}/completions?api-version=2023-05-15"
+
     try:
-        # Explicitly include deployment name in the request URL
-        response = client.post(
-            f"{client.api_base}/openai/deployments/{deployment_name}/completions?api-version=2023-05-15",
-            headers={"api-key": os.getenv("AZURE_API_KEY")},
+        # Make the HTTP request directly with httpx
+        response = httpx.post(
+            url,
+            headers={
+                "Content-Type": "application/json",
+                "api-key": AZURE_API_KEY
+            },
             json={"model": deployment_name, "messages": messages}
         )
 
@@ -61,7 +64,6 @@ def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, st
             "issue_type": issue_type,
             "recommendation": "Error: Unable to generate recommendation due to API error."
         }
-
 
 
 def build_recommendation_prompt(issue_type: str, issue_details: List[Dict[str, str]]) -> str:
