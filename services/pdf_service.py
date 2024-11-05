@@ -100,7 +100,8 @@ def generate_pdf_report(analytics: dict, recommendations: dict, filename="report
     elements.append(Paragraph("Device Recommendations", styles['Heading2']))
     if recommendations.get("device_recommendations"):
         for rec in recommendations["device_recommendations"]:
-            elements.append(Paragraph(rec, styles['BodyText']))
+            rec_text = ", ".join([f"{key}: {value}" for key, value in rec.items()]) if isinstance(rec, dict) else rec
+            elements.append(Paragraph(rec_text, styles['BodyText']))
             elements.append(Spacer(1, 0.1 * inch))
     else:
         elements.append(Paragraph("No recommendations available.", styles['BodyText']))
@@ -109,7 +110,9 @@ def generate_pdf_report(analytics: dict, recommendations: dict, filename="report
     elements.append(Paragraph("Strategic Plan", styles['Heading2']))
     if recommendations.get("strategic_plan"):
         for strategy in recommendations["strategic_plan"]:
-            elements.append(Paragraph(strategy, styles['BodyText']))
+            strategy_text = ", ".join([f"{key}: {value}" for key, value in strategy.items()]) if isinstance(strategy,
+                                                                                                            dict) else strategy
+            elements.append(Paragraph(strategy_text, styles['BodyText']))
             elements.append(Spacer(1, 0.1 * inch))
     else:
         elements.append(Paragraph("No strategic plan details available.", styles['BodyText']))
