@@ -1,106 +1,39 @@
+import os
+import json
 from typing import List, Dict
-from datetime import datetime
 
-from config import AZURE_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT
-from models import DeviceData, TicketData
-import logging
-import requests
+from config import client
 
-from services.data_processing import generate_analytics
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+# Initialize the Azure OpenAI client with Azure-specific endpoint, key, and API version
 
 
-
-def count_open_tickets(tickets: List[TicketData]) -> int:
-    open_tickets = [ticket for ticket in tickets if ticket.status != 5]
-    return len(open_tickets)
-
-def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[str, str]]]:
-    recommendations = {
-        "device_recommendations": [],
-        "general_recommendations": []
-    }
-
-    # Analyze each issue in the analytics data
-    if analytics["issues"]["no_antivirus_installed"]:
-        antivirus_recommendation = generate_ai_recommendation(
-            "no_antivirus_installed",
-            analytics["issues"]["no_antivirus_installed"]
-        )
-        recommendations["general_recommendations"].append(antivirus_recommendation)
-
-    if analytics["issues"]["expired_warranty"]:
-        warranty_recommendation = generate_ai_recommendation(
-            "expired_warranty",
-            analytics["issues"]["expired_warranty"]
-        )
-        recommendations["general_recommendations"].append(warranty_recommendation)
-
-    if analytics["issues"]["not_seen_recently"]:
-        inactive_devices_recommendation = generate_ai_recommendation(
-            "not_seen_recently",
-            analytics["issues"]["not_seen_recently"]
-        )
-        recommendations["general_recommendations"].append(inactive_devices_recommendation)
-
-    if analytics["os_metrics"]["end_of_life"]:
-        eol_os_recommendation = generate_ai_recommendation(
-            "end_of_life_os",
-            analytics["os_metrics"]["end_of_life"]
-        )
-        recommendations["general_recommendations"].append(eol_os_recommendation)
-
-    if analytics["os_metrics"]["end_of_support"]:
-        eos_os_recommendation = generate_ai_recommendation(
-            "end_of_support_os",
-            analytics["os_metrics"]["end_of_support"]
-        )
-        recommendations["general_recommendations"].append(eos_os_recommendation)
-
-    return recommendations
-
+deployment_name = os.getenv("rabbit_smart")  # Set your deployment name here
 
 def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
     # Generate a descriptive prompt based on the issue type and details
     prompt = build_recommendation_prompt(issue_type, issue_details)
 
-    # Azure OpenAI API call
-    headers = {
-        "Content-Type": "application/json",
-        "api-key": AZURE_API_KEY
-    }
-    data = {
-        "prompt": prompt,
-        "max_tokens": 150,
-        "temperature": 1.0,
-        "n": 1
-    }
-
-    response = requests.post(
-        f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_OPENAI_DEPLOYMENT}/completions?api-version=2023-05-15",
-        headers=headers,
-        json=data
-    )
-
-    # Check for errors in the response
-    if response.status_code != 200:
-        logger.error(f"API call failed with status code {response.status_code}: {response.text}")
-        return {
-            "issue_type": issue_type,
-            "recommendation": f"Error: Unable to generate recommendation due to API error: {response.status_code}"
-        }
+    # Define the messages and the initial prompt message for the model
+    messages = [
+        {"role": "user", "content": prompt}
+    ]
 
     try:
-        # Ensure 'choices' is in the response
-        recommendation_text = response.json()["choices"][0]["text"].strip()
+        # Call the Azure OpenAI chat completions API
+        response = client.chat.completions.create(
+            model=deployment_name,
+            messages=messages
+        )
+
+        # Extract recommendation from the response
+        recommendation_text = response.choices[0].message['content'].strip()
         return {
             "issue_type": issue_type,
             "recommendation": recommendation_text
         }
-    except (KeyError, IndexError) as e:
-        logger.error(f"Failed to retrieve recommendation text from response: {response.json()}")
+    except Exception as e:
+        # Log and return a default error message in case of failure
+        logger.error(f"Failed to retrieve recommendation text: {e}")
         return {
             "issue_type": issue_type,
             "recommendation": "Error: Unable to generate recommendation due to unexpected API response format."
@@ -140,11 +73,3 @@ def build_recommendation_prompt(issue_type: str, issue_details: List[Dict[str, s
         )
     else:
         return "Generate general recommendations for improving device and network health."
-
-def generate_analytics_with_recommendations(device_data: List[DeviceData]) -> Dict[str, dict]:
-    analytics = generate_analytics(device_data)
-    recommendations = generate_recommendations(analytics)
-    return {
-        "analytics": analytics,
-        "recommendations": recommendations
-    }
