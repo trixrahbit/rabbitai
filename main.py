@@ -1,17 +1,13 @@
 import json
 from datetime import datetime
 from typing import List
-
 from fastapi import FastAPI, Depends, HTTPException, Request
-
 from models import DeviceData
 from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
-
 from services.ai_processing import generate_recommendations
 from services.data_processing import generate_analytics
-
 
 # Define the Middleware Class
 class MaxBodySizeMiddleware(BaseHTTPMiddleware):
@@ -32,9 +28,6 @@ app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
 
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
-    """
-    Endpoint to receive raw JSON data (either a single ticket object or a list of tickets) and return the count.
-    """
     try:
         # Log raw request body
         body = await request.body()
@@ -164,7 +157,10 @@ async def generate_report(device_data: List[DeviceData]):
             "immy_id": device.immy_id,
             "auvik_id": device.auvik_id,
             "locationName": device.locationName if hasattr(device, "locationName") else "N/A",
-            "itglue_id": device.itglue_id if hasattr(device, "itglue_id") else "N/A"
+            "itglue_id": device.itglue_id if hasattr(device, "itglue_id") else "N/A",
+            "manufacturer_name": device.manufacturer_name if hasattr(device, "manufacturer_name") else "N/A",
+            "model_name": device.model_name if hasattr(device, "model_name") else "N/A",
+            "serial_number": device.serial_number if hasattr(device, "serial_number") else "N/A"
         }
         summary_list.append(device_summary)
 

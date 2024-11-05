@@ -1,15 +1,11 @@
 from typing import List, Dict
 from datetime import datetime
-
 from config import logger
 from models import DeviceData, TicketData
-
-
 
 def count_open_tickets(tickets: List[TicketData]) -> int:
     open_tickets = [ticket for ticket in tickets if ticket.status != 5]
     return len(open_tickets)
-
 
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
@@ -28,6 +24,9 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "Auvik": 0,
                 "ITGlue": 0
             },
+            "unique_manufacturers": set(),
+            "unique_models": set(),
+            "unique_serial_numbers": set(),
             "match_summary": {
                 "full_matches": 0,
                 "partial_matches": 0,
@@ -56,7 +55,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         }
     }
 
-    # List of unsupported or end-of-life OS versions
     older_os_versions = [
         "Windows 7", "Windows 8", "Windows 8.1", "Windows Vista",
         "Windows XP", "Windows Server 2008", "Windows Server 2008 R2",
@@ -64,7 +62,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     ]
 
     for device in device_data:
-        # Set device name, handle "N/A" separately
         device_name = getattr(device, 'device_name', None)
         if not device_name or device_name == "N/A":
             device_name = "Unnamed Device"
@@ -72,7 +69,15 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
         logger.debug(f"Resolved device name: {device_name}")
 
-        # Initialize integration IDs and flags
+        # Track unique manufacturer, model, and serial number
+        manufacturer = getattr(device, "manufacturer_name", "Unknown")
+        model = getattr(device, "model_name", "Unknown")
+        serial_number = getattr(device, "serial_number", "Unknown")
+
+        analytics["counts"]["unique_manufacturers"].add(manufacturer)
+        analytics["counts"]["unique_models"].add(model)
+        analytics["counts"]["unique_serial_numbers"].add(serial_number)
+
         integration_ids = {}
         device_integrations = []
         missing_integrations = []
@@ -87,22 +92,14 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             {"name": "ITGlue", "id_attr": "itglue_id"}
         ]
 
-        # Process each integration, determining presence and setting the ID correctly
         for integration in integrations_list:
             integration_name = integration["name"]
             integration_id_attr = integration["id_attr"]
             integration_id = getattr(device, integration_id_attr, "N/A")
 
-            # Determine if the integration is present based on "Yes"/"No" or boolean
             integration_value = getattr(device, integration_name, "No")
-            if isinstance(integration_value, bool):
-                is_integration_present = integration_value
-            elif isinstance(integration_value, str):
-                is_integration_present = integration_value.lower() == "yes"
-            else:
-                is_integration_present = bool(integration_value)
+            is_integration_present = integration_value == "Yes" if isinstance(integration_value, str) else bool(integration_value)
 
-            # Only add to integration_ids and update counts if integration is present
             if is_integration_present:
                 if integration_id != "N/A":
                     integration_ids[integration_name] = integration_id
@@ -113,36 +110,31 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 missing_integrations.append(integration_name)
                 logger.debug(f"{integration_name} is not present for device: {device_name}; ID: {integration_id}")
 
-        # Determine match type
         match_count = len(device_integrations)
-        if match_count == len(integrations_list):  # Full match
+        if match_count == len(integrations_list):
             analytics["counts"]["match_summary"]["full_matches"] += 1
             analytics["integration_matches"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
                 "matched_integrations": device_integrations
             })
-        elif match_count >= 2:  # Partial match (2 or more)
+        elif match_count >= 2:
             analytics["counts"]["match_summary"]["partial_matches"] += 1
             analytics["integration_matches"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids,
                 "matched_integrations": device_integrations
             })
-        else:  # No match or only one integration
+        else:
             analytics["counts"]["match_summary"]["no_matches"] += 1
-            if match_count == 1:
-                missing_integrations.append(device_integrations[0])  # Single integration as "not matched"
             analytics["missing_integrations"][device_name] = missing_integrations
 
-        # Antivirus checks based on Datto_RMM or Server_AD
         if integration_ids.get("Datto_RMM") and device.antivirusProduct == "N/A":
             analytics["counts"]["no_antivirus"] += 1
             analytics["issues"]["no_antivirus_installed"].append({
                 "device_name": device_name,
                 "integration_ids": integration_ids
             })
-            logger.debug(f"Antivirus missing on device: {device_name}")
 
         if device.rebootRequired not in ["N/A", None]:
             analytics["issues"]["reboot_required"].append({
@@ -150,7 +142,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "integration_ids": integration_ids
             })
 
-        # Track inactive devices
         if device.Inactive_Computer == "Yes":
             analytics["counts"]["inactive_devices"] += 1
             analytics["trends"]["recently_inactive_devices"] += 1
@@ -161,7 +152,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         else:
             analytics["trends"]["recently_active_devices"] += 1
 
-        # Warranty checks
         if device.warrantyDate != "N/A":
             try:
                 warranty_date = datetime.strptime(device.warrantyDate, "%Y-%m-%d")
@@ -173,13 +163,11 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             except ValueError:
                 logger.warning(f"Invalid warranty date format for device: {device_name}")
 
-        # OS metrics
         os_name = device.OperatingSystem or "Unknown OS"
         if os_name not in analytics["os_metrics"]["os_counts"]:
             analytics["os_metrics"]["os_counts"][os_name] = 0
         analytics["os_metrics"]["os_counts"][os_name] += 1
 
-        # Classify OS based on support status
         if os_name in older_os_versions:
             analytics["os_metrics"]["end_of_life"].append({
                 "device_name": device_name,
@@ -198,6 +186,10 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "integration_ids": integration_ids,
                 "os": os_name
             })
+
+    analytics["counts"]["unique_manufacturers"] = len(analytics["counts"]["unique_manufacturers"])
+    analytics["counts"]["unique_models"] = len(analytics["counts"]["unique_models"])
+    analytics["counts"]["unique_serial_numbers"] = len(analytics["counts"]["unique_serial_numbers"])
 
     logger.debug(f"Final analytics counts: {analytics['counts']['integrations']}")
     return analytics
