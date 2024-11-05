@@ -4,12 +4,7 @@ from typing import List, Dict
 
 import httpx
 
-from config import logger, AZURE_API_KEY, AZURE_OPENAI_ENDPOINT
-
-# Initialize the Azure OpenAI client with Azure-specific endpoint, key, and API version
-
-
-deployment_name = os.getenv("rabbit_smart")  # Set your deployment name here
+from config import logger, AZURE_API_KEY, AZURE_OPENAI_ENDPOINT, deployment_name
 
 
 def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[str, str]]]:
