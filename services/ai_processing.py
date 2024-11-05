@@ -1,9 +1,7 @@
 import os
 import json
 from typing import List, Dict
-
 import httpx
-
 from config import logger, AZURE_API_KEY, AZURE_OPENAI_ENDPOINT, deployment_name
 
 
@@ -32,12 +30,12 @@ def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[
 def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
     prompt = build_recommendation_prompt(issue_type, issue_details)
 
-    url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment_name}/completions?api-version=2023-05-15"
+    url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment_name}/chat/completions?api-version=2023-05-15"
 
     try:
-        # Constructing the payload to match Azure's expected format
+        # Construct the payload for the chat completion endpoint
         data = {
-            "prompt": prompt,
+            "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 150,
             "temperature": 0.7,
             "n": 1
@@ -59,7 +57,7 @@ def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, st
         response.raise_for_status()
 
         # Extract recommendation from the response
-        recommendation_text = response.json()['choices'][0]['text'].strip()
+        recommendation_text = response.json()['choices'][0]['message']['content'].strip()
         return {
             "issue_type": issue_type,
             "recommendation": recommendation_text
