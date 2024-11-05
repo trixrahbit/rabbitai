@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from typing import List
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.responses import FileResponse
 from models import DeviceData
 from security.auth import get_api_key
@@ -166,22 +166,18 @@ async def generate_report(device_data: List[DeviceData]):
     return {"download_url": f"https://rabbit.webitservices.com/download/{filename}"}
 
 
+def cleanup_file(path: str):
+    try:
+        os.remove(path)
+        print(f"Deleted file: {path}")
+    except Exception as e:
+        print(f"Error deleting file: {e}")
+
 @app.get("/download/{filename}")
-async def download_report(filename: str):
+async def download_report(filename: str, background_tasks: BackgroundTasks):
     pdf_path = os.path.join("/tmp", filename)
-
     if os.path.exists(pdf_path):
-        # Define a custom cleanup function to delete the file after sending
-        def cleanup_file(path):
-            try:
-                os.remove(path)
-                print(f"Deleted file: {path}")
-            except Exception as e:
-                print(f"Error deleting file: {e}")
-
-        # Return the FileResponse with the cleanup function
-        response = FileResponse(path=pdf_path, filename=filename)
-        response.call_on_close(lambda: cleanup_file(pdf_path))
-        return response
+        background_tasks.add_task(cleanup_file, pdf_path)
+        return FileResponse(path=pdf_path, filename=filename)
     else:
         raise HTTPException(status_code=404, detail="File not found")
