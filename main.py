@@ -15,7 +15,8 @@ from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from services.ai_processing import generate_recommendations, handle_sendtoai
-from services.data_processing import generate_analytics, handle_mytickets, send_message_to_teams
+from services.bot_actions import send_message_to_teams
+from services.data_processing import generate_analytics, handle_mytickets
 from services.pdf_service import generate_pdf_report
 import uuid
 import os
@@ -256,64 +257,44 @@ async def ai_endpoint(data: dict) -> Dict[str, str]:
 
 @app.post("/command")
 async def handle_command(request: Request):
-    """
-    Handle messages from Teams.
-    """
-    # Verify the request
+    # Step 1: Verify the request
     auth_header = request.headers.get("Authorization")
     await validate_teams_token(auth_header)
 
     try:
-        # Parse JSON payload
+        # Step 2: Parse the payload
         payload = await request.json()
-        logging.info(f"Payload: {json.dumps(payload, indent=2)}")
-
-        # Extract needed fields from the payload
-        command_text = payload.get("text")  # The message text
-        user_id = payload.get("from", {}).get("id")
+        command_text = payload.get("text")
+        user_upn = payload.get("from", {}).get("id")
         service_url = payload.get("serviceUrl")
         conversation_id = payload.get("conversation", {}).get("id")
 
-        if not command_text or not user_id or not service_url or not conversation_id:
-            raise ValueError("Missing required fields: 'command_text', 'user_id', 'serviceUrl', or 'conversation_id'")
-    except Exception as e:
-        logging.error(f"Invalid payload: {e}")
-        raise HTTPException(status_code=422, detail=f"Invalid request format: {e}")
+        if not command_text or not user_upn or not service_url or not conversation_id:
+            raise ValueError("Missing required fields: 'text', 'user_id', 'serviceUrl', or 'conversation_id'")
 
-    # Log the incoming command
-    logging.info(f"Received command: {command_text} from user: {user_id}")
-
-    # Parse the command
-    if command_text.startswith("/"):
-        command_text = command_text[1:]  # Remove leading slash
-
-    parts = command_text.split(maxsplit=1)
-    command_name = parts[0].lower()
-    args = parts[1] if len(parts) > 1 else ""
-
-    # Log the parsed command and arguments
-    logging.info(f"Command name: {command_name}, Arguments: {args}")
-
-    # Dispatch to the appropriate handler
-    try:
-        if command_name == "sendtoai":
+        # Step 3: Process the command
+        if command_text.startswith("/sendtoai"):
+            args = command_text[len("/sendtoai "):]
             result = await handle_sendtoai(args)
-        elif command_name == "mytickets":
-            result = await handle_mytickets(args)
+            message = result.get("response", "No response generated.")
+
+            # Create a simple adaptive card
+            adaptive_card = {
+                "type": "AdaptiveCard",
+                "version": "1.3",
+                "body": [{"type": "TextBlock", "text": message}],
+                "actions": [{"type": "Action.OpenUrl", "title": "Learn More", "url": "https://webitservices.com"}]
+            }
+
+            # Step 4: Send the response to Teams
+            await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
+            return JSONResponse(content={"status": "success", "message": "Message sent to Teams chat."})
+
         else:
-            result = {"response": f"Unknown command: {command_name}"}
-    except Exception as e:
-        logging.error(f"Error processing command '{command_name}': {e}")
-        result = {"response": f"Error processing command '{command_name}': {e}"}
+            return {"response": "Unknown command"}
 
-    # Format the result as a message
-    message = result.get("response", "No response generated.")
-
-    # Send the result back to the user in Teams
-    try:
-        await send_message_to_teams(service_url, conversation_id, message)
-        return JSONResponse(content={"status": "success", "message": "Message sent to Teams chat."})
     except Exception as e:
-        logging.error(f"Failed to send message to Teams: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to send message to Teams: {e}")
+        logging.error(f"Error in /command: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
+
 
