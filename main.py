@@ -2,7 +2,8 @@ import base64
 import json
 from datetime import datetime
 from typing import List, Dict
-
+import jwt
+from jwt import PyJWKClient
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse
@@ -59,58 +60,25 @@ async def validate_teams_token(auth_header: str):
         openid_config = response.json()
 
     jwks_uri = openid_config["jwks_uri"]
-    expected_issuer = "https://api.botframework.com"  # Adjusted for Teams
 
     # Fetch JWKS
-    async with httpx.AsyncClient() as client:
-        jwks_response = await client.get(jwks_uri)
-        jwks_response.raise_for_status()
-        jwks = jwks_response.json()
-
-    logging.info(f"OpenID configuration fetched: {openid_config}")
-    logging.info(f"JWKS fetched: {jwks}")
-
-    # Decode the token
-    decoded_header, decoded_payload = decode_jwt(token)
-    logging.info(f"Decoded JWT Header: {decoded_header}")
-    logging.info(f"Decoded JWT Payload: {decoded_payload}")
-
-    # Validate audience ('aud') claim
-    valid_audiences = ["https://api.botframework.com", APP_ID]
-    if decoded_payload.get("aud") not in valid_audiences:
-        logging.error(f"Invalid audience: {decoded_payload.get('aud')}")
-        raise HTTPException(status_code=403, detail="Invalid audience")
-
-    # Validate issuer ('iss') claim
-    if decoded_payload.get("iss") != expected_issuer:
-        logging.error(f"Invalid issuer: {decoded_payload.get('iss')}")
-        raise HTTPException(status_code=403, detail="Invalid issuer")
-
-    # Find the matching JWKS key
-    jwks_kids = [key["kid"] for key in jwks["keys"]]
-    logging.info(f"Available JWKS kids: {jwks_kids}")
-    logging.info(f"JWT kid: {decoded_header['kid']}")
-
-    key = next((k for k in jwks["keys"] if k["kid"] == decoded_header["kid"]), None)
-    if not key:
-        logging.error(f"No matching key found for kid: {decoded_header['kid']}")
-        raise HTTPException(status_code=403, detail="No matching JWKS key for token 'kid'")
+    jwk_client = PyJWKClient(jwks_uri)
+    signing_key = jwk_client.get_signing_key_from_jwt(token)
 
     # Validate token
     try:
         decoded_token = jwt.decode(
             token,
-            key,
+            signing_key.key,
             algorithms=["RS256"],
-            audience=valid_audiences,
-            issuer=expected_issuer
+            audience=APP_ID,
+            issuer="https://api.botframework.com"
         )
         logging.info(f"Token successfully validated. Decoded token: {decoded_token}")
         return decoded_token
-    except JWTError as e:
+    except jwt.InvalidTokenError as e:
         logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
-
 
 
 
