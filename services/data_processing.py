@@ -1,8 +1,10 @@
+import logging
 from typing import List, Dict
 from datetime import datetime
 from collections import defaultdict
 
 import httpx
+from fastapi import HTTPException
 
 from config import logger, APP_SECRET
 from models import DeviceData, TicketData
@@ -12,21 +14,26 @@ async def send_message_to_teams(service_url: str, conversation_id: str, message:
     """
     Send a message back to the user in Teams.
     """
+    logging.info(f"Sending message to Teams: {message}")
     url = f"{service_url}/v3/conversations/{conversation_id}/activities"
-
     headers = {
-        "Authorization": f"Bearer {APP_SECRET}",  # Use your bot's app secret
+        "Authorization": f"Bearer {APP_SECRET}",  # Replace with a valid token if needed
         "Content-Type": "application/json"
     }
-
     payload = {
         "type": "message",
         "text": message
     }
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, headers=headers, json=payload)
-        response.raise_for_status()
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            logging.info(f"Message sent successfully: {response.json()}")
+    except httpx.HTTPError as e:
+        logging.error(f"Failed to send message to Teams: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send message to Teams")
+
 
 def count_open_tickets(tickets: List[TicketData]) -> int:
     open_tickets = [ticket for ticket in tickets if ticket.status != 5]

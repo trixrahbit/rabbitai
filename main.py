@@ -1,6 +1,8 @@
 import json
 from datetime import datetime
 from typing import List, Dict
+
+import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -33,14 +35,29 @@ logging.basicConfig(filename="/var/www/rabbitai/webhook.log", level=logging.INFO
 app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
 
 
-# Helper to validate Teams bot requests
-def verify_teams_request(request: Request):
+async def verify_teams_request(request: Request):
+    """
+    Verify the Teams authorization header by validating the token.
+    """
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header")
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+
     token = auth_header.split(" ")[1]
-    if token != APP_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid app secret")
+    validation_url = "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                validation_url,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                data={"token": token}
+            )
+            if response.status_code != 200:
+                raise HTTPException(status_code=403, detail="Invalid Teams token")
+    except Exception as e:
+        logging.error(f"Error validating Teams token: {e}")
+        raise HTTPException(status_code=403, detail="Error validating Teams token")
 
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
@@ -218,11 +235,13 @@ async def handle_command(request: Request):
     Handle slash commands from Teams.
     """
     # Verify the request
-    verify_teams_request(request)
+    await verify_teams_request(request)
 
     try:
         # Parse JSON payload
         payload = await request.json()
+        logging.info(f"Payload: {payload}")
+
         command = payload.get("command")
         user_id = payload.get("user_id")
         service_url = payload.get("serviceUrl")
@@ -230,7 +249,6 @@ async def handle_command(request: Request):
 
         if not command or not user_id or not service_url or not conversation_id:
             raise ValueError("Missing required fields: 'command', 'user_id', 'serviceUrl', or 'conversation'")
-
     except Exception as e:
         logging.error(f"Invalid payload: {e}")
         raise HTTPException(status_code=422, detail=f"Invalid request format: {e}")
