@@ -201,6 +201,7 @@ async def download_report(filename: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=404, detail="File not found")
 
 
+# Teams Commands Start Here
 @app.post("/ai")
 async def ai_endpoint(data: dict) -> Dict[str, str]:
     """
