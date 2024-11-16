@@ -48,6 +48,8 @@ async def validate_teams_token(auth_header: str):
         response.raise_for_status()
         openid_config = response.json()
 
+    logging.info(f"OpenID Config: {openid_config}")
+
     jwks_uri = openid_config["jwks_uri"]
     issuer = openid_config["issuer"]
 
@@ -55,6 +57,8 @@ async def validate_teams_token(auth_header: str):
     async with httpx.AsyncClient() as client:
         jwks_response = await client.get(jwks_uri)
         jwks = jwks_response.json()
+
+    logging.info(f"JWKS Keys: {jwks}")
 
     # Validate token
     try:
@@ -65,9 +69,12 @@ async def validate_teams_token(auth_header: str):
             audience="https://api.botframework.com",
             issuer=issuer
         )
+        logging.info(f"Decoded Token: {decoded_token}")
         return decoded_token
     except JWTError as e:
+        logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
+
 
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
