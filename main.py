@@ -257,7 +257,7 @@ async def ai_endpoint(data: dict) -> Dict[str, str]:
 @app.post("/command")
 async def handle_command(request: Request):
     """
-    Handle slash commands from Teams.
+    Handle messages from Teams.
     """
     # Verify the request
     auth_header = request.headers.get("Authorization")
@@ -266,29 +266,33 @@ async def handle_command(request: Request):
     try:
         # Parse JSON payload
         payload = await request.json()
-        logging.info(f"Payload: {payload}")
+        logging.info(f"Payload: {json.dumps(payload, indent=2)}")
 
-        command = payload.get("command")
-        user_id = payload.get("user_id")
+        # Extract needed fields from the payload
+        command_text = payload.get("text")  # The message text
+        user_id = payload.get("from", {}).get("id")
         service_url = payload.get("serviceUrl")
         conversation_id = payload.get("conversation", {}).get("id")
 
-        if not command or not user_id or not service_url or not conversation_id:
-            raise ValueError("Missing required fields: 'command', 'user_id', 'serviceUrl', or 'conversation'")
+        if not command_text or not user_id or not service_url or not conversation_id:
+            raise ValueError("Missing required fields: 'command_text', 'user_id', 'serviceUrl', or 'conversation_id'")
     except Exception as e:
         logging.error(f"Invalid payload: {e}")
         raise HTTPException(status_code=422, detail=f"Invalid request format: {e}")
 
     # Log the incoming command
-    logging.info(f"Received command: {command} from user: {user_id}")
+    logging.info(f"Received command: {command_text} from user: {user_id}")
 
     # Parse the command
-    if command.startswith("/"):
-        command = command[1:]  # Remove leading slash
+    if command_text.startswith("/"):
+        command_text = command_text[1:]  # Remove leading slash
 
-    parts = command.split(maxsplit=1)
-    command_name = parts[0]
+    parts = command_text.split(maxsplit=1)
+    command_name = parts[0].lower()
     args = parts[1] if len(parts) > 1 else ""
+
+    # Log the parsed command and arguments
+    logging.info(f"Command name: {command_name}, Arguments: {args}")
 
     # Dispatch to the appropriate handler
     try:
@@ -312,3 +316,4 @@ async def handle_command(request: Request):
     except Exception as e:
         logging.error(f"Failed to send message to Teams: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to send message to Teams: {e}")
+
