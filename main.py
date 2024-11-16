@@ -5,6 +5,7 @@ from typing import List, Dict
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse
+from jose import JWTError, jwt
 
 from config import APP_SECRET, OPENID_CONFIG_URL
 from models import DeviceData
@@ -35,51 +36,38 @@ logging.basicConfig(filename="/var/www/rabbitai/webhook.log", level=logging.INFO
 app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
 
 
-async def verify_teams_request(request: Request):
-    """
-    Verify the Teams authorization header by validating the token.
-    """
-    auth_header = request.headers.get("Authorization")
+async def validate_teams_token(auth_header: str):
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+        raise HTTPException(status_code=401, detail="Invalid or missing authorization header")
 
     token = auth_header.split(" ")[1]
 
-    # Step 1: Retrieve OpenID Configuration
+    # Fetch OpenID configuration
+    async with httpx.AsyncClient() as client:
+        response = await client.get(OPENID_CONFIG_URL)
+        response.raise_for_status()
+        openid_config = response.json()
+
+    jwks_uri = openid_config["jwks_uri"]
+    issuer = openid_config["issuer"]
+
+    # Fetch JWKS
+    async with httpx.AsyncClient() as client:
+        jwks_response = await client.get(jwks_uri)
+        jwks = jwks_response.json()
+
+    # Validate token
     try:
-        async with httpx.AsyncClient() as client:
-            openid_response = await client.get(OPENID_CONFIG_URL)
-            openid_response.raise_for_status()
-            openid_config = openid_response.json()
-    except Exception as e:
-        logging.error(f"Failed to fetch OpenID configuration: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch OpenID configuration")
-
-    jwks_uri = openid_config.get("jwks_uri")
-    issuer = openid_config.get("issuer")
-
-    # Step 2: Validate the token using the OpenID keys
-    try:
-        from jose import jwt
-        from jose.exceptions import JWTError
-
-        async with httpx.AsyncClient() as client:
-            jwks_response = await client.get(jwks_uri)
-            jwks_response.raise_for_status()
-            keys = jwks_response.json()
-
-        # Decode and validate the token
         decoded_token = jwt.decode(
             token,
-            keys,
+            jwks,
             algorithms=["RS256"],
             audience="https://api.botframework.com",
             issuer=issuer
         )
-        logging.info(f"Decoded token: {decoded_token}")
+        return decoded_token
     except JWTError as e:
-        logging.error(f"Invalid token: {e}")
-        raise HTTPException(status_code=403, detail="Invalid Teams token")
+        raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
 
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
@@ -257,7 +245,8 @@ async def handle_command(request: Request):
     Handle slash commands from Teams.
     """
     # Verify the request
-    await verify_teams_request(request)
+    auth_header = request.headers.get("Authorization")
+    await validate_teams_token(auth_header)
 
     try:
         # Parse JSON payload
