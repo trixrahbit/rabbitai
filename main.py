@@ -1,3 +1,4 @@
+import base64
 import json
 from datetime import datetime
 from typing import List, Dict
@@ -36,19 +37,31 @@ logging.basicConfig(filename="/var/www/rabbitai/webhook.log", level=logging.INFO
 app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
 
 
+def decode_jwt(token):
+    try:
+        parts = token.split(".")
+        header = json.loads(base64.urlsafe_b64decode(parts[0] + "==").decode("utf-8"))
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "==").decode("utf-8"))
+        return header, payload
+    except Exception as e:
+        return {"error": f"Failed to decode token: {e}"}
+
 async def validate_teams_token(auth_header: str):
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid or missing authorization header")
 
     token = auth_header.split(" ")[1]
 
+    # Decode token for debugging
+    header, payload = decode_jwt(token)
+    logging.info(f"Token Header: {header}")
+    logging.info(f"Token Payload: {payload}")
+
     # Fetch OpenID configuration
     async with httpx.AsyncClient() as client:
         response = await client.get(OPENID_CONFIG_URL)
         response.raise_for_status()
         openid_config = response.json()
-
-    logging.info(f"OpenID Config: {openid_config}")
 
     jwks_uri = openid_config["jwks_uri"]
     issuer = openid_config["issuer"]
@@ -69,10 +82,8 @@ async def validate_teams_token(auth_header: str):
             audience="https://api.botframework.com",
             issuer=issuer
         )
-        logging.info(f"Decoded Token: {decoded_token}")
         return decoded_token
     except JWTError as e:
-        logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
 
 
