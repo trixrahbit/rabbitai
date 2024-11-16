@@ -213,16 +213,26 @@ async def ai_endpoint(data: dict) -> Dict[str, str]:
 
 
 @app.post("/command")
-async def handle_command(
-    request: Request,
-    command: str = Form(...),
-    user_id: str = Form(...),
-):
+async def handle_command(request: Request):
     """
     Handle slash commands from Teams.
     """
     # Verify the request
     verify_teams_request(request)
+
+    try:
+        # Parse JSON payload
+        payload = await request.json()
+        command = payload.get("command")
+        user_id = payload.get("user_id")
+
+        if not command or not user_id:
+            raise ValueError("Missing required fields: 'command' or 'user_id'")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid request format: {e}")
+
+    # Log the incoming command
+    print(f"Received command: {command} from user: {user_id}")
 
     # Parse the command
     if command.startswith("/"):
