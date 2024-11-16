@@ -10,7 +10,7 @@ from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from services.ai_processing import generate_recommendations, handle_sendtoai
-from services.data_processing import generate_analytics, handle_mytickets
+from services.data_processing import generate_analytics, handle_mytickets, send_message_to_teams
 from services.pdf_service import generate_pdf_report
 import uuid
 import os
@@ -225,14 +225,18 @@ async def handle_command(request: Request):
         payload = await request.json()
         command = payload.get("command")
         user_id = payload.get("user_id")
+        service_url = payload.get("serviceUrl")
+        conversation_id = payload.get("conversation", {}).get("id")
 
-        if not command or not user_id:
-            raise ValueError("Missing required fields: 'command' or 'user_id'")
+        if not command or not user_id or not service_url or not conversation_id:
+            raise ValueError("Missing required fields: 'command', 'user_id', 'serviceUrl', or 'conversation'")
+
     except Exception as e:
+        logging.error(f"Invalid payload: {e}")
         raise HTTPException(status_code=422, detail=f"Invalid request format: {e}")
 
     # Log the incoming command
-    print(f"Received command: {command} from user: {user_id}")
+    logging.info(f"Received command: {command} from user: {user_id}")
 
     # Parse the command
     if command.startswith("/"):
@@ -243,11 +247,24 @@ async def handle_command(request: Request):
     args = parts[1] if len(parts) > 1 else ""
 
     # Dispatch to the appropriate handler
-    if command_name == "sendtoai":
-        result = await handle_sendtoai(args)
-    elif command_name == "mytickets":
-        result = await handle_mytickets(args)
-    else:
-        result = {"response": f"Unknown command: {command_name}"}
+    try:
+        if command_name == "sendtoai":
+            result = await handle_sendtoai(args)
+        elif command_name == "mytickets":
+            result = await handle_mytickets(args)
+        else:
+            result = {"response": f"Unknown command: {command_name}"}
+    except Exception as e:
+        logging.error(f"Error processing command '{command_name}': {e}")
+        result = {"response": f"Error processing command '{command_name}': {e}"}
 
-    return JSONResponse(content=result)
+    # Format the result as a message
+    message = result.get("response", "No response generated.")
+
+    # Send the result back to the user in Teams
+    try:
+        await send_message_to_teams(service_url, conversation_id, message)
+        return JSONResponse(content={"status": "success", "message": "Message sent to Teams chat."})
+    except Exception as e:
+        logging.error(f"Failed to send message to Teams: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send message to Teams: {e}")

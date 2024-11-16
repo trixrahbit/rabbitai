@@ -4,8 +4,29 @@ from collections import defaultdict
 
 import httpx
 
-from config import logger
+from config import logger, APP_SECRET
 from models import DeviceData, TicketData
+
+
+async def send_message_to_teams(service_url: str, conversation_id: str, message: str):
+    """
+    Send a message back to the user in Teams.
+    """
+    url = f"{service_url}/v3/conversations/{conversation_id}/activities"
+
+    headers = {
+        "Authorization": f"Bearer {APP_SECRET}",  # Use your bot's app secret
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "type": "message",
+        "text": message
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, headers=headers, json=payload)
+        response.raise_for_status()
 
 def count_open_tickets(tickets: List[TicketData]) -> int:
     open_tickets = [ticket for ticket in tickets if ticket.status != 5]
