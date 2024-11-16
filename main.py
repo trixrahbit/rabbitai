@@ -52,11 +52,6 @@ async def validate_teams_token(auth_header: str):
 
     token = auth_header.split(" ")[1]
 
-    # Decode token for debugging
-    header, payload = decode_jwt(token)
-    logging.info(f"Token Header: {header}")
-    logging.info(f"Token Payload: {payload}")
-
     # Fetch OpenID configuration
     async with httpx.AsyncClient() as client:
         response = await client.get(OPENID_CONFIG_URL)
@@ -71,9 +66,7 @@ async def validate_teams_token(auth_header: str):
         jwks_response = await client.get(jwks_uri)
         jwks = jwks_response.json()
 
-    logging.info(f"JWKS Keys: {jwks}")
-
-    # Validate token
+    # Extract key from JWKS
     try:
         decoded_token = jwt.decode(
             token,
