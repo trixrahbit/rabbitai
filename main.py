@@ -47,66 +47,68 @@ def decode_jwt(token):
         return {"error": f"Failed to decode token: {e}"}
 
 async def validate_teams_token(auth_header: str):
-    logging.info("Starting token validation...")
-
     if not auth_header or not auth_header.startswith("Bearer "):
-        logging.error("Invalid or missing authorization header")
         raise HTTPException(status_code=401, detail="Invalid or missing authorization header")
 
     token = auth_header.split(" ")[1]
-    logging.info(f"Received token: {token}")
+
+    # Fetch OpenID configuration
+    async with httpx.AsyncClient() as client:
+        response = await client.get(OPENID_CONFIG_URL)
+        response.raise_for_status()
+        openid_config = response.json()
+    logging.info(f"OpenID configuration fetched: {openid_config}")
+
+    jwks_uri = openid_config["jwks_uri"]
+    issuer = openid_config["issuer"]
+
+    # Fetch JWKS
+    async with httpx.AsyncClient() as client:
+        jwks_response = await client.get(jwks_uri)
+        jwks_response.raise_for_status()
+        jwks = jwks_response.json()
+    logging.info(f"JWKS fetched: {jwks}")
+
+    decoded_header, decoded_payload = decode_jwt(token)
+    logging.info(f"Decoded JWT Header: {decoded_header}")
+    logging.info(f"Decoded JWT Payload: {decoded_payload}")
+
+    jwks_kids = [key["kid"] for key in jwks["keys"]]
+    logging.info(f"Available JWKS kids: {jwks_kids}")
+    logging.info(f"JWT kid: {decoded_header['kid']}")
+
+    # Validate audience ('aud') claim
+    valid_audiences = ["https://api.botframework.com", APP_ID]
+    if decoded_payload.get("aud") not in valid_audiences:
+        logging.error(f"Invalid audience: {decoded_payload.get('aud')}")
+        raise HTTPException(status_code=403, detail="Invalid audience")
+
+    # Validate issuer ('iss') claim
+    if decoded_payload.get("iss") != issuer:
+        logging.error(f"Invalid issuer: {decoded_payload.get('iss')}")
+        raise HTTPException(status_code=403, detail="Invalid issuer")
+
+    # Find the matching JWKS key
+    key = next((k for k in jwks["keys"] if k["kid"] == decoded_header["kid"]), None)
+    if not key:
+        logging.error(f"No matching key found for kid: {decoded_header['kid']}")
+        raise HTTPException(status_code=403, detail="No matching JWKS key for token 'kid'")
+    logging.info(f"Found matching key: {key}")
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(OPENID_CONFIG_URL)
-            response.raise_for_status()
-            openid_config = response.json()
-        logging.info(f"OpenID configuration fetched: {openid_config}")
-
-        jwks_uri = openid_config["jwks_uri"]
-        issuer = openid_config["issuer"]
-
-        async with httpx.AsyncClient() as client:
-            jwks_response = await client.get(jwks_uri)
-            jwks_response.raise_for_status()
-            jwks = jwks_response.json()
-        logging.info(f"JWKS fetched: {jwks}")
-
-        decoded_header, decoded_payload = decode_jwt(token)
-        logging.info(f"Decoded JWT Header: {decoded_header}")
-        logging.info(f"Decoded JWT Payload: {decoded_payload}")
-
-        jwks_kids = [key["kid"] for key in jwks["keys"]]
-        logging.info(f"Available JWKS kids: {jwks_kids}")
-        logging.info(f"JWT kid: {decoded_header['kid']}")
-
-        if decoded_payload.get("aud") != "https://api.botframework.com":
-            logging.error(f"Invalid audience: {decoded_payload.get('aud')}")
-            raise HTTPException(status_code=403, detail="Invalid audience")
-
-        if decoded_payload.get("iss") != issuer:
-            logging.error(f"Invalid issuer: {decoded_payload.get('iss')}")
-            raise HTTPException(status_code=403, detail="Invalid issuer")
-
-        key = next((k for k in jwks["keys"] if k["kid"] == decoded_header["kid"]), None)
-        if not key:
-            logging.error(f"No matching key found for kid: {decoded_header['kid']}")
-            raise HTTPException(status_code=403, detail="No matching JWKS key for token 'kid'")
-        logging.info(f"Found matching key: {key}")
-
         decoded_token = jwt.decode(
             token,
             key,
             algorithms=["RS256"],
-            audience="https://api.botframework.com",
+            audience=valid_audiences,
             issuer=issuer
         )
         logging.info(f"Token successfully validated. Decoded token: {decoded_token}")
         return decoded_token
-
-    except Exception as e:
+    except JWTError as e:
         logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
+
 
 
 
