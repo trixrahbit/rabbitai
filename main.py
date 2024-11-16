@@ -6,7 +6,7 @@ import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse
 
-from config import APP_SECRET
+from config import APP_SECRET, OPENID_CONFIG_URL
 from models import DeviceData
 from security.auth import get_api_key
 import logging
@@ -44,20 +44,42 @@ async def verify_teams_request(request: Request):
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
 
     token = auth_header.split(" ")[1]
-    validation_url = "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
 
+    # Step 1: Retrieve OpenID Configuration
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                validation_url,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                data={"token": token}
-            )
-            if response.status_code != 200:
-                raise HTTPException(status_code=403, detail="Invalid Teams token")
+            openid_response = await client.get(OPENID_CONFIG_URL)
+            openid_response.raise_for_status()
+            openid_config = openid_response.json()
     except Exception as e:
-        logging.error(f"Error validating Teams token: {e}")
-        raise HTTPException(status_code=403, detail="Error validating Teams token")
+        logging.error(f"Failed to fetch OpenID configuration: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch OpenID configuration")
+
+    jwks_uri = openid_config.get("jwks_uri")
+    issuer = openid_config.get("issuer")
+
+    # Step 2: Validate the token using the OpenID keys
+    try:
+        from jose import jwt
+        from jose.exceptions import JWTError
+
+        async with httpx.AsyncClient() as client:
+            jwks_response = await client.get(jwks_uri)
+            jwks_response.raise_for_status()
+            keys = jwks_response.json()
+
+        # Decode and validate the token
+        decoded_token = jwt.decode(
+            token,
+            keys,
+            algorithms=["RS256"],
+            audience="https://api.botframework.com",
+            issuer=issuer
+        )
+        logging.info(f"Decoded token: {decoded_token}")
+    except JWTError as e:
+        logging.error(f"Invalid token: {e}")
+        raise HTTPException(status_code=403, detail="Invalid Teams token")
 
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):

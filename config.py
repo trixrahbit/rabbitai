@@ -28,6 +28,7 @@ AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
 deployment_name = settings.DEPLOYMENT_NAME
 
 
+OPENID_CONFIG_URL = "https://login.microsoftonline.com/botframework.com/v2.0/.well-known/openid-configuration"
 
 
 logging.basicConfig(level=logging.DEBUG)
