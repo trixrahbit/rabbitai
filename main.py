@@ -59,7 +59,7 @@ async def validate_teams_token(auth_header: str):
         openid_config = response.json()
 
     jwks_uri = openid_config["jwks_uri"]
-    issuer = openid_config["issuer"]
+    expected_issuer = "https://api.botframework.com"  # Adjusted for Teams
 
     # Fetch JWKS
     async with httpx.AsyncClient() as client:
@@ -82,7 +82,7 @@ async def validate_teams_token(auth_header: str):
         raise HTTPException(status_code=403, detail="Invalid audience")
 
     # Validate issuer ('iss') claim
-    if decoded_payload.get("iss") != issuer:
+    if decoded_payload.get("iss") != expected_issuer:
         logging.error(f"Invalid issuer: {decoded_payload.get('iss')}")
         raise HTTPException(status_code=403, detail="Invalid issuer")
 
@@ -103,13 +103,14 @@ async def validate_teams_token(auth_header: str):
             key,
             algorithms=["RS256"],
             audience=valid_audiences,
-            issuer=issuer
+            issuer=expected_issuer
         )
         logging.info(f"Token successfully validated. Decoded token: {decoded_token}")
         return decoded_token
     except JWTError as e:
         logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
+
 
 
 
