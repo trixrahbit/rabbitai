@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, F
 from fastapi.responses import FileResponse, JSONResponse
 from jose import JWTError, jwt
 
-from config import APP_SECRET, OPENID_CONFIG_URL
+from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID
 from models import DeviceData
 from security.auth import get_api_key
 import logging
