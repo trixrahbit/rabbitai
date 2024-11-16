@@ -273,8 +273,8 @@ async def handle_command(request: Request):
             raise ValueError("Missing required fields: 'text', 'user_id', 'serviceUrl', or 'conversation_id'")
 
         # Step 3: Process the command
-        if command_text.startswith("/sendtoai"):
-            args = command_text[len("/sendtoai "):]
+        if command_text.startswith("/askai"):
+            args = command_text[len("/askai"):]
             result = await handle_sendtoai(args)
             message = result.get("response", "No response generated.")
 
