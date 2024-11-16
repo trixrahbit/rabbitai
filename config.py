@@ -1,25 +1,30 @@
-import os
-
 from pydantic_settings import BaseSettings
-from openai import AzureOpenAI
-import logging
+
 # Config
 class Settings(BaseSettings):
     CLIENT_ID: str
     TENANT_ID: str
     CLIENT_SECRET: str
     API_KEY: str  # For API key-based security
+    APP_ID: str
+    APP_SECRET: str
+    AZURE_API_KEY: str
+    AZURE_OPENAI_ENDPOINT: str
+    DEPLOYMENT_NAME: str
 
     class Config:
         env_file = ".env"
 
+# Instantiate settings
 settings = Settings()
 
-APP_ID = os.getenv("APP_ID")
-APP_SECRET = os.getenv("APP_SECRET")
-AZURE_API_KEY = os.getenv("AZURE_API_KEY")
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-deployment_name = os.getenv("DEPLOYMENT_NAME")
+# Access environment variables
+APP_ID = settings.APP_ID
+APP_SECRET = settings.APP_SECRET
+AZURE_API_KEY = settings.AZURE_API_KEY
+AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
+deployment_name = settings.DEPLOYMENT_NAME
+
 
 
 
