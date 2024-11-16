@@ -3,7 +3,7 @@ import os
 from pydantic_settings import BaseSettings
 from openai import AzureOpenAI
 import logging
-
+# Config
 class Settings(BaseSettings):
     CLIENT_ID: str
     TENANT_ID: str

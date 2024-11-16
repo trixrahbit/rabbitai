@@ -3,7 +3,7 @@ import json
 from typing import List, Dict
 import httpx
 from config import logger, AZURE_API_KEY, AZURE_OPENAI_ENDPOINT, deployment_name
-
+# AI Processing
 def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[str, str]]]:
     recommendations = {
         "device_recommendations": [],
