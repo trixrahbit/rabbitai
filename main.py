@@ -57,7 +57,6 @@ async def validate_teams_token(auth_header: str):
         response = await client.get(OPENID_CONFIG_URL)
         response.raise_for_status()
         openid_config = response.json()
-    logging.info(f"OpenID configuration fetched: {openid_config}")
 
     jwks_uri = openid_config["jwks_uri"]
     issuer = openid_config["issuer"]
@@ -67,15 +66,14 @@ async def validate_teams_token(auth_header: str):
         jwks_response = await client.get(jwks_uri)
         jwks_response.raise_for_status()
         jwks = jwks_response.json()
+
+    logging.info(f"OpenID configuration fetched: {openid_config}")
     logging.info(f"JWKS fetched: {jwks}")
 
+    # Decode the token
     decoded_header, decoded_payload = decode_jwt(token)
     logging.info(f"Decoded JWT Header: {decoded_header}")
     logging.info(f"Decoded JWT Payload: {decoded_payload}")
-
-    jwks_kids = [key["kid"] for key in jwks["keys"]]
-    logging.info(f"Available JWKS kids: {jwks_kids}")
-    logging.info(f"JWT kid: {decoded_header['kid']}")
 
     # Validate audience ('aud') claim
     valid_audiences = ["https://api.botframework.com", APP_ID]
@@ -89,12 +87,16 @@ async def validate_teams_token(auth_header: str):
         raise HTTPException(status_code=403, detail="Invalid issuer")
 
     # Find the matching JWKS key
+    jwks_kids = [key["kid"] for key in jwks["keys"]]
+    logging.info(f"Available JWKS kids: {jwks_kids}")
+    logging.info(f"JWT kid: {decoded_header['kid']}")
+
     key = next((k for k in jwks["keys"] if k["kid"] == decoded_header["kid"]), None)
     if not key:
         logging.error(f"No matching key found for kid: {decoded_header['kid']}")
         raise HTTPException(status_code=403, detail="No matching JWKS key for token 'kid'")
-    logging.info(f"Found matching key: {key}")
 
+    # Validate token
     try:
         decoded_token = jwt.decode(
             token,
@@ -108,6 +110,7 @@ async def validate_teams_token(auth_header: str):
     except JWTError as e:
         logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
+
 
 
 
