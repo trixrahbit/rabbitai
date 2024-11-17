@@ -278,16 +278,35 @@ async def handle_command(request: Request):
             args = command_text[len("askai"):]
             result = await handle_sendtoai(args)
             logging.info(f"Full OpenAI response: {result}")
-            message = result.get("response", "No response generated.")
-            escaped_message = html.escape(message)
+
+            # Ensure result["response"] is iterable and formatted for Teams
+            response_blocks = result.get("response", [])
+
+            # Create a formatted Adaptive Card body
+            adaptive_card_body = []
+            for block in response_blocks:
+                if isinstance(block, dict):  # Properly formatted block
+                    adaptive_card_body.append(block)
+                elif isinstance(block, str):  # Fallback for plain strings
+                    adaptive_card_body.append({
+                        "type": "TextBlock",
+                        "text": html.escape(block),  # Escape HTML for safety
+                        "wrap": True,
+                        "size": "Medium"
+                    })
+                else:
+                    logging.warning(f"Unexpected block format: {block}")
+
+            # Construct the Adaptive Card
             adaptive_card = {
                 "type": "AdaptiveCard",
                 "version": "1.3",
-                "body": result.get("response", []),  # Use the formatted response directly
+                "body": adaptive_card_body,
                 "actions": [
                     {"type": "Action.OpenUrl", "title": "Learn More", "url": "https://webitservices.com"}
                 ]
             }
+
             # Step 4: Send the response to Teams
             await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
             return JSONResponse(content={"status": "success", "message": "Message sent to Teams chat."})
@@ -298,5 +317,6 @@ async def handle_command(request: Request):
     except Exception as e:
         logging.error(f"Error in /command: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
+
 
 
