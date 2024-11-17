@@ -61,6 +61,7 @@ async def send_message_to_teams(service_url, conversation_id, user_upn, adaptive
             }
         ]
     }
+    logging.info(f"Payload to Teams: {payload}")
 
     # Step 4: Send the POST request
     headers = {

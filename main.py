@@ -276,6 +276,7 @@ async def handle_command(request: Request):
         if command_text.startswith("askai"):
             args = command_text[len("askai"):]
             result = await handle_sendtoai(args)
+            logging.info(f"Full OpenAI response: {result}")
             message = result.get("response", "No response generated.")
 
             # Create a simple adaptive card
