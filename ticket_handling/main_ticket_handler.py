@@ -14,57 +14,81 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
-            return response.json()  # Assume it returns a list of ticket objects
+            data = response.json()
+            logging.info(f"Webhook response: {data}")
+
+            if not isinstance(data, list):
+                raise ValueError("Webhook response is not a list of tickets.")
+            if not all(isinstance(ticket, dict) for ticket in data):
+                raise ValueError("Each ticket in the response must be a dictionary.")
+
+            return data
     except httpx.HTTPStatusError as e:
         logging.error(f"Failed to fetch tickets from webhook: {e.response.text}")
         raise HTTPException(status_code=500, detail="Error fetching tickets.")
+    except ValueError as e:
+        logging.error(f"Invalid webhook response format: {e}")
+        raise HTTPException(status_code=500, detail="Malformed ticket response.")
+
 
 def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     def calculate_weight(ticket):
         weight = 0
-        # Example weights (customize as needed)
-        if ticket.get("priority") == 1:  # High priority
-            weight += 50
-        elif ticket.get("priority") == 2:  # Medium priority
-            weight += 30
+        try:
+            priority = ticket.get("priority", 3)  # Default to low priority if missing
+            if priority == 1:  # High priority
+                weight += 50
+            elif priority == 2:  # Medium priority
+                weight += 30
 
-        if not ticket.get("sla_met"):  # SLA not met
-            weight += 20
+            if not ticket.get("sla_met", True):  # Default SLA met to True if missing
+                weight += 20
 
-        # Age of the ticket (older tickets get higher weight)
-        created_date = datetime.fromisoformat(ticket.get("created_date"))
-        ticket_age = (datetime.now() - created_date).days
-        weight += ticket_age
-
+            created_date_str = ticket.get("created_date")
+            if created_date_str:
+                created_date = datetime.fromisoformat(created_date_str)
+                ticket_age = (datetime.now() - created_date).days
+                weight += ticket_age
+        except Exception as e:
+            logging.error(f"Error calculating weight for ticket {ticket}: {e}")
+            weight = -1  # Assign a low weight if there's an error
         return weight
 
     # Assign weight to each ticket
     for ticket in tickets:
         ticket["weight"] = calculate_weight(ticket)
 
+    # Filter out tickets with invalid weights
+    valid_tickets = [t for t in tickets if t["weight"] >= 0]
+
     # Sort tickets by weight (descending)
-    sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
+    sorted_tickets = sorted(valid_tickets, key=lambda t: t["weight"], reverse=True)
     return sorted_tickets[:5]  # Return top 5 tickets
+
 
 
 def construct_ticket_card(tickets: List[dict]) -> dict:
     body = []
     actions = []
     for ticket in tickets:
-        body.append({
-            "type": "TextBlock",
-            "text": f"**Ticket ID**: {ticket['id']}\n"
-                    f"**Title**: {ticket['title']}\n"
-                    f"**Priority**: {ticket['priority']}\n"
-                    f"**Created Date**: {ticket['created_date']}\n"
-                    f"**Weight**: {ticket['weight']}",
-            "wrap": True
-        })
-        actions.append({
-            "type": "Action.OpenUrl",
-            "title": f"View Ticket {ticket['id']}",
-            "url": f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket['id']}&ticketId={ticket['id']}"
-        })
+        try:
+            body.append({
+                "type": "TextBlock",
+                "text": f"**Ticket ID**: {ticket.get('id', 'N/A')}\n"
+                        f"**Title**: {ticket.get('title', 'N/A')}\n"
+                        f"**Priority**: {ticket.get('priority', 'N/A')}\n"
+                        f"**Created Date**: {ticket.get('created_date', 'N/A')}\n"
+                        f"**Weight**: {ticket.get('weight', 'N/A')}",
+                "wrap": True
+            })
+            actions.append({
+                "type": "Action.OpenUrl",
+                "title": f"View Ticket {ticket.get('id', 'N/A')}",
+                "url": f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?"
+                       f"workspace=False&ids%5B0%5D={ticket.get('id', '')}&ticketId={ticket.get('id', '')}"
+            })
+        except Exception as e:
+            logging.error(f"Error constructing card for ticket: {e}")
 
     return {
         "type": "AdaptiveCard",
@@ -72,4 +96,3 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         "body": body,
         "actions": actions
     }
-
