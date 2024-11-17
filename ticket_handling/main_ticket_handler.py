@@ -158,10 +158,12 @@ def format_date(date_str):
         try:
             date_utc = datetime.fromisoformat(date_str.replace("Z", "+00:00")).astimezone(timezone.utc)
             date_cst = date_utc.astimezone(cst_tz)
-            return date_cst.strftime("%Y-%m-%d %I:%M %p %Z")
+            # Updated format string
+            return date_cst.strftime("%m-%d-%y %-I:%M %p %Z")
         except ValueError:
             return "Invalid Date"
     return "N/A"
+
 
 
 def construct_ticket_card(tickets: List[dict]) -> dict:
@@ -191,7 +193,8 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                     due_date_utc = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).astimezone(timezone.utc)
                     # Convert to CST
                     due_date = due_date_utc.astimezone(cst_tz)
-                    formatted_date = due_date.strftime("%Y-%m-%d %I:%M %p %Z")
+                    # Updated format string
+                    formatted_date = due_date.strftime("%m-%d-%y %-I:%M %p %Z")
                     # Get current time in CST
                     now = datetime.now(cst_tz)
                     status = "Overdue" if due_date < now else "Upcoming"
