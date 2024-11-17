@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime
 from typing import List
-
 import httpx
 from fastapi import HTTPException
 
@@ -75,13 +74,12 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
     # Sort tickets by weight (descending) and return the top 5
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
-    return sorted_tickets[:5]
+    return sorted_tickets[:3]
 
 
 
 
-from datetime import datetime
-from typing import List
+
 
 def format_date(date_str):
     if date_str:
