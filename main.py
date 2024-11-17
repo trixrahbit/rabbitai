@@ -281,10 +281,8 @@ async def handle_command(request: Request):
 
             # Create a simple adaptive card
             adaptive_card = {
-                "type": "AdaptiveCard",
-                "version": "1.3",
-                "body": [{"type": "TextBlock", "text": message, "wrap": True, "size": "Medium"}]
-                #"actions": [{"type": "Action.OpenUrl", "title": "Learn More", "url": "https://webitservices.com"}]
+                "type": "message",
+                "text": message
             }
 
             # Step 4: Send the response to Teams
