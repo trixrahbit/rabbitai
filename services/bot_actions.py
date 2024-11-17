@@ -5,8 +5,8 @@ async def get_bot_token():
     url = "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
     payload = {
         "grant_type": "client_credentials",
-        "client_id": settings.BOT_CLIENT_ID,
-        "client_secret": settings.BOT_CLIENT_SECRET,
+        "client_id": settings.CLIENT_ID,
+        "client_secret": settings.CLIENT_SECRET,
         "scope": "https://api.botframework.com/.default"
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
