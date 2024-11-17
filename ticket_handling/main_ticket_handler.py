@@ -30,6 +30,21 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
 
 
 def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
+    def check_sla(met_date_str, due_date_str):
+        if not due_date_str:
+            return None, None  # No due date, cannot calculate
+        due_date = datetime.fromisoformat(due_date_str.replace("Z", ""))
+        if met_date_str:
+            met_date = datetime.fromisoformat(met_date_str.replace("Z", ""))
+            time_diff_seconds = (due_date - met_date).total_seconds()
+            sla_met = met_date <= due_date
+        else:
+            # Not yet met, use current time
+            now = datetime.now()
+            time_diff_seconds = (due_date - now).total_seconds()
+            sla_met = now <= due_date
+        return sla_met, time_diff_seconds
+
     def calculate_weight(ticket):
         weight = 0
 
@@ -51,20 +66,46 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         if status in status_weights:
             weight += status_weights[status]
 
-        # Due Dates Weighting
-        now = datetime.now()
-        due_date_fields = [
-            "firstResponseDueDateTime",
-            "resolutionPlanDueDateTime",
-            "resolvedDueDateTime"
+        # SLA Calculations
+        sla_fields = [
+            ("firstResponseDateTime", "firstResponseDueDateTime", "First Response"),
+            ("resolutionPlanDateTime", "resolutionPlanDueDateTime", "Resolution Plan"),
+            ("resolvedDateTime", "resolvedDueDateTime", "Resolution")
         ]
-        for field in due_date_fields:
-            due_date_str = ticket.get(field)
-            if due_date_str:
-                due_date = datetime.fromisoformat(due_date_str.replace("Z", ""))
-                hours_until_due = (due_date - now).total_seconds() / 3600
-                if 0 <= hours_until_due <= 2:  # Coming due in the next 2 hours
-                    weight += 50
+
+        sla_results = []
+        for met_field, due_field, sla_name in sla_fields:
+            met_date_str = ticket.get(met_field)
+            due_date_str = ticket.get(due_field)
+
+            sla_met, time_diff_seconds = check_sla(met_date_str, due_date_str)
+
+            if sla_met is not None:
+                # Convert time difference to hours
+                time_left_hours = time_diff_seconds / 3600  # Positive if time left, negative if overdue
+
+                # Store SLA results for display purposes
+                sla_results.append({
+                    "sla_name": sla_name,
+                    "sla_met": sla_met,
+                    "time_left_seconds": time_diff_seconds
+                })
+
+                if not sla_met:
+                    # SLA was not met
+                    weight += 100  # Adjust weight for SLA not met
+                else:
+                    if not met_date_str:
+                        # Action not yet completed
+                        if 0 <= time_left_hours <= 2:
+                            # Coming due in next 2 hours
+                            weight += 50
+                    else:
+                        # SLA was met and action completed
+                        pass  # No additional weight adjustment
+
+        # Store SLA results in the ticket for adaptive card display
+        ticket["sla_results"] = sla_results
 
         return weight
 
@@ -72,7 +113,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     for ticket in tickets:
         ticket["weight"] = calculate_weight(ticket)
 
-    # Sort tickets by weight (descending) and return the top 5
+    # Sort tickets by weight (descending) and return the top ticket
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
     return sorted_tickets[:1]
 

@@ -279,8 +279,8 @@ async def handle_command(request: Request):
             raise ValueError("Missing required fields: 'text', 'aadObjectId', 'serviceUrl', or 'conversation_id'")
 
         # Step 4: Process 'askai' command
-        if command_text.startswith("askai"):
-            args = command_text[len("askai"):].strip()
+        if command_text.startswith("askRabbit"):
+            args = command_text[len("askRabbit"):].strip()
             result = await handle_sendtoai(args)
             logging.info(f"Full OpenAI response: {result}")
 
