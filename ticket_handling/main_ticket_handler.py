@@ -90,8 +90,37 @@ def format_date(date_str):
     return "N/A"
 
 def construct_ticket_card(tickets: List[dict]) -> dict:
+    def get_priority_color(priority):
+        priority_map = {
+            1: ("Critical", "attention"),  # Red
+            2: ("High", "warning"),       # Orange
+            3: ("Medium", "good"),       # Blue
+            4: ("Low", "good"),          # Blue
+            5: ("Very Low", "good")      # Blue
+        }
+        return priority_map.get(priority, ("Unknown", "default"))
+
+    def get_due_date_color(due_date_str):
+        if not due_date_str:
+            return "default"
+
+        now = datetime.now()
+        due_date = datetime.fromisoformat(due_date_str.replace("Z", ""))
+        delta = due_date - now
+
+        if delta.total_seconds() <= 2 * 3600:  # < 2 hours
+            return "attention"  # Red
+        elif delta.total_seconds() <= 48 * 3600:  # < 2 days
+            return "warning"  # Yellow
+        elif delta.total_seconds() > 48 * 3600:  # > 2 days
+            return "good"  # Green
+        return "default"
+
     body = []
     for ticket in tickets:
+        priority_text, priority_color = get_priority_color(ticket.get("priority"))
+        due_date_color = get_due_date_color(ticket.get("firstResponseDueDateTime"))
+
         body.append({
             "type": "Container",
             "items": [
@@ -100,7 +129,7 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                     "text": (
                         f"**Ticket ID**: {ticket['id']}\n\n"
                         f"**Title**: {ticket['title']}\n\n"
-                        f"**Priority**: {ticket['priority']}\n\n"
+                        f"**Priority**: {priority_text}\n\n"
                         f"**Status**: {ticket['status']}\n\n"
                         f"**Created Date**: {format_date(ticket['createDate'])}\n\n"
                         f"**First Response Due**: {format_date(ticket['firstResponseDueDateTime'])}\n\n"
@@ -109,7 +138,15 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                         f"**Weight**: {ticket['weight']}"
                     ),
                     "wrap": True,
-                    "spacing": "Medium"
+                    "spacing": "Medium",
+                    "color": priority_color
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"First Response Due: {format_date(ticket['firstResponseDueDateTime'])}",
+                    "wrap": True,
+                    "color": due_date_color,
+                    "spacing": "Small"
                 },
                 {
                     "type": "ActionSet",
@@ -117,7 +154,8 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                         {
                             "type": "Action.OpenUrl",
                             "title": "View Ticket",
-                            "url": f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket['id']}&ticketId={ticket['id']}"
+                            "url": f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket['id']}&ticketId={ticket['id']}",
+                            "style": "positive"  # Styled button
                         }
                     ]
                 }
