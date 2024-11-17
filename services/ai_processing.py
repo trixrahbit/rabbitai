@@ -156,7 +156,9 @@ async def handle_sendtoai(data: str) -> dict:
 
             # Parse the response
             ai_result = response.json()["choices"][0]["message"]["content"].strip()
+            logging.info(f"Raw OpenAI response: {response.json()}")
             logging.info(f"AI Result: {ai_result}")
+            ai_result = ai_result.replace("\n", " ").strip()
             return {"response": f"{ai_result}"}
     except httpx.HTTPStatusError as e:
         return {"response": f"Error communicating with OpenAI: {e.response.text}"}

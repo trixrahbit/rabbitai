@@ -1,4 +1,5 @@
 import base64
+import html
 import json
 from datetime import datetime
 from typing import List, Dict
@@ -278,13 +279,12 @@ async def handle_command(request: Request):
             result = await handle_sendtoai(args)
             logging.info(f"Full OpenAI response: {result}")
             message = result.get("response", "No response generated.")
-
-            # Create a simple adaptive card
+            escaped_message = html.escape(message)
             adaptive_card = {
-                "type": "message",
-                "text": message
+                "type": "AdaptiveCard",
+                "version": "1.3",
+                "body": [{"type": "TextBlock", "text": escaped_message, "wrap": True, "size": "Medium"}]
             }
-
             # Step 4: Send the response to Teams
             await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
             return JSONResponse(content={"status": "success", "message": "Message sent to Teams chat."})
