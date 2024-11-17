@@ -1,6 +1,7 @@
 import httpx
 from config import settings
 
+
 async def get_bot_token():
     url = "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
     payload = {
@@ -10,10 +11,18 @@ async def get_bot_token():
         "scope": "https://api.botframework.com/.default"
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, data=payload)
-        response.raise_for_status()
-        return response.json()["access_token"]
+
+    try:
+        async with httpx.AsyncClient() as client:
+            logging.info(f"Token request payload: {payload}")
+            response = await client.post(url, data=payload, headers=headers)
+            response.raise_for_status()
+            token_data = response.json()
+            logging.info(f"Token acquired: {token_data}")
+            return token_data["access_token"]
+    except httpx.HTTPStatusError as e:
+        logging.error(f"Failed to acquire token: {e.response.text}")
+        raise HTTPException(status_code=401, detail="Failed to authenticate bot.")
 
 
 async def send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card):
