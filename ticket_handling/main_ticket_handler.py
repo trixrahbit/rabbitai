@@ -5,14 +5,13 @@ from typing import List
 import httpx
 from fastapi import HTTPException
 
-
 async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
     url = "https://engine.rewst.io/webhooks/custom/trigger/01933846-ecca-7a63-a943-f09e358edcc3/018e6633-49b0-7f54-b610-e740d3bb1a3e"
     payload = {"user_upn": user_upn}
     headers = {"Content-Type": "application/json"}
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=300) as client:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
