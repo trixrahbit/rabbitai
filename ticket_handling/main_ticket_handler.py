@@ -236,6 +236,12 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                 },
                 {
                     "type": "TextBlock",
+                    "text": f"**Description:** {ticket['description']}",
+                    "wrap": True,
+                    "spacing": "Small"
+                },
+                {
+                    "type": "TextBlock",
                     "text": f"**Priority:** {priority_text}",
                     "wrap": True,
                     "color": priority_color,
