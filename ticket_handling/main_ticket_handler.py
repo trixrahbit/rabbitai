@@ -11,7 +11,7 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
     headers = {"Content-Type": "application/json"}
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=300) as client:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
