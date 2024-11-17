@@ -22,6 +22,9 @@ from services.pdf_service import generate_pdf_report
 import uuid
 import os
 
+from ticket_handling.main_ticket_handler import fetch_tickets_from_webhook, assign_ticket_weights, construct_ticket_card
+
+
 # Define the Middleware Class
 class MaxBodySizeMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, max_body_size: int):
@@ -310,6 +313,20 @@ async def handle_command(request: Request):
             # Step 4: Send the response to Teams
             await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
             return JSONResponse(content={"status": "success", "message": "Message sent to Teams chat."})
+        if command_text.startswith("getnextticket"):
+            # Step 1: Fetch tickets from webhook
+            tickets = await fetch_tickets_from_webhook(user_upn)
+
+            # Step 2: Assign weights and get top 5 tickets
+            top_tickets = assign_ticket_weights(tickets)
+
+            # Step 3: Construct Adaptive Card
+            adaptive_card = construct_ticket_card(top_tickets)
+
+            # Step 4: Send to Teams
+            await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
+            return JSONResponse(content={"status": "success", "message": "Top 5 tickets sent to Teams chat."})
+
 
         else:
             return {"response": "Unknown command"}
