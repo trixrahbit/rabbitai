@@ -39,7 +39,7 @@ class MaxBodySizeMiddleware(BaseHTTPMiddleware):
 
 
 app = FastAPI()
-logging.basicConfig(filename="/var/www/rabbitai/webhook.log", level=logging.INFO)
+logging.basicConfig(filename="/var/www/rabbitai/rabbitai.log", level=logging.INFO)
 app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
 
 
