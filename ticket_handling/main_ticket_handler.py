@@ -43,7 +43,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             now = datetime.now()
             time_diff_seconds = (due_date - now).total_seconds()
             sla_met = now <= due_date
-        return sla_met, time_diff_seconds
+        return sla_met, time_diff_seconds, due_date
 
     def calculate_weight(ticket):
         weight = 0
@@ -78,17 +78,27 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             met_date_str = ticket.get(met_field)
             due_date_str = ticket.get(due_field)
 
-            sla_met, time_diff_seconds = check_sla(met_date_str, due_date_str)
+            sla_met, time_diff_seconds, due_date = check_sla(met_date_str, due_date_str)
 
             if sla_met is not None:
                 # Convert time difference to hours
                 time_left_hours = time_diff_seconds / 3600  # Positive if time left, negative if overdue
 
+                # Format dates as MM-DD-YY HH:MM
+                due_date_formatted = due_date.strftime("%m-%d-%y %H:%M")
+                if met_date_str:
+                    met_date = datetime.fromisoformat(met_date_str.replace("Z", ""))
+                    met_date_formatted = met_date.strftime("%m-%d-%y %H:%M")
+                else:
+                    met_date_formatted = "Not completed"
+
                 # Store SLA results for display purposes
                 sla_results.append({
                     "sla_name": sla_name,
                     "sla_met": sla_met,
-                    "time_left_seconds": time_diff_seconds
+                    "time_left_seconds": time_diff_seconds,
+                    "due_date_formatted": due_date_formatted,
+                    "met_date_formatted": met_date_formatted
                 })
 
                 if not sla_met:
