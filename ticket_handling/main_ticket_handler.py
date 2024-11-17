@@ -108,18 +108,51 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         due_date = datetime.fromisoformat(due_date_str.replace("Z", ""))
         delta = due_date - now
 
-        if delta.total_seconds() <= 2 * 3600:  # < 2 hours
+        if delta.total_seconds() <= 0:  # Missed
             return "attention"  # Red
-        elif delta.total_seconds() <= 48 * 3600:  # < 2 days
+        elif delta.total_seconds() <= 2 * 3600:  # < 2 hours
             return "warning"  # Yellow
-        elif delta.total_seconds() > 48 * 3600:  # > 2 days
+        elif delta.total_seconds() > 2 * 3600:  # > 2 hours
             return "good"  # Green
         return "default"
+
+    def format_timeline(ticket):
+        timeline = []
+        now = datetime.now()
+        due_fields = {
+            "First Response Due": ticket.get("firstResponseDueDateTime"),
+            "Resolution Plan Due": ticket.get("resolutionPlanDueDateTime"),
+            "Resolved Due": ticket.get("resolvedDueDateTime")
+        }
+
+        for label, due_date_str in due_fields.items():
+            color = get_due_date_color(due_date_str)
+            formatted_date = format_date(due_date_str)
+            if due_date_str:
+                due_date = datetime.fromisoformat(due_date_str.replace("Z", ""))
+                status = "Missed" if due_date < now else "Upcoming"
+            else:
+                status = "N/A"
+            timeline.append({
+                "type": "Container",
+                "items": [
+                    {
+                        "type": "TextBlock",
+                        "text": f"{label}: {formatted_date} ({status})",
+                        "wrap": True,
+                        "color": color,
+                        "spacing": "Small"
+                    }
+                ],
+                "spacing": "Small",
+                "separator": True
+            })
+
+        return timeline
 
     body = []
     for ticket in tickets:
         priority_text, priority_color = get_priority_color(ticket.get("priority"))
-        due_date_color = get_due_date_color(ticket.get("firstResponseDueDateTime"))
 
         body.append({
             "type": "Container",
@@ -162,32 +195,20 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                 },
                 {
                     "type": "TextBlock",
-                    "text": f"First Response Due: {format_date(ticket['firstResponseDueDateTime'])}",
-                    "wrap": True,
-                    "spacing": "Small",
-                    "color": due_date_color
-                },
-                {
-                    "type": "TextBlock",
-                    "text": f"Resolution Plan Due: {format_date(ticket['resolutionPlanDueDateTime'])}",
-                    "wrap": True,
-                    "spacing": "Small",
-                    "color": "default"
-                },
-                {
-                    "type": "TextBlock",
-                    "text": f"Resolved Due: {format_date(ticket['resolvedDueDateTime'])}",
-                    "wrap": True,
-                    "spacing": "Small",
-                    "color": "default"
-                },
-                {
-                    "type": "TextBlock",
                     "text": f"Weight: {ticket['weight']}",
                     "wrap": True,
                     "spacing": "Small",
                     "color": "default"
                 },
+                {
+                    "type": "TextBlock",
+                    "text": "Timeline:",
+                    "weight": "bolder",
+                    "wrap": True,
+                    "spacing": "Medium",
+                    "color": "default"
+                },
+                *format_timeline(ticket),
                 {
                     "type": "ActionSet",
                     "actions": [
