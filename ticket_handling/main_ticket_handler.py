@@ -27,8 +27,6 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
     except ValueError as e:
         logging.error(f"Invalid webhook response format: {e}")
         raise HTTPException(status_code=500, detail="Malformed ticket response.")
-
-
 def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     def check_sla(met_date_str, due_date_str):
         if not due_date_str or due_date_str.strip() == '':
@@ -136,13 +134,6 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     # Sort tickets by weight (descending) and return the top ticket
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
     return sorted_tickets[:1]
-
-
-
-
-
-
-
 def format_date(date_str):
     if date_str:
         try:
@@ -150,64 +141,43 @@ def format_date(date_str):
         except ValueError:
             return "Invalid Date"
     return "N/A"
-
 def construct_ticket_card(tickets: List[dict]) -> dict:
     def get_priority_color(priority):
         priority_map = {
             1: ("Critical", "attention"),  # Red
-            2: ("High", "warning"),       # Orange
-            3: ("Medium", "default"),     # Blue (default style)
-            4: ("Low", "default"),        # Blue (default style)
-            5: ("Very Low", "default")    # Blue (default style)
+            2: ("High", "warning"),       # Yellow
+            3: ("Medium", "default"),     # Default color
+            4: ("Low", "default"),        # Default color
+            5: ("Very Low", "default")    # Default color
         }
         return priority_map.get(priority, ("Unknown", "default"))
 
-    def get_due_date_color(due_date_str):
-        if not due_date_str:
-            return "default"
-
-        now = datetime.now()
-        due_date = datetime.fromisoformat(due_date_str.replace("Z", ""))
-        delta = due_date - now
-
-        if delta.total_seconds() <= 0:  # Missed
-            return "attention"  # Red
-        elif delta.total_seconds() <= 2 * 3600:  # < 2 hours
-            return "warning"  # Yellow
-        elif delta.total_seconds() > 2 * 3600:  # > 2 hours
-            return "good"  # Green
-        return "default"
-
     def format_timeline(ticket):
         timeline = []
-        now = datetime.now()
         due_fields = {
             "First Response Due": ticket.get("firstResponseDueDateTime"),
             "Resolution Plan Due": ticket.get("resolutionPlanDueDateTime"),
-            "Resolved Due": ticket.get("resolvedDueDateTime")
+            "Resolution Due": ticket.get("resolvedDueDateTime")
         }
 
         for label, due_date_str in due_fields.items():
-            color = get_due_date_color(due_date_str)
-            formatted_date = format_date(due_date_str)
             if due_date_str:
-                due_date = datetime.fromisoformat(due_date_str.replace("Z", ""))
-                status = "Missed" if due_date < now else "Upcoming"
+                try:
+                    due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
+                    formatted_date = due_date.strftime("%Y-%m-%d %H:%M")
+                    status = "Overdue" if due_date < datetime.utcnow() else "Upcoming"
+                except ValueError:
+                    formatted_date = "Invalid Date"
+                    status = "Unknown"
             else:
+                formatted_date = "N/A"
                 status = "N/A"
+
             timeline.append({
-                "type": "Container",
-                "items": [
-                    {
-                        "type": "TextBlock",
-                        "text": f"{label}: {formatted_date} ({status})",
-                        "wrap": True,
-                        "color": color,
-                        "spacing": "Small"
-                    }
-                ],
-                "spacing": "Small",
-                "separator": True
+                "type": "TextBlock",
+                "text": f"{label}: {formatted_date} ({status})",
+                "wrap": True,
+                "spacing": "Small"
             })
 
         return timeline
@@ -221,79 +191,65 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
             "items": [
                 {
                     "type": "TextBlock",
-                    "text": f"Ticket ID: **{ticket['id']}**",
+                    "text": f"**Ticket ID:** {ticket['id']}",
                     "wrap": True,
-                    "weight": "bolder",
-                    "spacing": "Small",
-                    "color": "default"
+                    "weight": "Bolder",
+                    "spacing": "Medium"
                 },
                 {
                     "type": "TextBlock",
-                    "text": f"Title: {ticket['title']}",
+                    "text": f"**Title:** {ticket['title']}",
                     "wrap": True,
-                    "spacing": "Small",
-                    "color": "default"
+                    "spacing": "Small"
                 },
                 {
                     "type": "TextBlock",
-                    "text": f"Priority: {priority_text}",
+                    "text": f"**Priority:** {priority_text}",
                     "wrap": True,
-                    "spacing": "Small",
-                    "color": priority_color
+                    "color": priority_color,
+                    "spacing": "Small"
                 },
                 {
                     "type": "TextBlock",
-                    "text": f"Status: {ticket['status']}",
+                    "text": f"**Status:** {ticket['status']}",
                     "wrap": True,
-                    "spacing": "Small",
-                    "color": "default"
+                    "spacing": "Small"
                 },
                 {
                     "type": "TextBlock",
-                    "text": f"Created Date: {format_date(ticket['createDate'])}",
+                    "text": f"**Created Date:** {ticket['createDate']}",
                     "wrap": True,
-                    "spacing": "Small",
-                    "color": "default"
+                    "spacing": "Small"
                 },
                 {
                     "type": "TextBlock",
-                    "text": f"Weight: {ticket['weight']}",
+                    "text": "**Timeline:**",
                     "wrap": True,
-                    "spacing": "Small",
-                    "color": "default"
-                },
-                {
-                    "type": "TextBlock",
-                    "text": "Timeline:",
-                    "weight": "bolder",
-                    "wrap": True,
-                    "spacing": "Medium",
-                    "color": "default"
+                    "weight": "Bolder",
+                    "spacing": "Medium"
                 },
                 *format_timeline(ticket),
                 {
                     "type": "ActionSet",
+                    "spacing": "Medium",
                     "actions": [
                         {
                             "type": "Action.OpenUrl",
                             "title": "View Ticket",
-                            "url": f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket['id']}&ticketId={ticket['id']}",
-                            "style": "positive"
+                            "url": f"https://your-ticket-system.com/tickets/{ticket['id']}"
                         }
                     ]
                 }
             ],
-            "spacing": "Large",
-            "separator": True
+            "separator": True,
+            "spacing": "Medium"
         })
 
-    return {
+    # Final adaptive card
+    adaptive_card = {
         "type": "AdaptiveCard",
-        "version": "1.3",
+        "version": "1.2",
         "body": body
     }
 
-
-
-
-
+    return adaptive_card
