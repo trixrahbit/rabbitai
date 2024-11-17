@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import re
 from typing import List, Dict
 import httpx
 from config import logger, AZURE_API_KEY, AZURE_OPENAI_ENDPOINT, deployment_name
@@ -156,10 +157,31 @@ async def handle_sendtoai(data: str) -> dict:
 
             # Parse the response
             ai_result = response.json()["choices"][0]["message"]["content"].strip()
-            logging.info(f"Raw OpenAI response: {response.json()}")
-            logging.info(f"AI Result: {ai_result}")
-            ai_result = ai_result.replace("\n", " ").strip()
-            return {"response": f"{ai_result}"}
+            logging.info(f"Full AI Result: {ai_result}")
+
+            # Separate text and code using regex
+            parts = re.split(r"```(?:\w+\n)?", ai_result)  # Splits text around code blocks
+            formatted_response = []
+
+            for i, part in enumerate(parts):
+                if i % 2 == 0:
+                    # Plain text (outside code blocks)
+                    formatted_response.append({
+                        "type": "TextBlock",
+                        "text": part.strip(),
+                        "wrap": True,
+                        "size": "Medium"
+                    })
+                else:
+                    # Code snippet (inside code blocks)
+                    formatted_response.append({
+                        "type": "TextBlock",
+                        "text": f"```\n{part.strip()}\n```",
+                        "wrap": True,
+                        "size": "Medium"
+                    })
+
+            return {"response": formatted_response}
     except httpx.HTTPStatusError as e:
         return {"response": f"Error communicating with OpenAI: {e.response.text}"}
     except KeyError:

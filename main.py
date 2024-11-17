@@ -283,7 +283,10 @@ async def handle_command(request: Request):
             adaptive_card = {
                 "type": "AdaptiveCard",
                 "version": "1.3",
-                "body": [{"type": "TextBlock", "text": escaped_message, "wrap": True, "size": "Medium"}]
+                "body": result.get("response", []),  # Use the formatted response directly
+                "actions": [
+                    {"type": "Action.OpenUrl", "title": "Learn More", "url": "https://webitservices.com"}
+                ]
             }
             # Step 4: Send the response to Teams
             await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
