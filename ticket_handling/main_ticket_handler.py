@@ -283,3 +283,6 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
     }
 
 
+
+
+
