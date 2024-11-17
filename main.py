@@ -265,38 +265,38 @@ async def handle_command(request: Request):
     auth_header = request.headers.get("Authorization")
     await validate_teams_token(auth_header)
     try:
+        # Step 2: Parse the payload
         payload = await request.json()
         logging.info(f"Command payload: {payload}")
+
         command_text = payload.get("text")
-        user_upn = payload.get("from", {}).get("id")
+        aad_object_id = payload.get("from", {}).get("aadObjectId")  # Extract AAD Object ID
         service_url = payload.get("serviceUrl")
         conversation_id = payload.get("conversation", {}).get("id")
-        if not command_text or not user_upn or not service_url or not conversation_id:
-            raise ValueError("Missing required fields: 'text', 'user_id', 'serviceUrl', or 'conversation_id'")
+
+        # Step 3: Validate required fields
+        if not command_text or not aad_object_id or not service_url or not conversation_id:
+            raise ValueError("Missing required fields: 'text', 'aadObjectId', 'serviceUrl', or 'conversation_id'")
+
+        # Step 4: Process 'askai' command
         if command_text.startswith("askai"):
-            args = command_text[len("askai"):]
+            args = command_text[len("askai"):].strip()
             result = await handle_sendtoai(args)
             logging.info(f"Full OpenAI response: {result}")
 
-            # Ensure result["response"] is iterable and formatted for Teams
+            # Ensure response is properly formatted for Teams
             response_blocks = result.get("response", [])
+            adaptive_card_body = [
+                {
+                    "type": "TextBlock",
+                    "text": html.escape(block) if isinstance(block, str) else block.get("text", ""),
+                    "wrap": True,
+                    "size": "Medium"
+                }
+                for block in (response_blocks if isinstance(response_blocks, list) else [response_blocks])
+            ]
 
-            # Create a formatted Adaptive Card body
-            adaptive_card_body = []
-            for block in response_blocks:
-                if isinstance(block, dict):  # Properly formatted block
-                    adaptive_card_body.append(block)
-                elif isinstance(block, str):  # Fallback for plain strings
-                    adaptive_card_body.append({
-                        "type": "TextBlock",
-                        "text": html.escape(block),  # Escape HTML for safety
-                        "wrap": True,
-                        "size": "Medium"
-                    })
-                else:
-                    logging.warning(f"Unexpected block format: {block}")
-
-            # Construct the Adaptive Card
+            # Construct Adaptive Card
             adaptive_card = {
                 "type": "AdaptiveCard",
                 "version": "1.3",
@@ -306,17 +306,29 @@ async def handle_command(request: Request):
                 ]
             }
 
-            # Step 4: Send the response to Teams
-            await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
+            # Send the response to Teams
+            await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
             return JSONResponse(content={"status": "success", "message": "Message sent to Teams chat."})
+
         if command_text.startswith("getnextticket"):
-            tickets = await fetch_tickets_from_webhook(user_upn)
+            # Fetch tickets using AAD Object ID
+            tickets = await fetch_tickets_from_webhook(aad_object_id)
+            logging.info(f"Tickets fetched: {tickets}")
+
+            # Assign weights and get top 5 tickets
             top_tickets = assign_ticket_weights(tickets)
+            logging.info(f"Top tickets: {top_tickets}")
+
+            # Construct Adaptive Card for the tickets
             adaptive_card = construct_ticket_card(top_tickets)
-            await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
+
+            # Send tickets to Teams
+            await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
             return JSONResponse(content={"status": "success", "message": "Top 5 tickets sent to Teams chat."})
-        else:
-            return {"response": "Unknown command"}
+
+        # Handle unknown commands
+        return {"response": "Unknown command"}
+
     except Exception as e:
         logging.error(f"Error in /command: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
