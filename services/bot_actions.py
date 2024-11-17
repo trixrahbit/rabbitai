@@ -1,4 +1,8 @@
+import logging
+
 import httpx
+from fastapi import HTTPException
+
 from config import settings
 
 
