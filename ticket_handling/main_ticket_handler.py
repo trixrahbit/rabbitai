@@ -5,24 +5,24 @@ from typing import List
 import httpx
 from fastapi import HTTPException
 
+
 async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
     url = "https://engine.rewst.io/webhooks/custom/trigger/01933846-ecca-7a63-a943-f09e358edcc3/018e6633-49b0-7f54-b610-e740d3bb1a3e"
     payload = {"user_upn": user_upn}
     headers = {"Content-Type": "application/json"}
 
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=300) as client:
+        async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
-            logging.info(f"Webhook response: {data}")
 
-            if not isinstance(data, list):
-                raise ValueError("Webhook response is not a list of tickets.")
-            if not all(isinstance(ticket, dict) for ticket in data):
-                raise ValueError("Each ticket in the response must be a dictionary.")
+            # Extract the list of tickets from the nested format
+            tickets = data.get("my_ticket", [])
+            if not isinstance(tickets, list):
+                raise ValueError("Malformed response: 'my_ticket' is not a list.")
 
-            return data
+            return tickets
     except httpx.HTTPStatusError as e:
         logging.error(f"Failed to fetch tickets from webhook: {e.response.text}")
         raise HTTPException(status_code=500, detail="Error fetching tickets.")
