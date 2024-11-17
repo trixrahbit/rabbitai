@@ -100,17 +100,18 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                 {
                     "type": "TextBlock",
                     "text": (
-                        f"**Ticket ID**: {ticket['id']}\n"
-                        f"**Title**: {ticket['title']}\n"
-                        f"**Priority**: {ticket['priority']}\n"
-                        f"**Status**: {ticket['status']}\n"
-                        f"**Created Date**: {format_date(ticket['createDate'])}\n"
-                        f"**First Response Due**: {format_date(ticket['firstResponseDueDateTime'])}\n"
-                        f"**Resolution Plan Due**: {format_date(ticket['resolutionPlanDueDateTime'])}\n"
-                        f"**Resolved Due**: {format_date(ticket['resolvedDueDateTime'])}\n"
+                        f"**Ticket ID**: {ticket['id']}\n\n"
+                        f"**Title**: {ticket['title']}\n\n"
+                        f"**Priority**: {ticket['priority']}\n\n"
+                        f"**Status**: {ticket['status']}\n\n"
+                        f"**Created Date**: {format_date(ticket['createDate'])}\n\n"
+                        f"**First Response Due**: {format_date(ticket['firstResponseDueDateTime'])}\n\n"
+                        f"**Resolution Plan Due**: {format_date(ticket['resolutionPlanDueDateTime'])}\n\n"
+                        f"**Resolved Due**: {format_date(ticket['resolvedDueDateTime'])}\n\n"
                         f"**Weight**: {ticket['weight']}"
                     ),
-                    "wrap": True
+                    "wrap": True,
+                    "spacing": "Medium"
                 },
                 {
                     "type": "ActionSet",
@@ -122,7 +123,9 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                         }
                     ]
                 }
-            ]
+            ],
+            "spacing": "Large",
+            "separator": True
         })
 
     return {
@@ -130,4 +133,5 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         "version": "1.3",
         "body": body
     }
+
 
