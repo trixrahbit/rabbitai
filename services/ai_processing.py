@@ -136,7 +136,7 @@ async def handle_sendtoai(data: str) -> dict:
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment_name}/chat/completions?api-version=2023-05-15"
     payload = {
         "messages": [{"role": "user", "content": data}],
-        "max_tokens": 200,
+        "max_tokens": 4096,
         "temperature": 0.7,
         "n": 1,
     }
