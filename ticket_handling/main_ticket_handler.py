@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 import httpx
 from fastapi import HTTPException
@@ -31,16 +31,23 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
 
 def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     def check_sla(met_date_str, due_date_str):
-        if not due_date_str:
-            return None, None  # No due date, cannot calculate
-        due_date = datetime.fromisoformat(due_date_str.replace("Z", ""))
-        if met_date_str:
-            met_date = datetime.fromisoformat(met_date_str.replace("Z", ""))
+        if not due_date_str or due_date_str.strip() == '':
+            return None, None, None  # Return three None values
+        try:
+            due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
+        except ValueError:
+            logging.error(f"Invalid due_date_str: {due_date_str}")
+            return None, None, None  # Return three None values
+        if met_date_str and met_date_str.strip() != '':
+            try:
+                met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
+            except ValueError:
+                logging.error(f"Invalid met_date_str: {met_date_str}")
+                return None, None, None  # Return three None values
             time_diff_seconds = (due_date - met_date).total_seconds()
             sla_met = met_date <= due_date
         else:
-            # Not yet met, use current time
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             time_diff_seconds = (due_date - now).total_seconds()
             sla_met = now <= due_date
         return sla_met, time_diff_seconds, due_date
@@ -49,7 +56,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         weight = 0
 
         # Priority Weighting (Numeric keys)
-        priority_weights = {5: 1, 3: 3, 2: 4, 1: 5, 4: 10}  # Updated to match numeric priorities
+        priority_weights = {5: 1, 3: 3, 2: 4, 1: 5, 4: 10}
         priority = ticket.get("priority")
         if priority in priority_weights:
             weight += priority_weights[priority]
@@ -78,16 +85,18 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             met_date_str = ticket.get(met_field)
             due_date_str = ticket.get(due_field)
 
+            logging.debug(f"Processing SLA '{sla_name}' with met_date_str={met_date_str}, due_date_str={due_date_str}")
             sla_met, time_diff_seconds, due_date = check_sla(met_date_str, due_date_str)
+            logging.debug(f"check_sla returned: sla_met={sla_met}, time_diff_seconds={time_diff_seconds}, due_date={due_date}")
 
             if sla_met is not None:
                 # Convert time difference to hours
                 time_left_hours = time_diff_seconds / 3600  # Positive if time left, negative if overdue
 
                 # Format dates as MM-DD-YY HH:MM
-                due_date_formatted = due_date.strftime("%m-%d-%y %H:%M")
-                if met_date_str:
-                    met_date = datetime.fromisoformat(met_date_str.replace("Z", ""))
+                due_date_formatted = due_date.strftime("%m-%d-%y %H:%M") if due_date else "N/A"
+                if met_date_str and met_date_str.strip() != '':
+                    met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
                     met_date_formatted = met_date.strftime("%m-%d-%y %H:%M")
                 else:
                     met_date_formatted = "Not completed"
@@ -105,7 +114,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
                     # SLA was not met
                     weight += 100  # Adjust weight for SLA not met
                 else:
-                    if not met_date_str:
+                    if not met_date_str or met_date_str.strip() == '':
                         # Action not yet completed
                         if 0 <= time_left_hours <= 2:
                             # Coming due in next 2 hours
@@ -121,11 +130,13 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
     # Assign weights to tickets
     for ticket in tickets:
+        logging.debug(f"Calculating weight for ticket ID {ticket.get('id')}")
         ticket["weight"] = calculate_weight(ticket)
 
     # Sort tickets by weight (descending) and return the top ticket
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
     return sorted_tickets[:1]
+
 
 
 
