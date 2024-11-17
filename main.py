@@ -264,19 +264,15 @@ async def handle_command(request: Request):
     # Step 1: Verify the request
     auth_header = request.headers.get("Authorization")
     await validate_teams_token(auth_header)
-
     try:
-        # Step 2: Parse the payload
         payload = await request.json()
+        logging.info(f"Command payload: {payload}")
         command_text = payload.get("text")
         user_upn = payload.get("from", {}).get("id")
         service_url = payload.get("serviceUrl")
         conversation_id = payload.get("conversation", {}).get("id")
-
         if not command_text or not user_upn or not service_url or not conversation_id:
             raise ValueError("Missing required fields: 'text', 'user_id', 'serviceUrl', or 'conversation_id'")
-
-        # Step 3: Process the command
         if command_text.startswith("askai"):
             args = command_text[len("askai"):]
             result = await handle_sendtoai(args)
@@ -314,23 +310,13 @@ async def handle_command(request: Request):
             await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
             return JSONResponse(content={"status": "success", "message": "Message sent to Teams chat."})
         if command_text.startswith("getnextticket"):
-            # Step 1: Fetch tickets from webhook
             tickets = await fetch_tickets_from_webhook(user_upn)
-
-            # Step 2: Assign weights and get top 5 tickets
             top_tickets = assign_ticket_weights(tickets)
-
-            # Step 3: Construct Adaptive Card
             adaptive_card = construct_ticket_card(top_tickets)
-
-            # Step 4: Send to Teams
             await send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card)
             return JSONResponse(content={"status": "success", "message": "Top 5 tickets sent to Teams chat."})
-
-
         else:
             return {"response": "Unknown command"}
-
     except Exception as e:
         logging.error(f"Error in /command: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
