@@ -34,16 +34,16 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         weight = 0
 
         # Priority Weighting (Numeric keys)
-        priority_weights = {5: 1, 3: 3, 2: 4, 1: 5, 4: 2}  # Updated to match numeric priorities
+        priority_weights = {5: 1, 3: 3, 2: 4, 1: 5, 4: 10}  # Updated to match numeric priorities
         priority = ticket.get("priority")
         if priority in priority_weights:
             weight += priority_weights[priority]
 
         # Status Weighting (Numeric keys)
         status_weights = {
-            1: 1,   # New
+            1: 30,   # New
             70: 70,  # Assigned
-            32: 32,  # Scheduled
+            32: 10,  # Scheduled
             36: 36,  # Scheduling Needed
             50: 50   # Client Responded
         }
@@ -74,7 +74,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
     # Sort tickets by weight (descending) and return the top 5
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
-    return sorted_tickets[:3]
+    return sorted_tickets[:1]
 
 
 
