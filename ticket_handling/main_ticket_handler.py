@@ -94,9 +94,9 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         priority_map = {
             1: ("Critical", "attention"),  # Red
             2: ("High", "warning"),       # Orange
-            3: ("Medium", "good"),       # Blue
-            4: ("Low", "good"),          # Blue
-            5: ("Very Low", "good")      # Blue
+            3: ("Medium", "default"),     # Blue (default style)
+            4: ("Low", "default"),        # Blue (default style)
+            5: ("Very Low", "default")    # Blue (default style)
         }
         return priority_map.get(priority, ("Unknown", "default"))
 
@@ -126,27 +126,67 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
             "items": [
                 {
                     "type": "TextBlock",
-                    "text": (
-                        f"**Ticket ID**: {ticket['id']}\n\n"
-                        f"**Title**: {ticket['title']}\n\n"
-                        f"**Priority**: {priority_text}\n\n"
-                        f"**Status**: {ticket['status']}\n\n"
-                        f"**Created Date**: {format_date(ticket['createDate'])}\n\n"
-                        f"**First Response Due**: {format_date(ticket['firstResponseDueDateTime'])}\n\n"
-                        f"**Resolution Plan Due**: {format_date(ticket['resolutionPlanDueDateTime'])}\n\n"
-                        f"**Resolved Due**: {format_date(ticket['resolvedDueDateTime'])}\n\n"
-                        f"**Weight**: {ticket['weight']}"
-                    ),
+                    "text": f"Ticket ID: **{ticket['id']}**",
                     "wrap": True,
-                    "spacing": "Medium",
+                    "weight": "bolder",
+                    "spacing": "Small",
+                    "color": "default"
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"Title: {ticket['title']}",
+                    "wrap": True,
+                    "spacing": "Small",
+                    "color": "default"
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"Priority: {priority_text}",
+                    "wrap": True,
+                    "spacing": "Small",
                     "color": priority_color
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"Status: {ticket['status']}",
+                    "wrap": True,
+                    "spacing": "Small",
+                    "color": "default"
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"Created Date: {format_date(ticket['createDate'])}",
+                    "wrap": True,
+                    "spacing": "Small",
+                    "color": "default"
                 },
                 {
                     "type": "TextBlock",
                     "text": f"First Response Due: {format_date(ticket['firstResponseDueDateTime'])}",
                     "wrap": True,
-                    "color": due_date_color,
-                    "spacing": "Small"
+                    "spacing": "Small",
+                    "color": due_date_color
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"Resolution Plan Due: {format_date(ticket['resolutionPlanDueDateTime'])}",
+                    "wrap": True,
+                    "spacing": "Small",
+                    "color": "default"
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"Resolved Due: {format_date(ticket['resolvedDueDateTime'])}",
+                    "wrap": True,
+                    "spacing": "Small",
+                    "color": "default"
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"Weight: {ticket['weight']}",
+                    "wrap": True,
+                    "spacing": "Small",
+                    "color": "default"
                 },
                 {
                     "type": "ActionSet",
@@ -155,7 +195,7 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                             "type": "Action.OpenUrl",
                             "title": "View Ticket",
                             "url": f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket['id']}&ticketId={ticket['id']}",
-                            "style": "positive"  # Styled button
+                            "style": "positive"
                         }
                     ]
                 }
