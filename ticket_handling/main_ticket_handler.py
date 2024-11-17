@@ -33,65 +33,101 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
 def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     def calculate_weight(ticket):
         weight = 0
-        try:
-            priority = ticket.get("priority", 3)  # Default to low priority if missing
-            if priority == 1:  # High priority
-                weight += 50
-            elif priority == 2:  # Medium priority
-                weight += 30
 
-            if not ticket.get("sla_met", True):  # Default SLA met to True if missing
-                weight += 20
+        # Priority Weighting (Numeric keys)
+        priority_weights = {5: 1, 3: 3, 2: 4, 1: 5, 4: 2}  # Updated to match numeric priorities
+        priority = ticket.get("priority")
+        if priority in priority_weights:
+            weight += priority_weights[priority]
 
-            created_date_str = ticket.get("created_date")
-            if created_date_str:
-                created_date = datetime.fromisoformat(created_date_str)
-                ticket_age = (datetime.now() - created_date).days
-                weight += ticket_age
-        except Exception as e:
-            logging.error(f"Error calculating weight for ticket {ticket}: {e}")
-            weight = -1  # Assign a low weight if there's an error
+        # Status Weighting (Numeric keys)
+        status_weights = {
+            1: 1,   # New
+            70: 70,  # Assigned
+            32: 32,  # Scheduled
+            36: 36,  # Scheduling Needed
+            50: 50   # Client Responded
+        }
+        status = ticket.get("status")
+        if status in status_weights:
+            weight += status_weights[status]
+
+        # Due Dates Weighting
+        now = datetime.now()
+        due_date_fields = [
+            "firstResponseDueDateTime",
+            "resolutionPlanDueDateTime",
+            "resolvedDueDateTime"
+        ]
+        for field in due_date_fields:
+            due_date_str = ticket.get(field)
+            if due_date_str:
+                due_date = datetime.fromisoformat(due_date_str.replace("Z", ""))
+                hours_until_due = (due_date - now).total_seconds() / 3600
+                if 0 <= hours_until_due <= 2:  # Coming due in the next 2 hours
+                    weight += 50
+
         return weight
 
-    # Assign weight to each ticket
+    # Assign weights to tickets
     for ticket in tickets:
         ticket["weight"] = calculate_weight(ticket)
 
-    # Filter out tickets with invalid weights
-    valid_tickets = [t for t in tickets if t["weight"] >= 0]
-
-    # Sort tickets by weight (descending)
-    sorted_tickets = sorted(valid_tickets, key=lambda t: t["weight"], reverse=True)
-    return sorted_tickets[:5]  # Return top 5 tickets
+    # Sort tickets by weight (descending) and return the top 5
+    sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
+    return sorted_tickets[:5]
 
 
+
+
+from datetime import datetime
+from typing import List
+
+def format_date(date_str):
+    if date_str:
+        try:
+            return datetime.fromisoformat(date_str.replace("Z", "")).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return "Invalid Date"
+    return "N/A"
 
 def construct_ticket_card(tickets: List[dict]) -> dict:
     body = []
-    actions = []
     for ticket in tickets:
-        try:
-            body.append({
-                "type": "TextBlock",
-                "text": f"**Ticket ID**: {ticket.get('id', 'N/A')}\n"
-                        f"**Title**: {ticket.get('title', 'N/A')}\n"
-                        f"**Priority**: {ticket.get('priority', 'N/A')}\n"
-                        f"**Created Date**: {ticket.get('created_date', 'N/A')}\n"
-                        f"**Weight**: {ticket.get('weight', 'N/A')}",
-                "wrap": True
-            })
-            actions.append({
-                "type": "Action.OpenUrl",
-                "title": f"View Ticket {ticket.get('id', 'N/A')}",
-                "url": f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?"
-                       f"workspace=False&ids%5B0%5D={ticket.get('id', '')}&ticketId={ticket.get('id', '')}"
-            })
-        except Exception as e:
-            logging.error(f"Error constructing card for ticket: {e}")
+        body.append({
+            "type": "Container",
+            "items": [
+                {
+                    "type": "TextBlock",
+                    "text": (
+                        f"**Ticket ID**: {ticket['id']}\n"
+                        f"**Title**: {ticket['title']}\n"
+                        f"**Priority**: {ticket['priority']}\n"
+                        f"**Status**: {ticket['status']}\n"
+                        f"**Created Date**: {format_date(ticket['createDate'])}\n"
+                        f"**First Response Due**: {format_date(ticket['firstResponseDueDateTime'])}\n"
+                        f"**Resolution Plan Due**: {format_date(ticket['resolutionPlanDueDateTime'])}\n"
+                        f"**Resolved Due**: {format_date(ticket['resolvedDueDateTime'])}\n"
+                        f"**Weight**: {ticket['weight']}"
+                    ),
+                    "wrap": True
+                },
+                {
+                    "type": "ActionSet",
+                    "actions": [
+                        {
+                            "type": "Action.OpenUrl",
+                            "title": "View Ticket",
+                            "url": f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket['id']}&ticketId={ticket['id']}"
+                        }
+                    ]
+                }
+            ]
+        })
 
     return {
         "type": "AdaptiveCard",
         "version": "1.3",
-        "body": body,
-        "actions": actions
+        "body": body
     }
+
