@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     CLIENT_ID: str
     TENANT_ID: str
     CLIENT_SECRET: str
+    BOT_CLIENT_ID: str
+    BOT_CLIENT_SECRET: str
     API_KEY: str  # For API key-based security
     APP_ID: str
     APP_SECRET: str
@@ -26,6 +28,8 @@ APP_SECRET = settings.APP_SECRET
 AZURE_API_KEY = settings.AZURE_API_KEY
 AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
 deployment_name = settings.DEPLOYMENT_NAME
+BOT_CLIENT_ID = settings.BOT_CLIENT_ID
+BOT_CLIENT_SECRET = settings.BOT_CLIENT_SECRET
 
 
 OPENID_CONFIG_URL = "https://login.botframework.com/v1/.well-known/openidconfiguration"
