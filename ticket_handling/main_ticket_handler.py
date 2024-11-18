@@ -234,25 +234,23 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         for sla in sla_results:
             sla_name = sla["sla_name"]
             sla_met = sla["sla_met"]
-            time_left_seconds = sla["time_left_seconds"]
-            due_date_formatted = sla["due_date_formatted"]
-            met_date_formatted = sla["met_date_formatted"]
+            due_date = sla["due_date"]  # Use the datetime object
+            met_date = sla.get("met_date")  # May be None
 
             # Determine SLA status and color
+            now = datetime.now(cst_tz)
             if sla_met:
                 sla_status_text = "Met"
                 sla_status_color = "good"  # Green
+            elif due_date > now:
+                sla_status_text = "Not Yet Due"
+                sla_status_color = "default"  # Blue (default)
             else:
-                now = datetime.now(ZoneInfo('America/Chicago'))
-                due_date = datetime.strptime(due_date_formatted, "%m-%d-%y %I:%M %p %Z")
-                if due_date > now:
-                    sla_status_text = "Not Yet Due"
-                    sla_status_color = "default"  # Blue (default)
-                else:
-                    sla_status_text = "Not Met"
-                    sla_status_color = "attention"  # Red
+                sla_status_text = "Not Met"
+                sla_status_color = "attention"  # Red
 
             # Time status
+            time_left_seconds = sla["time_left_seconds"]
             if time_left_seconds is not None:
                 if time_left_seconds >= 0:
                     time_status = f"Time Left: {time_left_seconds / 3600:.2f} hours"
@@ -260,6 +258,10 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                     time_status = f"Overdue by: {-time_left_seconds / 3600:.2f} hours"
             else:
                 time_status = "N/A"
+
+            # Use formatted dates
+            due_date_formatted = sla["due_date_formatted"]
+            met_date_formatted = sla["met_date_formatted"]
 
             timeline.append({
                 "type": "Container",
