@@ -360,7 +360,7 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                 {
                     "type": "Action.OpenUrl",
                     "title": "View Ticket",
-                    "url": f"https://your-ticket-system.com/tickets/{ticket['id']}",
+                    "url": f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket['id']}&ticketId={ticket['id']}",
                     "style": "positive"
                 }
             ]
