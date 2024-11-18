@@ -88,12 +88,12 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             24: 65,  # Client Responded
             28: 55,  # Quote Needed
             29: 60,  # Reopened
-            32: 45,  # Scheduled
+            32: 0,  # Scheduled
             36: 65,  # Scheduling Needed
             41: -20, # Waiting Vendor
             54: 60,  # Needs Project
             56: 60,  # Received in Full
-            64: 55,  # Scheduled next NA
+            64: -20,  # Scheduled next NA
             70: 70,  # Assigned
             71: 70,  # schedule onsite
             74: -20   # scheduled onsite
