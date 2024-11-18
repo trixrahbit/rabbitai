@@ -197,10 +197,10 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
     def get_priority_info(priority):
         priority_map = {
             1: ("Critical", "attention"),  # Red
-            2: ("High", "warning"),       # Yellow
-            3: ("Medium", "default"),     # Default color
-            4: ("Low", "default"),        # Default color
-            5: ("Very Low", "default")    # Default color
+            2: ("High", "warning"),        # Yellow
+            3: ("Medium", "default"),      # Default color
+            4: ("Low", "default"),         # Default color
+            5: ("Very Low", "default")     # Default color
         }
         return priority_map.get(priority, ("Unknown", "default"))
 
@@ -233,11 +233,26 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
 
         for sla in sla_results:
             sla_name = sla["sla_name"]
-            sla_met = "Met" if sla["sla_met"] else "Not Met"
+            sla_met = sla["sla_met"]
             time_left_seconds = sla["time_left_seconds"]
             due_date_formatted = sla["due_date_formatted"]
             met_date_formatted = sla["met_date_formatted"]
 
+            # Determine SLA status and color
+            if sla_met:
+                sla_status_text = "Met"
+                sla_status_color = "good"  # Green
+            else:
+                now = datetime.now(ZoneInfo('America/Chicago'))
+                due_date = datetime.strptime(due_date_formatted, "%m-%d-%y %I:%M %p %Z")
+                if due_date > now:
+                    sla_status_text = "Not Yet Due"
+                    sla_status_color = "default"  # Blue (default)
+                else:
+                    sla_status_text = "Not Met"
+                    sla_status_color = "attention"  # Red
+
+            # Time status
             if time_left_seconds is not None:
                 if time_left_seconds >= 0:
                     time_status = f"Time Left: {time_left_seconds / 3600:.2f} hours"
@@ -254,12 +269,13 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                         "type": "TextBlock",
                         "text": f"**{sla_name} SLA**",
                         "weight": "Bolder",
-                        "wrap": True
+                        "wrap": True,
+                        "color": sla_status_color
                     },
                     {
                         "type": "FactSet",
                         "facts": [
-                            {"title": "Status:", "value": sla_met},
+                            {"title": "Status:", "value": sla_status_text},
                             {"title": "Due Date:", "value": due_date_formatted},
                             {"title": "Met Date:", "value": met_date_formatted},
                             {"title": "Time Status:", "value": time_status}
@@ -355,4 +371,5 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
     }
 
     return adaptive_card
+
 
