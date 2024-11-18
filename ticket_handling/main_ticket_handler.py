@@ -139,7 +139,9 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
                     "sla_met": sla_met,
                     "time_left_seconds": time_diff_seconds,
                     "due_date_formatted": due_date_formatted,
-                    "met_date_formatted": met_date_formatted
+                    "met_date_formatted": met_date_formatted,
+                    "due_date": due_date,  # Store due_date datetime object
+                    "met_date": met_date if 'met_date' in locals() else None  # Store met_date if available
                 })
 
                 if not sla_met:
