@@ -30,7 +30,6 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
         logging.error(f"Invalid webhook response format: {e}")
         raise HTTPException(status_code=500, detail="Malformed ticket response.")
 
-
 def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     def check_sla(met_date_str, due_date_str):
         cst_tz = ZoneInfo('America/Chicago')
@@ -97,7 +96,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             64: 55,  # Scheduled next NA
             70: 70,  # Assigned
             71: 70,  # schedule onsite
-            74: 70   # scheduled onsite
+            74: -20   # scheduled onsite
         }
         status = ticket.get("status")
         if status in status_weights:
@@ -180,7 +179,6 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
     return sorted_tickets[:1]
 
-
 def format_date(date_str):
     cst_tz = ZoneInfo('America/Chicago')
     if date_str:
@@ -192,8 +190,6 @@ def format_date(date_str):
         except ValueError:
             return "Invalid Date"
     return "N/A"
-
-
 
 def construct_ticket_card(tickets: List[dict]) -> dict:
     def get_priority_info(priority):
