@@ -9,7 +9,6 @@ import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse
 from jose import JWTError, jwt
-
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID
 from models import DeviceData
 from security.auth import get_api_key
@@ -17,11 +16,10 @@ import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from services.ai_processing import generate_recommendations, handle_sendtoai
 from services.bot_actions import send_message_to_teams
-from services.data_processing import generate_analytics, handle_mytickets
+from services.data_processing import generate_analytics
 from services.pdf_service import generate_pdf_report
 import uuid
 import os
-
 from ticket_handling.main_ticket_handler import fetch_tickets_from_webhook, assign_ticket_weights, construct_ticket_card
 
 
@@ -85,10 +83,6 @@ async def validate_teams_token(auth_header: str):
         logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
 
-
-
-
-
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
     try:
@@ -110,16 +104,13 @@ async def count_tickets(request: Request):
         logging.error("Error processing request: %s", str(e))
         raise HTTPException(status_code=500, detail="Error processing JSON data")
 
-
 def calculate_resolution_time(create_date, resolved_date):
     if create_date and resolved_date:
         return (datetime.fromisoformat(resolved_date[:-1]) - datetime.fromisoformat(create_date[:-1])).total_seconds() / 3600
     return None
 
-
 def check_sla_met(ticket):
     return ticket.get("serviceLevelAgreementHasBeenMet") is True
-
 
 @app.post("/ticket-stats")
 async def ticket_stats(request: Request):
@@ -178,7 +169,6 @@ async def ticket_stats(request: Request):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/report/", dependencies=[Depends(get_api_key)])
 async def generate_report(device_data: List[DeviceData]):
@@ -247,7 +237,6 @@ async def download_report(filename: str, background_tasks: BackgroundTasks):
     else:
         raise HTTPException(status_code=404, detail="File not found")
 
-
 # Teams Commands Start Here
 @app.post("/ai")
 async def ai_endpoint(data: dict) -> Dict[str, str]:
@@ -257,7 +246,6 @@ async def ai_endpoint(data: dict) -> Dict[str, str]:
     text = data.get("data", "")
     processed = text[::-1]  # Reverse the text as an example
     return {"result": processed}
-
 
 @app.post("/command")
 async def handle_command(request: Request):
@@ -332,6 +320,3 @@ async def handle_command(request: Request):
     except Exception as e:
         logging.error(f"Error in /command: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
-
-
-

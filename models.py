@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Union
 
-
 class DataAggregationRequest(BaseModel):
     data: list[dict]
 

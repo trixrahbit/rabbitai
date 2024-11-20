@@ -2,17 +2,10 @@ import logging
 from typing import List, Dict
 from datetime import datetime
 from collections import defaultdict
-
 import httpx
 from fastapi import HTTPException
-
 from config import logger, APP_SECRET
 from models import DeviceData, TicketData
-
-
-def count_open_tickets(tickets: List[TicketData]) -> int:
-    open_tickets = [ticket for ticket in tickets if ticket.status != 5]
-    return len(open_tickets)
 
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
@@ -236,3 +229,7 @@ async def handle_mytickets(data: str) -> dict:
             return {"response": f"Tickets processed: {processed_result}"}
         except httpx.RequestError as e:
             return {"response": f"Error communicating with tickets endpoint: {str(e)}"}
+
+def count_open_tickets(tickets: List[TicketData]) -> int:
+    open_tickets = [ticket for ticket in tickets if ticket.status != 5]
+    return len(open_tickets)

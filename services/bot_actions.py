@@ -1,10 +1,7 @@
 import logging
-
 import httpx
 from fastapi import HTTPException
-
 from config import settings
-
 
 async def get_bot_token():
     url = "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
@@ -27,7 +24,6 @@ async def get_bot_token():
     except httpx.HTTPStatusError as e:
         logging.error(f"Failed to acquire token: {e.response.text}")
         raise HTTPException(status_code=401, detail="Failed to authenticate bot.")
-
 
 async def send_message_to_teams(service_url, conversation_id, user_upn, adaptive_card):
     # Step 1: Get the bot token

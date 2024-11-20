@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timezone
 from typing import List
 from zoneinfo import ZoneInfo
-
 import httpx
 from fastapi import HTTPException
 
@@ -21,6 +20,13 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
             tickets = data.get("my_ticket", [])
             if not isinstance(tickets, list):
                 raise ValueError("Malformed response: 'my_ticket' is not a list.")
+
+            # Exclude tickets with specified queueIDs
+            excluded_queue_ids = {29683506, 29683552, 29683546}
+            tickets = [
+                ticket for ticket in tickets
+                if ticket.get('queueID') not in excluded_queue_ids
+            ]
 
             return tickets
     except httpx.HTTPStatusError as e:
