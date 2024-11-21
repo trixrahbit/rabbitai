@@ -41,7 +41,7 @@ def get_db_connection():
     try:
         conn = pyodbc.connect(
             f"Driver={{ODBC Driver 18 for SQL Server}};"
-            f"Server=rewst.database.windows.net;"
+            f"Server=tcp:rewst.database.windows.net,1433;"
             f"Database=rabbitops;"
             f"Uid={DB_USER};"
             f"Pwd={DB_PASSWORD};"
