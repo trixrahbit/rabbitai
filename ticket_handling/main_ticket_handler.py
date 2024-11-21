@@ -98,10 +98,10 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             41: -20, # Waiting Vendor
             54: 60,  # Needs Project
             56: 60,  # Received in Full
-            64: -100, # Scheduled next NA
+            64: -20, # Scheduled next NA
             70: 70,  # Assigned
-            71: 70,  # Schedule Onsite
-            74: -100  # Scheduled Onsite
+            71: 70,  # schedule onsite
+            74: -20  # scheduled onsite
         }
         status = ticket.get("status")
         if status in status_weights:
@@ -116,41 +116,28 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             ("resolvedDateTime", "resolvedDueDateTime", "Resolution")
         ]
 
-        sla_results = []
-        for met_field, due_field, sla_name in sla_fields:
+        for met_field, due_field, _ in sla_fields:
             met_date_str = ticket.get(met_field)
             due_date_str = ticket.get(due_field)
+            sla_met, _, _ = check_sla(met_date_str, due_date_str)
+            if sla_met is False:
+                weight += 100
 
-            sla_met, time_diff_seconds, due_date = check_sla(met_date_str, due_date_str)
+        # Age of Ticket Weighting
+        create_date_str = ticket.get("createDate")
+        if create_date_str:
+            try:
+                create_date = datetime.fromisoformat(create_date_str.replace("Z", "+00:00"))
+                days_since_creation = (datetime.utcnow() - create_date).days
+                weight += days_since_creation * 10
+                logger.debug(f"Ticket ID {ticket.get('id')} age: {days_since_creation} days")
+            except ValueError:
+                logger.error(f"Invalid createDate: {create_date_str}")
 
-            if sla_met is not None:
-                time_left_hours = time_diff_seconds / 3600
-                due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
-                met_date_formatted = (
-                    datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
-                    .astimezone(ZoneInfo('America/Chicago'))
-                    .strftime("%m-%d-%y %-I:%M %p %Z")
-                    if met_date_str and met_date_str.strip() != '' else "Not completed"
-                )
-
-                sla_results.append({
-                    "sla_name": sla_name,
-                    "sla_met": sla_met,
-                    "time_left_seconds": time_diff_seconds,
-                    "due_date_formatted": due_date_formatted,
-                    "met_date_formatted": met_date_formatted
-                })
-
-                if not sla_met:
-                    weight += 100
-                elif 0 <= time_left_hours <= 2:
-                    weight += 50
-
-        ticket["sla_results"] = sla_results
         return weight
 
     for ticket in tickets:
-        logging.debug(f"Calculating weight for ticket ID {ticket.get('id')}")
+        logger.debug(f"Calculating weight for ticket ID {ticket.get('id')}")
         ticket["weight"] = calculate_weight(ticket)
 
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
