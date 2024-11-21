@@ -5,6 +5,9 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import HTTPException
 
+from config import logger
+
+
 async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
     url = "https://engine.rewst.io/webhooks/custom/trigger/01933846-ecca-7a63-a943-f09e358edcc3/018e6633-49b0-7f54-b610-e740d3bb1a3e"
     payload = {"user_upn": user_upn}
@@ -41,25 +44,21 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         cst_tz = ZoneInfo('America/Chicago')
 
         if not due_date_str or due_date_str.strip() == '':
-            return None, None, None  # Return three None values
+            return None, None, None
         try:
-            # Parse due_date_str as UTC datetime
             due_date_utc = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).astimezone(timezone.utc)
-            # Convert to CST
             due_date = due_date_utc.astimezone(cst_tz)
         except ValueError:
             logging.error(f"Invalid due_date_str: {due_date_str}")
-            return None, None, None  # Return three None values
+            return None, None, None
 
         if met_date_str and met_date_str.strip() != '':
             try:
-                # Parse met_date_str as UTC datetime
                 met_date_utc = datetime.fromisoformat(met_date_str.replace("Z", "+00:00")).astimezone(timezone.utc)
-                # Convert to CST
                 met_date = met_date_utc.astimezone(cst_tz)
             except ValueError:
                 logging.error(f"Invalid met_date_str: {met_date_str}")
-                return None, None, None  # Return three None values
+                return None, None, None
             time_diff_seconds = (due_date - met_date).total_seconds()
             sla_met = met_date <= due_date
         else:
@@ -72,7 +71,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     def calculate_weight(ticket):
         weight = 0
 
-        # Priority Weighting (Numeric keys)
+        # Priority Weighting
         priority_weights = {
             1: 5,  # Critical
             2: 4,  # High
@@ -84,9 +83,9 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         if priority in priority_weights:
             weight += priority_weights[priority]
 
-        # Status Weighting (Updated based on provided statuses)
+        # Status Weighting
         status_weights = {
-            1: 50,   # New
+            1: 50,  # New
             5: -10,  # Completed
             7: -20,  # Waiting Client
             11: 70,  # Escalated
@@ -94,96 +93,55 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             24: 65,  # Client Responded
             28: 55,  # Quote Needed
             29: 60,  # Reopened
-            32: 0,  # Scheduled
+            32: 0,   # Scheduled
             36: 65,  # Scheduling Needed
             41: -20, # Waiting Vendor
             54: 60,  # Needs Project
             56: 60,  # Received in Full
-            64: -20,  # Scheduled next NA
+            64: -20, # Scheduled next NA
             70: 70,  # Assigned
             71: 70,  # schedule onsite
-            74: -20   # scheduled onsite
+            74: -20  # scheduled onsite
         }
         status = ticket.get("status")
         if status in status_weights:
             weight += status_weights[status]
         else:
-            # Assign a default weight for statuses not listed
-            weight += 10  # Adjust as needed
+            weight += 10  # Default weight
 
-        # SLA Calculations (Existing code)
+        # SLA Calculations
         sla_fields = [
             ("firstResponseDateTime", "firstResponseDueDateTime", "First Response"),
             ("resolutionPlanDateTime", "resolutionPlanDueDateTime", "Resolution Plan"),
             ("resolvedDateTime", "resolvedDueDateTime", "Resolution")
         ]
 
-        sla_results = []
-        for met_field, due_field, sla_name in sla_fields:
+        for met_field, due_field, _ in sla_fields:
             met_date_str = ticket.get(met_field)
             due_date_str = ticket.get(due_field)
+            sla_met, _, _ = check_sla(met_date_str, due_date_str)
+            if sla_met is False:
+                weight += 100
 
-            sla_met, time_diff_seconds, due_date = check_sla(met_date_str, due_date_str)
-
-            if sla_met is not None:
-                # Convert time difference to hours
-                time_left_hours = time_diff_seconds / 3600  # Positive if time left, negative if overdue
-
-                # Format dates as MM-DD-YY HH:MM in CST
-                due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
-                if met_date_str and met_date_str.strip() != '':
-                    met_date_utc = datetime.fromisoformat(met_date_str.replace("Z", "+00:00")).astimezone(timezone.utc)
-                    met_date = met_date_utc.astimezone(ZoneInfo('America/Chicago'))
-                    met_date_formatted = met_date.strftime("%m-%d-%y %-I:%M %p %Z")
-                else:
-                    met_date_formatted = "Not completed"
-
-                # Store SLA results for display purposes
-                sla_results.append({
-                    "sla_name": sla_name,
-                    "sla_met": sla_met,
-                    "time_left_seconds": time_diff_seconds,
-                    "due_date_formatted": due_date_formatted,
-                    "met_date_formatted": met_date_formatted,
-                    "due_date": due_date,  # Store due_date datetime object
-                    "met_date": met_date if 'met_date' in locals() else None  # Store met_date if available
-                })
-
-                if not sla_met:
-                    # SLA was not met
-                    weight += 100  # Adjust weight for SLA not met
-                else:
-                    if not met_date_str or met_date_str.strip() == '':
-                        # Action not yet completed
-                        if 0 <= time_left_hours <= 2:
-                            # Coming due in next 2 hours
-                            weight += 50
-                    else:
-                        # SLA was met and action completed
-                        pass  # No additional weight adjustment
-
-        # Store SLA results in the ticket for adaptive card display
-        ticket["sla_results"] = sla_results
+        # Age of Ticket Weighting
+        create_date_str = ticket.get("createDate")
+        if create_date_str:
+            try:
+                create_date = datetime.fromisoformat(create_date_str.replace("Z", "+00:00"))
+                days_since_creation = (datetime.utcnow() - create_date).days
+                weight += days_since_creation * 10
+                logger.debug(f"Ticket ID {ticket.get('id')} age: {days_since_creation} days")
+            except ValueError:
+                logger.error(f"Invalid createDate: {create_date_str}")
 
         return weight
 
-    # Assign weights to tickets
     for ticket in tickets:
-        logging.debug(f"Calculating weight for ticket ID {ticket.get('id')}")
+        logger.debug(f"Calculating weight for ticket ID {ticket.get('id')}")
         ticket["weight"] = calculate_weight(ticket)
 
-    # Sort tickets by weight (descending) and return the top tickets
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
-    return sorted_tickets[:1]  # Adjust the number as needed
-
-    # Assign weights to tickets
-    for ticket in tickets:
-        logging.debug(f"Calculating weight for ticket ID {ticket.get('id')}")
-        ticket["weight"] = calculate_weight(ticket)
-
-    # Sort tickets by weight (descending) and return the top ticket
-    sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
-    return sorted_tickets[:1]
+    return sorted_tickets[:1]  # Adjust as needed
 
 def format_date(date_str):
     cst_tz = ZoneInfo('America/Chicago')
