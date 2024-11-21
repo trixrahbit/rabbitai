@@ -45,25 +45,30 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
         if not due_date_str or due_date_str.strip() == '':
             return None, None, None
-
         try:
-            due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).astimezone(cst_tz)
+            due_date_utc = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
+            if due_date_utc.tzinfo is None:  # Make naive datetime UTC-aware
+                due_date_utc = due_date_utc.replace(tzinfo=timezone.utc)
+            due_date = due_date_utc.astimezone(cst_tz)
         except ValueError:
             logging.error(f"Invalid due_date_str: {due_date_str}")
             return None, None, None
 
         if met_date_str and met_date_str.strip() != '':
             try:
-                met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00")).astimezone(cst_tz)
-                sla_met = met_date <= due_date
-                time_diff_seconds = (due_date - met_date).total_seconds()
+                met_date_utc = datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
+                if met_date_utc.tzinfo is None:  # Make naive datetime UTC-aware
+                    met_date_utc = met_date_utc.replace(tzinfo=timezone.utc)
+                met_date = met_date_utc.astimezone(cst_tz)
             except ValueError:
                 logging.error(f"Invalid met_date_str: {met_date_str}")
                 return None, None, None
+            time_diff_seconds = (due_date - met_date).total_seconds()
+            sla_met = met_date <= due_date
         else:
-            now = datetime.now(cst_tz)  # Ensure now is timezone-aware
-            sla_met = now <= due_date
+            now = datetime.now(cst_tz)
             time_diff_seconds = (due_date - now).total_seconds()
+            sla_met = now <= due_date
 
         return sla_met, time_diff_seconds, due_date
 
@@ -127,7 +132,9 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         if create_date_str:
             try:
                 create_date = datetime.fromisoformat(create_date_str.replace("Z", "+00:00"))
-                days_since_creation = (datetime.utcnow() - create_date).days
+                if create_date.tzinfo is None:  # Make naive datetime UTC-aware
+                    create_date = create_date.replace(tzinfo=timezone.utc)
+                days_since_creation = (datetime.now(timezone.utc) - create_date).days
                 weight += days_since_creation * 10
                 logger.debug(f"Ticket ID {ticket.get('id')} age: {days_since_creation} days")
             except ValueError:
@@ -140,7 +147,8 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         ticket["weight"] = calculate_weight(ticket)
 
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
-    return sorted_tickets[:1]  # Adjust as needed
+    return sorted_tickets[:1]
+
 
 def format_date(date_str):
     cst_tz = ZoneInfo('America/Chicago')
