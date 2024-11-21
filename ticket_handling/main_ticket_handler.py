@@ -45,26 +45,25 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
         if not due_date_str or due_date_str.strip() == '':
             return None, None, None
+
         try:
-            due_date_utc = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).astimezone(timezone.utc)
-            due_date = due_date_utc.astimezone(cst_tz)
+            due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).astimezone(cst_tz)
         except ValueError:
             logging.error(f"Invalid due_date_str: {due_date_str}")
             return None, None, None
 
         if met_date_str and met_date_str.strip() != '':
             try:
-                met_date_utc = datetime.fromisoformat(met_date_str.replace("Z", "+00:00")).astimezone(timezone.utc)
-                met_date = met_date_utc.astimezone(cst_tz)
+                met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00")).astimezone(cst_tz)
+                sla_met = met_date <= due_date
+                time_diff_seconds = (due_date - met_date).total_seconds()
             except ValueError:
                 logging.error(f"Invalid met_date_str: {met_date_str}")
                 return None, None, None
-            time_diff_seconds = (due_date - met_date).total_seconds()
-            sla_met = met_date <= due_date
         else:
-            now = datetime.now(cst_tz)
-            time_diff_seconds = (due_date - now).total_seconds()
+            now = datetime.now(cst_tz)  # Ensure now is timezone-aware
             sla_met = now <= due_date
+            time_diff_seconds = (due_date - now).total_seconds()
 
         return sla_met, time_diff_seconds, due_date
 
