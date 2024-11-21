@@ -9,7 +9,9 @@ import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse
 from jose import JWTError, jwt
-from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID
+from starlette.responses import HTMLResponse
+
+from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection
 from models import DeviceData
 from security.auth import get_api_key
 import logging
@@ -249,74 +251,156 @@ async def ai_endpoint(data: dict) -> Dict[str, str]:
 
 @app.post("/command")
 async def handle_command(request: Request):
-    # Step 1: Verify the request
     auth_header = request.headers.get("Authorization")
     await validate_teams_token(auth_header)
     try:
-        # Step 2: Parse the payload
         payload = await request.json()
-        logging.info(f"Command payload: {payload}")
-
         command_text = payload.get("text")
-        aad_object_id = payload.get("from", {}).get("aadObjectId")  # Extract AAD Object ID
+        aad_object_id = payload.get("from", {}).get("aadObjectId")
         service_url = payload.get("serviceUrl")
         conversation_id = payload.get("conversation", {}).get("id")
 
-        # Step 3: Validate required fields
         if not command_text or not aad_object_id or not service_url or not conversation_id:
-            raise ValueError("Missing required fields: 'text', 'aadObjectId', 'serviceUrl', or 'conversation_id'")
+            raise ValueError("Missing required fields")
 
-        # Step 4: Process 'askai' command
+        # Process `askRabbit` command
         if command_text.startswith("askRabbit"):
             args = command_text[len("askRabbit"):].strip()
             result = await handle_sendtoai(args)
-            logging.info(f"Full OpenAI response: {result}")
+            response_text = result.get("response", "No response")
 
-            # Ensure response is properly formatted for Teams
-            response_blocks = result.get("response", [])
-            adaptive_card_body = [
-                {
-                    "type": "TextBlock",
-                    "text": html.escape(block) if isinstance(block, str) else block.get("text", ""),
-                    "wrap": True,
-                    "size": "Medium"
-                }
-                for block in (response_blocks if isinstance(response_blocks, list) else [response_blocks])
+            # Attempt to log the command and response to the database
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) VALUES (?, ?, ?, ?)",
+                    aad_object_id,
+                    "askRabbit",
+                    json.dumps({"message": args}),
+                    json.dumps({"response": response_text})
+                )
+                conn.commit()
+            except Exception as e:
+                logging.error(f"Failed to log 'askRabbit' command to database: {e}")
+
+            return JSONResponse(content={"status": "success", "response": response_text})
+
+        # Process `getnextticket` command
+        if command_text.startswith("getnextticket"):
+            tickets = await fetch_tickets_from_webhook(aad_object_id)
+            top_tickets = assign_ticket_weights(tickets)
+
+            # Prepare ticket details for logging
+            ticket_details = [
+                {"ticket_id": t["id"], "title": t["title"], "points": t["weight"]}
+                for t in top_tickets
             ]
 
-            # Construct Adaptive Card
-            adaptive_card = {
-                "type": "AdaptiveCard",
-                "version": "1.3",
-                "body": adaptive_card_body,
-                "actions": [
-                    {"type": "Action.OpenUrl", "title": "Learn More", "url": "https://webitservices.com"}
-                ]
-            }
+            # Attempt to log the command and result to the database
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) VALUES (?, ?, ?, ?)",
+                    aad_object_id,
+                    "getnextticket",
+                    json.dumps({"command": "getnextticket"}),
+                    json.dumps({"tickets": ticket_details})
+                )
+                conn.commit()
+            except Exception as e:
+                logging.error(f"Failed to log 'getnextticket' command to database: {e}")
 
-            # Send the response to Teams
-            await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
-            return JSONResponse(content={"status": "success", "message": "Message sent to Teams chat."})
-
-        if command_text.startswith("getnextticket"):
-            # Fetch tickets using AAD Object ID
-            tickets = await fetch_tickets_from_webhook(aad_object_id)
-            logging.info(f"Tickets fetched: {tickets}")
-
-            # Assign weights and get top 5 tickets
-            top_tickets = assign_ticket_weights(tickets)
-            logging.info(f"Top tickets: {top_tickets}")
-
-            # Construct Adaptive Card for the tickets
+            # Construct Adaptive Card for Teams
             adaptive_card = construct_ticket_card(top_tickets)
-
-            # Send tickets to Teams
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
-            return JSONResponse(content={"status": "success", "message": "Top 5 tickets sent to Teams chat."})
 
-        # Handle unknown commands
+            return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
+
+        # Unknown commands
         return {"response": "Unknown command"}
-
     except Exception as e:
         logging.error(f"Error in /command: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
+
+
+@app.get("/next-ticket-stats/{aad_object_id}")
+async def next_ticket_stats(aad_object_id: str):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Fetch total usage count by command
+        cursor.execute(
+            "SELECT command, COUNT(*) as count FROM CommandLogs WHERE aadObjectId = ? GROUP BY command",
+            aad_object_id
+        )
+        usage_stats = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # Fetch the last 5 tickets returned by `getnextticket`
+        cursor.execute(
+            "SELECT TOP 5 result_data FROM CommandLogs WHERE aadObjectId = ? AND command = 'getnextticket' ORDER BY created_at DESC",
+            aad_object_id
+        )
+        recent_tickets = [json.loads(row[0]) for row in cursor.fetchall()]
+
+        # Fetch the last 5 responses from `askRabbit`
+        cursor.execute(
+            "SELECT TOP 5 result_data FROM CommandLogs WHERE aadObjectId = ? AND command = 'askRabbit' ORDER BY created_at DESC",
+            aad_object_id
+        )
+        recent_responses = [json.loads(row[0]) for row in cursor.fetchall()]
+
+        return {
+            "aadObjectId": aad_object_id,
+            "usage_stats": usage_stats,
+            "recent_tickets": recent_tickets,
+            "recent_responses": recent_responses
+        }
+    except Exception as e:
+        logging.error(f"Error in /next-ticket-stats: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving stats")
+
+
+@app.get("/next-ticket-stats")
+async def next_ticket_stats_ui(aad_object_id: str):
+    if not aad_object_id:
+        raise HTTPException(status_code=400, detail="aad_object_id is required")
+
+    return HTMLResponse(content=f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Next Ticket Stats</title>
+    </head>
+    <body>
+        <h1>Next Ticket Stats</h1>
+        <div id="stats"></div>
+        <script>
+            async function fetchStats() {{
+                const response = await fetch('/next-ticket-stats/{aad_object_id}');
+                const stats = await response.json();
+                let html = `<h2>Usage Stats</h2><ul>`;
+                for (const [command, count] of Object.entries(stats.usage_stats)) {{
+                    html += `<li>${{command}}: ${{count}}</li>`;
+                }}
+                html += `</ul><h2>Recent Tickets</h2><ul>`;
+                stats.recent_tickets.forEach(ticket => {{
+                    ticket.tickets.forEach(t => {{
+                        html += `<li>Ticket ${{t.ticket_id}}: ${{t.title}} (Points: ${{t.points}})</li>`;
+                    }});
+                }});
+                html += `</ul><h2>Recent Responses</h2><ul>`;
+                stats.recent_responses.forEach(response => {{
+                    html += `<li>${{response.response}}</li>`;
+                }});
+                html += `</ul>`;
+                document.getElementById("stats").innerHTML = html;
+            }}
+            fetchStats();
+        </script>
+    </body>
+    </html>
+    """)
+
