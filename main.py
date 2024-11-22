@@ -311,32 +311,90 @@ async def handle_command(request: Request):
 
         # Process `mytickets` command
         if command_text.startswith("mytickets"):
-            tickets = await fetch_tickets_from_webhook(aad_object_id)
+            try:
+                tickets = await fetch_tickets_from_webhook(aad_object_id)
 
-            if not tickets:
-                return JSONResponse(content={"status": "success", "message": "No tickets assigned to you."})
+                if not tickets:
+                    return JSONResponse(content={"status": "success", "message": "No tickets assigned to you."})
 
-            # Assign weights and construct Adaptive Card
-            weighted_tickets = assign_ticket_weights(tickets)
-            ticket_card = construct_ticket_card(weighted_tickets)
+                # Construct Adaptive Card to display a list of tickets
+                ticket_cards = []
+                for ticket in tickets:
+                    ticket_id = ticket.get("id", "Unknown")
+                    title = ticket.get("title", "Untitled")
+                    description = ticket.get("description", "No description available.")[:200] + "..."
+                    status = ticket.get("status", "Unknown")
+                    ticket_url = f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket_id}&ticketId={ticket_id}"
 
-            # Send Adaptive Card to Teams
-            await send_message_to_teams(service_url, conversation_id, aad_object_id, ticket_card)
+                    ticket_cards.append({
+                        "type": "Container",
+                        "items": [
+                            {
+                                "type": "TextBlock",
+                                "text": f"**Ticket ID:** {ticket_id}",
+                                "wrap": True,
+                                "weight": "Bolder",
+                                "spacing": "Small"
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": f"**Title:** {title}",
+                                "wrap": True,
+                                "spacing": "Small"
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": f"**Description:** {description}",
+                                "wrap": True,
+                                "spacing": "Small"
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": f"**Status:** {status}",
+                                "wrap": True,
+                                "spacing": "Small"
+                            },
+                            {
+                                "type": "ActionSet",
+                                "spacing": "Small",
+                                "actions": [
+                                    {
+                                        "type": "Action.OpenUrl",
+                                        "title": "View Ticket",
+                                        "url": ticket_url
+                                    }
+                                ]
+                            }
+                        ]
+                    })
 
-            return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
+                # Combine tickets into a single Adaptive Card
+                adaptive_card = {
+                    "type": "AdaptiveCard",
+                    "version": "1.2",
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "text": "**My Tickets**",
+                            "wrap": True,
+                            "weight": "Bolder",
+                            "size": "Large",
+                            "spacing": "Medium"
+                        },
+                        *ticket_cards
+                    ]
+                }
 
-        # Handle unknown commands
-        return {"response": "Unknown command"}
-    except ValueError as ve:
-        logging.error(f"Validation error: {ve}")
-        raise HTTPException(status_code=400, detail=str(ve))
+                # Send Adaptive Card to Teams
+                await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
+
+                return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
+
+            except Exception as e:
+                logging.error(f"Error processing `mytickets` command: {e}")
+                raise HTTPException(status_code=500, detail="Failed to process `mytickets` command.")
+
     except Exception as e:
-        logging.error(f"Error in /command: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
-
-
-
-
-
-
+        logging.error(f"Error processing command: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process command.")
 
