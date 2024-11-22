@@ -120,12 +120,39 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             ("resolvedDateTime", "resolvedDueDateTime", "Resolution")
         ]
 
-        for met_field, due_field, _ in sla_fields:
+        sla_results = []
+        for met_field, due_field, sla_name in sla_fields:
             met_date_str = ticket.get(met_field)
             due_date_str = ticket.get(due_field)
-            sla_met, _, _ = check_sla(met_date_str, due_date_str)
-            if sla_met is False:
-                weight += 100
+            logging.debug(f"SLA Field - {sla_name}: met_date={met_date_str}, due_date={due_date_str}")
+
+            sla_met, time_diff_seconds, due_date = check_sla(met_date_str, due_date_str)
+
+            if sla_met is not None:
+                # Format dates
+                due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
+                met_date_formatted = (
+                    datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
+                    .astimezone(ZoneInfo("America/Chicago"))
+                    .strftime("%m-%d-%y %-I:%M %p %Z")
+                    if met_date_str and met_date_str.strip() != ''
+                    else "Not completed"
+                )
+
+                # Append to SLA results
+                sla_results.append({
+                    "sla_name": sla_name,
+                    "sla_met": sla_met,
+                    "time_left_seconds": time_diff_seconds,
+                    "due_date_formatted": due_date_formatted,
+                    "met_date_formatted": met_date_formatted,
+                    "due_date": due_date,
+                })
+
+                if not sla_met:
+                    weight += 100  # Penalize for unmet SLA
+
+        ticket["sla_results"] = sla_results
 
         # Age of Ticket Weighting
         create_date_str = ticket.get("createDate")
@@ -141,7 +168,6 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         return weight
 
     for ticket in tickets:
-        logger.debug(f"Calculating weight for ticket ID {ticket.get('id')}")
         ticket["weight"] = calculate_weight(ticket)
 
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
