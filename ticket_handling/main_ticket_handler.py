@@ -40,48 +40,48 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
 def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     def check_sla(met_date_str, due_date_str):
         cst_tz = ZoneInfo('America/Chicago')
-
         try:
             # Parse due_date_str
-            if due_date_str:
-                due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
-                # Convert to CST regardless of current timezone
-                due_date = due_date.astimezone(cst_tz)
+            if due_date_str and due_date_str.strip():
+                due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).astimezone(cst_tz)
             else:
                 due_date = None
 
             # Parse met_date_str
-            if met_date_str and met_date_str.strip().lower() != "not completed":
-                met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
-                # Convert to CST regardless of current timezone
-                met_date = met_date.astimezone(cst_tz)
+            if met_date_str and met_date_str.strip():
+                met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00")).astimezone(cst_tz)
             else:
                 met_date = None
 
             # Debug logging
-            logging.debug(f"Parsed due_date (CST): {due_date}, tzinfo: {due_date.tzinfo if due_date else 'None'}")
-            logging.debug(f"Parsed met_date (CST): {met_date}, tzinfo: {met_date.tzinfo if met_date else 'None'}")
+            logging.debug(f"Parsed due_date (CST): {due_date}")
+            logging.debug(f"Parsed met_date (CST): {met_date}")
 
         except ValueError as e:
             logging.error(f"Invalid datetime format: {e}")
-            return False, None, None  # SLA cannot be met if dates are invalid
+            return False, None, None, None  # SLA cannot be met if dates are invalid
+
+        # Initialize variables
+        sla_met = False
+        time_diff_seconds = None
 
         # SLA logic
-        if met_date:
-            # SLA is met if `met_date` is on or before `due_date`
-            sla_met = due_date and met_date <= due_date
+        if due_date:
+            if met_date:
+                # SLA is met if met_date <= due_date
+                sla_met = met_date <= due_date
+                time_diff_seconds = (due_date - met_date).total_seconds()
+            else:
+                # SLA is not met if met_date is missing
+                sla_met = False
+                now = datetime.now(cst_tz)
+                time_diff_seconds = (due_date - now).total_seconds()
         else:
-            # SLA is not met if `met_date` is missing or "Not Completed"
-            sla_met = False
+            # due_date is None, cannot calculate SLA
+            logging.debug("Due date is None, skipping SLA calculation.")
+            return False, None, None, None
 
-        # Calculate time difference in seconds
-        if met_date:
-            time_diff_seconds = (due_date - met_date).total_seconds() if due_date else None
-        else:
-            now = datetime.now(cst_tz)
-            time_diff_seconds = (due_date - now).total_seconds() if due_date else None
-
-        return sla_met, time_diff_seconds, due_date
+        return sla_met, time_diff_seconds, due_date, met_date
 
     def calculate_weight(ticket):
         weight = 0
@@ -138,20 +138,17 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             due_date_str = ticket.get(due_field)
             logging.debug(f"SLA Field - {sla_name}: met_date={met_date_str}, due_date={due_date_str}")
 
-            sla_met, time_diff_seconds, due_date = check_sla(met_date_str, due_date_str)
+            sla_met, time_diff_seconds, due_date, met_date = check_sla(met_date_str, due_date_str)
 
             if sla_met is not None:
                 # Additional debug to verify SLA results
                 logging.debug(
-                    f"Appending SLA - {sla_name}: sla_met={sla_met}, due_date={due_date}, met_date={met_date_str}")
+                    f"Appending SLA - {sla_name}: sla_met={sla_met}, due_date={due_date}, met_date={met_date}")
 
                 due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
                 met_date_formatted = (
-                    datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
-                    .astimezone(ZoneInfo("America/Chicago"))
-                    .strftime("%m-%d-%y %-I:%M %p %Z")
-                    if met_date_str and met_date_str.strip() != ''
-                    else "Not completed"
+                    met_date.strftime("%m-%d-%y %-I:%M %p %Z")
+                    if met_date else "Not completed"
                 )
 
                 # Append to SLA results
@@ -162,6 +159,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
                     "due_date_formatted": due_date_formatted,
                     "met_date_formatted": met_date_formatted,
                     "due_date": due_date,
+                    "met_date": met_date
                 })
 
                 if not sla_met:
@@ -245,41 +243,41 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         for sla in sla_results:
             sla_name = sla["sla_name"]
             sla_met = sla["sla_met"]
-            due_date = sla["due_date"]
-            met_date = sla.get("met_date")  # May be None
+            due_date = sla["due_date"]  # Already in CST
+            met_date = sla["met_date"]  # Already in CST
 
             # Debug log for each SLA
             logging.debug(f"Formatting SLA - {sla_name}: sla_met={sla_met}, due_date={due_date}, met_date={met_date}")
 
-            # Ensure dates are in CST
-            due_date = due_date.astimezone(cst_tz) if due_date else None
-            met_date = met_date.astimezone(cst_tz) if met_date else None
+            now = datetime.now(cst_tz)
 
             # Determine SLA status and color
-            now = datetime.now(cst_tz)
             if sla_met:
                 sla_status_text = "Met"
                 sla_status_color = "good"  # Green
-            elif due_date and due_date > now:
-                sla_status_text = "Not Yet Due"
-                sla_status_color = "default"  # Blue
+            elif met_date is None:
+                if due_date and due_date > now:
+                    sla_status_text = "Not Yet Due"
+                    sla_status_color = "default"  # Blue
+                else:
+                    sla_status_text = "Not Met"
+                    sla_status_color = "attention"  # Red
             else:
                 sla_status_text = "Not Met"
                 sla_status_color = "attention"  # Red
 
             # Time status
             time_left_seconds = sla["time_left_seconds"]
-            time_status = (
-                f"Time Left: {time_left_seconds / 3600:.2f} hours"
-                if time_left_seconds and time_left_seconds >= 0
-                else f"Overdue by: {-time_left_seconds / 3600:.2f} hours"
-                if time_left_seconds
-                else "N/A"
-            )
+            if time_left_seconds is not None:
+                if time_left_seconds >= 0:
+                    time_status = f"Time Left: {time_left_seconds / 3600:.2f} hours"
+                else:
+                    time_status = f"Overdue by: {-time_left_seconds / 3600:.2f} hours"
+            else:
+                time_status = "N/A"
 
-            # Format dates for display
-            due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
-            met_date_formatted = met_date.strftime("%m-%d-%y %-I:%M %p %Z") if met_date else "Not completed"
+            due_date_formatted = sla["due_date_formatted"]
+            met_date_formatted = sla["met_date_formatted"]
 
             # Append to timeline
             timeline.append({
