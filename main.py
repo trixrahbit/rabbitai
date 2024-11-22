@@ -348,21 +348,29 @@ async def next_ticket_stats():
             usage_stats[full_name][command] = count
 
         # Fetch the last 5 tickets with user names
-        cursor.execute(
-            """
-            SELECT up.full_name, cl.result_data
-            FROM CommandLogs cl
-            JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
-            WHERE cl.command = 'getnextticket'
-            ORDER BY cl.created_at DESC
-            """
-        )
+        """
+        SELECT DISTINCT up.full_name, cl.result_data
+        FROM CommandLogs cl
+        JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
+        WHERE cl.command = 'getnextticket'
+        ORDER BY cl.created_at DESC
+        """
         recent_tickets = {}
         for row in cursor.fetchall():
             full_name, result_data = row
             if full_name not in recent_tickets:
                 recent_tickets[full_name] = []
-            recent_tickets[full_name].append(json.loads(result_data))
+
+            # Parse the ticket data and filter duplicates
+            ticket_data = json.loads(result_data)
+            unique_tickets = {}
+            for ticket in ticket_data.get("tickets", []):
+                ticket_id = ticket["ticket_id"]
+                # Keep the ticket with the highest weight (if relevant)
+                if ticket_id not in unique_tickets or ticket["points"] > unique_tickets[ticket_id]["points"]:
+                    unique_tickets[ticket_id] = ticket
+
+            recent_tickets[full_name].append({"tickets": list(unique_tickets.values())})
 
         # Fetch the last 5 responses with user names
         cursor.execute(
