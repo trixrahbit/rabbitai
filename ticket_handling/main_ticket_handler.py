@@ -59,7 +59,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
         except ValueError as e:
             logging.error(f"Invalid datetime format: {e}")
-            return False, None, None, None  # SLA cannot be met if dates are invalid
+            return False, None, "N/A", "Not completed"  # Return explicit values for SLA fields
 
         # Initialize variables
         sla_met = False
@@ -78,10 +78,13 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
                 time_diff_seconds = (due_date - now).total_seconds()
         else:
             # due_date is None, cannot calculate SLA
-            logging.debug("Due date is None, skipping SLA calculation.")
-            return False, None, None, None
+            logging.debug("Due date is None, returning N/A for SLA calculation.")
+            return False, None, "N/A", "Not completed"
 
-        return sla_met, time_diff_seconds, due_date, met_date
+        due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
+        met_date_formatted = met_date.strftime("%m-%d-%y %-I:%M %p %Z") if met_date else "Not completed"
+
+        return sla_met, time_diff_seconds, due_date_formatted, met_date_formatted
 
     def calculate_weight(ticket):
         weight = 0
@@ -138,32 +141,25 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             due_date_str = ticket.get(due_field)
             logging.debug(f"SLA Field - {sla_name}: met_date={met_date_str}, due_date={due_date_str}")
 
-            sla_met, time_diff_seconds, due_date, met_date = check_sla(met_date_str, due_date_str)
+            sla_met, time_diff_seconds, due_date_formatted, met_date_formatted = check_sla(met_date_str, due_date_str)
 
-            if sla_met is not None:
-                # Additional debug to verify SLA results
-                logging.debug(
-                    f"Appending SLA - {sla_name}: sla_met={sla_met}, due_date={due_date}, met_date={met_date}")
+            logging.debug(
+                f"Appending SLA - {sla_name}: sla_met={sla_met}, due_date_formatted={due_date_formatted}, "
+                f"met_date_formatted={met_date_formatted}"
+            )
 
-                due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
-                met_date_formatted = (
-                    met_date.strftime("%m-%d-%y %-I:%M %p %Z")
-                    if met_date else "Not completed"
-                )
+            sla_results.append({
+                "sla_name": sla_name,
+                "sla_met": sla_met,
+                "time_left_seconds": time_diff_seconds,
+                "due_date_formatted": due_date_formatted,
+                "met_date_formatted": met_date_formatted,
+                "due_date": due_date_formatted,
+                "met_date": met_date_formatted,
+            })
 
-                # Append to SLA results
-                sla_results.append({
-                    "sla_name": sla_name,
-                    "sla_met": sla_met,
-                    "time_left_seconds": time_diff_seconds,
-                    "due_date_formatted": due_date_formatted,
-                    "met_date_formatted": met_date_formatted,
-                    "due_date": due_date,
-                    "met_date": met_date
-                })
-
-                if not sla_met:
-                    weight += 100  # Penalize for unmet SLA
+            if not sla_met:
+                weight += 100  # Penalize for unmet SLA
 
         ticket["sla_results"] = sla_results
 
@@ -243,8 +239,8 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         for sla in sla_results:
             sla_name = sla["sla_name"]
             sla_met = sla["sla_met"]
-            due_date = sla["due_date"]  # Already in CST
-            met_date = sla["met_date"]  # Already in CST
+            due_date = sla["due_date_formatted"]  # Use formatted value directly
+            met_date = sla["met_date_formatted"]  # Use formatted value directly
 
             # Debug log for each SLA
             logging.debug(f"Formatting SLA - {sla_name}: sla_met={sla_met}, due_date={due_date}, met_date={met_date}")
@@ -255,13 +251,9 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
             if sla_met:
                 sla_status_text = "Met"
                 sla_status_color = "good"  # Green
-            elif met_date is None:
-                if due_date and due_date > now:
-                    sla_status_text = "Not Yet Due"
-                    sla_status_color = "default"  # Blue
-                else:
-                    sla_status_text = "Not Met"
-                    sla_status_color = "attention"  # Red
+            elif met_date == "Not completed" and due_date != "N/A" and datetime.fromisoformat(due_date) > now:
+                sla_status_text = "Not Yet Due"
+                sla_status_color = "default"  # Blue
             else:
                 sla_status_text = "Not Met"
                 sla_status_color = "attention"  # Red
@@ -275,9 +267,6 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                     time_status = f"Overdue by: {-time_left_seconds / 3600:.2f} hours"
             else:
                 time_status = "N/A"
-
-            due_date_formatted = sla["due_date_formatted"]
-            met_date_formatted = sla["met_date_formatted"]
 
             # Append to timeline
             timeline.append({
@@ -295,8 +284,8 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                         "type": "FactSet",
                         "facts": [
                             {"title": "Status:", "value": sla_status_text},
-                            {"title": "Due Date:", "value": due_date_formatted},
-                            {"title": "Met Date:", "value": met_date_formatted},
+                            {"title": "Due Date:", "value": due_date},
+                            {"title": "Met Date:", "value": met_date},
                             {"title": "Time Status:", "value": time_status}
                         ]
                     }
