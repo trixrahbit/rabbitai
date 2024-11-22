@@ -47,22 +47,22 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             # Parse due_date_str
             if due_date_str:
                 due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
-                if due_date.tzinfo is None:  # Ensure offset-aware
-                    due_date = due_date.replace(tzinfo=timezone.utc).astimezone(cst_tz)
+                # Convert to CST regardless of current timezone
+                due_date = due_date.astimezone(cst_tz)
             else:
                 due_date = None
 
             # Parse met_date_str
             if met_date_str:
                 met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
-                if met_date.tzinfo is None:  # Ensure offset-aware
-                    met_date = met_date.replace(tzinfo=timezone.utc).astimezone(cst_tz)
+                # Convert to CST regardless of current timezone
+                met_date = met_date.astimezone(cst_tz)
             else:
                 met_date = None
 
             # Debug logging
-            logging.debug(f"Parsed due_date: {due_date}, tzinfo: {due_date.tzinfo if due_date else 'None'}")
-            logging.debug(f"Parsed met_date: {met_date}, tzinfo: {met_date.tzinfo if met_date else 'None'}")
+            logging.debug(f"Parsed due_date (CST): {due_date}, tzinfo: {due_date.tzinfo if due_date else 'None'}")
+            logging.debug(f"Parsed met_date (CST): {met_date}, tzinfo: {met_date.tzinfo if met_date else 'None'}")
 
         except ValueError as e:
             logging.error(f"Invalid datetime format: {e}")
@@ -142,7 +142,10 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             sla_met, time_diff_seconds, due_date = check_sla(met_date_str, due_date_str)
 
             if sla_met is not None:
-                # Format dates
+                # Additional debug to verify SLA results
+                logging.debug(
+                    f"Appending SLA - {sla_name}: sla_met={sla_met}, due_date={due_date}, met_date={met_date_str}")
+
                 due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
                 met_date_formatted = (
                     datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
@@ -244,35 +247,39 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         for sla in sla_results:
             sla_name = sla["sla_name"]
             sla_met = sla["sla_met"]
-            due_date = sla["due_date"]  # Use the datetime object
+            due_date = sla["due_date"]
             met_date = sla.get("met_date")  # May be None
+
+            # Debug log for each SLA
+            logging.debug(f"Formatting SLA - {sla_name}: sla_met={sla_met}, due_date={due_date}, met_date={met_date}")
 
             # Determine SLA status and color
             now = datetime.now(cst_tz)
             if sla_met:
                 sla_status_text = "Met"
                 sla_status_color = "good"  # Green
-            elif due_date > now:
+            elif due_date and due_date > now:
                 sla_status_text = "Not Yet Due"
-                sla_status_color = "default"  # Blue (default)
+                sla_status_color = "default"  # Blue
             else:
                 sla_status_text = "Not Met"
                 sla_status_color = "attention"  # Red
 
             # Time status
             time_left_seconds = sla["time_left_seconds"]
-            if time_left_seconds is not None:
-                if time_left_seconds >= 0:
-                    time_status = f"Time Left: {time_left_seconds / 3600:.2f} hours"
-                else:
-                    time_status = f"Overdue by: {-time_left_seconds / 3600:.2f} hours"
-            else:
-                time_status = "N/A"
+            time_status = (
+                f"Time Left: {time_left_seconds / 3600:.2f} hours"
+                if time_left_seconds and time_left_seconds >= 0
+                else f"Overdue by: {-time_left_seconds / 3600:.2f} hours"
+                if time_left_seconds
+                else "N/A"
+            )
 
             # Use formatted dates
             due_date_formatted = sla["due_date_formatted"]
             met_date_formatted = sla["met_date_formatted"]
 
+            # Append to timeline
             timeline.append({
                 "type": "Container",
                 "spacing": "Small",
