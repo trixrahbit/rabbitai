@@ -326,83 +326,118 @@ async def handle_command(request: Request):
 
 
 @app.get("/nextticket-stats/")
-async def next_ticket_stats(aad_object_id: Optional[str] = None):
-    if not aad_object_id:
-        raise HTTPException(status_code=400, detail="aad_object_id is required")
+async def next_ticket_stats():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Fetch total usage count by command
+        # Fetch total usage count grouped by user and command
         cursor.execute(
-            "SELECT command, COUNT(*) as count FROM CommandLogs WHERE aadObjectId = ? GROUP BY command",
-            aad_object_id
+            """
+            SELECT aadObjectId, command, COUNT(*) as count
+            FROM CommandLogs
+            GROUP BY aadObjectId, command
+            """
         )
-        usage_stats = {row[0]: row[1] for row in cursor.fetchall()}
+        usage_stats = {}
+        for row in cursor.fetchall():
+            aad_object_id, command, count = row
+            if aad_object_id not in usage_stats:
+                usage_stats[aad_object_id] = {}
+            usage_stats[aad_object_id][command] = count
 
-        # Fetch the last 5 tickets returned by `getnextticket`
+        # Fetch the last 5 tickets returned by `getnextticket` for all users
         cursor.execute(
-            "SELECT TOP 5 result_data FROM CommandLogs WHERE aadObjectId = ? AND command = 'getnextticket' ORDER BY created_at DESC",
-            aad_object_id
+            """
+            SELECT aadObjectId, result_data
+            FROM CommandLogs
+            WHERE command = 'getnextticket'
+            ORDER BY created_at DESC
+            LIMIT 5
+            """
         )
-        recent_tickets = [json.loads(row[0]) for row in cursor.fetchall()]
+        recent_tickets = {}
+        for row in cursor.fetchall():
+            aad_object_id, result_data = row
+            if aad_object_id not in recent_tickets:
+                recent_tickets[aad_object_id] = []
+            recent_tickets[aad_object_id].append(json.loads(result_data))
 
-        # Fetch the last 5 responses from `askRabbit`
+        # Fetch the last 5 responses from `askRabbit` for all users
         cursor.execute(
-            "SELECT TOP 5 result_data FROM CommandLogs WHERE aadObjectId = ? AND command = 'askRabbit' ORDER BY created_at DESC",
-            aad_object_id
+            """
+            SELECT aadObjectId, result_data
+            FROM CommandLogs
+            WHERE command = 'askRabbit'
+            ORDER BY created_at DESC
+            LIMIT 5
+            """
         )
-        recent_responses = [json.loads(row[0]) for row in cursor.fetchall()]
+        recent_responses = {}
+        for row in cursor.fetchall():
+            aad_object_id, result_data = row
+            if aad_object_id not in recent_responses:
+                recent_responses[aad_object_id] = []
+            recent_responses[aad_object_id].append(json.loads(result_data))
 
         return {
-            "aadObjectId": aad_object_id,
             "usage_stats": usage_stats,
             "recent_tickets": recent_tickets,
             "recent_responses": recent_responses
         }
     except Exception as e:
-        logging.error(f"Error in /next-ticket-stats: {e}")
+        logging.error(f"Error in /nextticket-stats: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving stats")
 
 
-@app.get("/next-ticket-stats")
-async def next_ticket_stats_ui(aad_object_id: Optional[str] = None):
-    if not aad_object_id:
-        raise HTTPException(status_code=400, detail="aad_object_id is required")
 
-    return HTMLResponse(content=f"""
+@app.get("/next-ticket-stats")
+async def next_ticket_stats_ui():
+    return HTMLResponse(content="""
     <!DOCTYPE html>
     <html>
     <head>
         <title>Next Ticket Stats</title>
     </head>
     <body>
-        <h1>Next Ticket Stats</h1>
+        <h1>Next Ticket Stats for All Users</h1>
         <div id="stats"></div>
         <script>
-            async function fetchStats() {{
+            async function fetchStats() {
                 const response = await fetch('/nextticket-stats/');
                 const stats = await response.json();
-                let html = `<h2>Usage Stats</h2><ul>`;
-                for (const [command, count] of Object.entries(stats.usage_stats)) {{
-                    html += `<li>${{command}}: ${{count}}</li>`;
-                }}
-                html += `</ul><h2>Recent Tickets</h2><ul>`;
-                stats.recent_tickets.forEach(ticket => {{
-                    ticket.tickets.forEach(t => {{
-                        html += `<li>Ticket ${{t.ticket_id}}: ${{t.title}} (Points: ${{t.points}})</li>`;
-                    }});
-                }});
-                html += `</ul><h2>Recent Responses</h2><ul>`;
-                stats.recent_responses.forEach(response => {{
-                    html += `<li>${{response.response}}</li>`;
-                }});
-                html += `</ul>`;
+                let html = `<h2>Usage Stats by User</h2>`;
+                for (const [user, commands] of Object.entries(stats.usage_stats)) {
+                    html += `<h3>User: ${user}</h3><ul>`;
+                    for (const [command, count] of Object.entries(commands)) {
+                        html += `<li>${command}: ${count}</li>`;
+                    }
+                    html += `</ul>`;
+                }
+                html += `<h2>Recent Tickets by User</h2>`;
+                for (const [user, tickets] of Object.entries(stats.recent_tickets)) {
+                    html += `<h3>User: ${user}</h3><ul>`;
+                    tickets.forEach(ticket => {
+                        ticket.tickets.forEach(t => {
+                            html += `<li>Ticket ${t.ticket_id}: ${t.title} (Points: ${t.points})</li>`;
+                        });
+                    });
+                    html += `</ul>`;
+                }
+                html += `<h2>Recent Responses by User</h2>`;
+                for (const [user, responses] of Object.entries(stats.recent_responses)) {
+                    html += `<h3>User: ${user}</h3><ul>`;
+                    responses.forEach(response => {
+                        html += `<li>${response.response}</li>`;
+                    });
+                    html += `</ul>`;
+                }
                 document.getElementById("stats").innerHTML = html;
-            }}
+            }
             fetchStats();
         </script>
     </body>
     </html>
     """)
+
 
