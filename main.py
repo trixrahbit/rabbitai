@@ -349,11 +349,10 @@ async def next_ticket_stats():
         # Fetch the last 5 tickets returned by `getnextticket` for all users
         cursor.execute(
             """
-            SELECT aadObjectId, result_data
+            SELECT TOP 5 aadObjectId, result_data
             FROM CommandLogs
             WHERE command = 'getnextticket'
             ORDER BY created_at DESC
-            LIMIT 5
             """
         )
         recent_tickets = {}
@@ -366,11 +365,10 @@ async def next_ticket_stats():
         # Fetch the last 5 responses from `askRabbit` for all users
         cursor.execute(
             """
-            SELECT aadObjectId, result_data
+            SELECT TOP 5 aadObjectId, result_data
             FROM CommandLogs
             WHERE command = 'askRabbit'
             ORDER BY created_at DESC
-            LIMIT 5
             """
         )
         recent_responses = {}
