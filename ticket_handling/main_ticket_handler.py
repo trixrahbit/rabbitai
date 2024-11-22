@@ -69,18 +69,18 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             return None, None, None
 
         # SLA logic
-        try:
-            if met_date and due_date:
-                time_diff_seconds = (due_date - met_date).total_seconds()
-                sla_met = met_date <= due_date
-            elif due_date:
-                now = datetime.now(cst_tz)
-                time_diff_seconds = (due_date - now).total_seconds()
-                sla_met = now <= due_date
-            else:
-                return None, None, None
-        except TypeError as e:
-            logging.error(f"Error during datetime calculation: {e}")
+        if met_date and due_date:
+            # Both dates are available
+            time_diff_seconds = (due_date - met_date).total_seconds()
+            sla_met = met_date <= due_date
+        elif due_date:
+            # Only due_date is available, calculate based on current time
+            now = datetime.now(cst_tz)
+            time_diff_seconds = (due_date - now).total_seconds()
+            sla_met = now <= due_date
+        else:
+            # No due_date, SLA cannot be calculated
+            logging.debug("Due date is None, skipping SLA calculation.")
             return None, None, None
 
         return sla_met, time_diff_seconds, due_date
