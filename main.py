@@ -236,15 +236,6 @@ async def download_report(filename: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=404, detail="File not found")
 
 # Teams Commands Start Here
-@app.post("/ai")
-async def ai_endpoint(data: dict) -> Dict[str, str]:
-    """
-    Example AI processing endpoint.
-    """
-    text = data.get("data", "")
-    processed = text[::-1]  # Reverse the text as an example
-    return {"result": processed}
-
 @app.post("/command")
 async def handle_command(request: Request):
     auth_header = request.headers.get("Authorization")
@@ -252,238 +243,49 @@ async def handle_command(request: Request):
     try:
         payload = await request.json()
         command_text = payload.get("text")
-        aad_object_id = payload.get("from", {}).get("aadObjectId")
+        user_upn = payload.get("from", {}).get("userPrincipalName")
         service_url = payload.get("serviceUrl")
         conversation_id = payload.get("conversation", {}).get("id")
 
-        if not command_text or not aad_object_id or not service_url or not conversation_id:
+        if not command_text or not user_upn or not service_url or not conversation_id:
             raise ValueError("Missing required fields")
 
-        # Process `askRabbit` command
+        # Handle `mytickets` command
+        if command_text.startswith("mytickets"):
+            # Fetch user's tickets
+            tickets = await fetch_tickets_from_webhook(user_upn)
+            if not tickets:
+                return JSONResponse(content={"status": "success", "message": "No tickets assigned to you."})
+
+            # Assign weights and construct an Adaptive Card
+            weighted_tickets = assign_ticket_weights(tickets)
+            ticket_card = construct_ticket_card(weighted_tickets)
+
+            # Send the Adaptive Card to Teams
+            await send_message_to_teams(service_url, conversation_id, user_upn, ticket_card)
+
+            return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
+
+        # Other commands can follow here (e.g., `askRabbit`, `getnextticket`)
         if command_text.startswith("askRabbit"):
             args = command_text[len("askRabbit"):].strip()
             result = await handle_sendtoai(args)
             response_text = result.get("response", "No response")
-
-            # Attempt to log the command and response to the database
-            try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) VALUES (?, ?, ?, ?)",
-                    aad_object_id,
-                    "askRabbit",
-                    json.dumps({"message": args}),
-                    json.dumps({"response": response_text})
-                )
-                conn.commit()
-            except Exception as e:
-                logging.error(f"Failed to log 'askRabbit' command to database: {e}")
-
             return JSONResponse(content={"status": "success", "response": response_text})
 
-        # Process `getnextticket` command
         if command_text.startswith("getnextticket"):
-            tickets = await fetch_tickets_from_webhook(aad_object_id)
+            tickets = await fetch_tickets_from_webhook(user_upn)
             top_tickets = assign_ticket_weights(tickets)
-
-            # Prepare ticket details for logging
-            ticket_details = [
-                {"ticket_id": t["id"], "title": t["title"], "points": t["weight"]}
-                for t in top_tickets
-            ]
-
-            # Attempt to log the command and result to the database
-            try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) VALUES (?, ?, ?, ?)",
-                    aad_object_id,
-                    "getnextticket",
-                    json.dumps({"command": "getnextticket"}),
-                    json.dumps({"tickets": ticket_details})
-                )
-                conn.commit()
-            except Exception as e:
-                logging.error(f"Failed to log 'getnextticket' command to database: {e}")
-
-            # Construct Adaptive Card for Teams
-            adaptive_card = construct_ticket_card(top_tickets)
-            await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
-
+            ticket_card = construct_ticket_card(top_tickets)
+            await send_message_to_teams(service_url, conversation_id, user_upn, ticket_card)
             return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
 
-        # Unknown commands
         return {"response": "Unknown command"}
     except Exception as e:
         logging.error(f"Error in /command: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
 
-@app.get("/nextticket-stats/")
-async def next_ticket_stats():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
 
-        # Fetch usage stats by user name and command
-        cursor.execute(
-            """
-            SELECT up.full_name, cl.command, COUNT(*) as count
-            FROM CommandLogs cl
-            JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
-            GROUP BY up.full_name, cl.command
-            """
-        )
-        usage_stats = {}
-        for row in cursor.fetchall():
-            full_name, command, count = row
-            if full_name not in usage_stats:
-                usage_stats[full_name] = {}
-            usage_stats[full_name][command] = count
-
-        cursor.execute(
-            """
-            SELECT up.full_name, cl.result_data
-            FROM CommandLogs cl
-            JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
-            WHERE cl.command = 'getnextticket'
-            ORDER BY cl.created_at DESC
-            """
-        )
-
-        recent_tickets = {}
-        for row in cursor.fetchall():
-            full_name, result_data = row
-            if full_name not in recent_tickets:
-                recent_tickets[full_name] = []
-
-            try:
-                ticket_data = json.loads(result_data)
-                unique_tickets = {}
-                for ticket in ticket_data.get("tickets", []):
-                    ticket_id = ticket["ticket_id"]
-                    # Deduplicate tickets, prioritize higher points
-                    if ticket_id not in unique_tickets or ticket["points"] > unique_tickets[ticket_id]["points"]:
-                        unique_tickets[ticket_id] = ticket
-
-                recent_tickets[full_name].append({"tickets": list(unique_tickets.values())})
-            except Exception as e:
-                logging.error(f"Error parsing tickets for {full_name}: {e}")
-
-        # Fetch the last 5 responses with user names
-        cursor.execute(
-            """
-            SELECT up.full_name, cl.result_data
-            FROM CommandLogs cl
-            JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
-            WHERE cl.command = 'askRabbit'
-            ORDER BY cl.created_at DESC
-            """
-        )
-        recent_responses = {}
-        for row in cursor.fetchall():
-            full_name, result_data = row
-            if full_name not in recent_responses:
-                recent_responses[full_name] = []
-            recent_responses[full_name].append(json.loads(result_data))
-
-        return {
-            "usage_stats": usage_stats,
-            "recent_tickets": recent_tickets,
-            "recent_responses": recent_responses
-        }
-    except Exception as e:
-        logging.error(f"Error in /nextticket-stats: {e}")
-        raise HTTPException(status_code=500, detail="Error retrieving stats")
-
-@app.get("/next-ticket-stats")
-async def next_ticket_stats_ui():
-    return HTMLResponse(content="""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Next Ticket Stats</title>
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        margin: 20px;
-        background-color: var(--bg-color);
-        color: var(--text-color);
-    }
-    h1, h2, h3 {
-        color: var(--heading-color);
-    }
-    .card {
-        background-color: var(--card-bg);
-        margin: 10px 0;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    ul {
-        list-style: none;
-        padding: 0;
-    }
-    li {
-        margin: 5px 0;
-    }
-    :root {
-        --bg-color: #ffffff;
-        --text-color: #000000;
-        --heading-color: #333333;
-        --card-bg: #f5f5f5;
-    }
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --bg-color: #1a1a1a;
-            --text-color: #eaeaea;
-            --heading-color: #ffffff;
-            --card-bg: #2a2a2a;
-        }
-    }
-</style>
-    </head>
-    <body>
-        <h1>Next Ticket Stats for All Users</h1>
-        <div id="stats"></div>
-        <script>
-            async function fetchStats() {
-                const response = await fetch('/nextticket-stats/');
-                const stats = await response.json();
-                let html = `<h2>Usage Stats by User</h2>`;
-                for (const [user, commands] of Object.entries(stats.usage_stats)) {
-                    html += `<div class="card"><h3>${user}</h3><ul>`;
-                    for (const [command, count] of Object.entries(commands)) {
-                        html += `<li>${command}: ${count}</li>`;
-                    }
-                    html += `</ul></div>`;
-                }
-                html += `<h2>Recent Tickets by User</h2>`;
-                for (const [user, tickets] of Object.entries(stats.recent_tickets)) {
-                    html += `<div class="card"><h3>${user}</h3><ul>`;
-                    tickets.forEach(ticket => {
-                        ticket.tickets.forEach(t => {
-                            html += `<li>Ticket ${t.ticket_id}: ${t.title} (Points: ${t.points})</li>`;
-                        });
-                    });
-                    html += `</ul></div>`;
-                }
-                html += `<h2>Recent Responses by User</h2>`;
-                for (const [user, responses] of Object.entries(stats.recent_responses)) {
-                    html += `<div class="card"><h3>${user}</h3><ul>`;
-                    responses.forEach(response => {
-                        html += `<li>${response.response}</li>`;
-                    });
-                    html += `</ul></div>`;
-                }
-                document.getElementById("stats").innerHTML = html;
-            }
-            fetchStats();
-        </script>
-    </body>
-    </html>
-    """)
 
 
 
