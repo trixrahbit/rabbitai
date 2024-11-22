@@ -46,7 +46,7 @@ def get_db_connection():
             f"Uid={DB_USER};"
             f"Pwd={DB_PASSWORD};"
             f"Encrypt=yes;"
-            f"TrustServerCertificate=no;"
+            f"TrustServerCertificate=yes;"
             f"Connection Timeout=30;"
         )
         logging.debug("Database connection established successfully.")
