@@ -51,7 +51,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
                 due_date = None
 
             # Parse met_date_str
-            if met_date_str:
+            if met_date_str and met_date_str.strip().lower() != "not completed":
                 met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
                 # Convert to CST regardless of current timezone
                 met_date = met_date.astimezone(cst_tz)
@@ -71,7 +71,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             # SLA is met if `met_date` is on or before `due_date`
             sla_met = due_date and met_date <= due_date
         else:
-            # SLA is not met if `met_date` is missing
+            # SLA is not met if `met_date` is missing or "Not Completed"
             sla_met = False
 
         # Calculate time difference in seconds
