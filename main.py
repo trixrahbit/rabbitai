@@ -363,16 +363,18 @@ async def next_ticket_stats():
             if full_name not in recent_tickets:
                 recent_tickets[full_name] = []
 
-            # Parse the ticket data and filter duplicates
-            ticket_data = json.loads(result_data)
-            unique_tickets = {}
-            for ticket in ticket_data.get("tickets", []):
-                ticket_id = ticket["ticket_id"]
-                # Keep the ticket with the highest weight (if relevant)
-                if ticket_id not in unique_tickets or ticket["points"] > unique_tickets[ticket_id]["points"]:
-                    unique_tickets[ticket_id] = ticket
+            try:
+                ticket_data = json.loads(result_data)
+                unique_tickets = {}
+                for ticket in ticket_data.get("tickets", []):
+                    ticket_id = ticket["ticket_id"]
+                    # Deduplicate tickets, prioritize higher points
+                    if ticket_id not in unique_tickets or ticket["points"] > unique_tickets[ticket_id]["points"]:
+                        unique_tickets[ticket_id] = ticket
 
-            recent_tickets[full_name].append({"tickets": list(unique_tickets.values())})
+                recent_tickets[full_name].append({"tickets": list(unique_tickets.values())})
+            except Exception as e:
+                logging.error(f"Error parsing tickets for {full_name}: {e}")
 
         # Fetch the last 5 responses with user names
         cursor.execute(
@@ -410,48 +412,45 @@ async def next_ticket_stats_ui():
     <html>
     <head>
         <title>Next Ticket Stats</title>
-        <style>
-            /* General styles */
-            body {
-                font-family: Arial, sans-serif;
-                margin: 20px;
-                padding: 20px;
-                background-color: var(--bg-color);
-                color: var(--text-color);
-            }
-            h1, h2, h3 {
-                color: var(--heading-color);
-            }
-            ul {
-                list-style-type: none;
-                padding: 0;
-            }
-            li {
-                margin: 5px 0;
-            }
-            .card {
-                background-color: var(--card-bg);
-                padding: 15px;
-                margin: 10px 0;
-                border-radius: 8px;
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            }
-            /* Dark mode variables */
-            :root {
-                --bg-color: #ffffff;
-                --text-color: #000000;
-                --heading-color: #222222;
-                --card-bg: #f9f9f9;
-            }
-            @media (prefers-color-scheme: dark) {
-                :root {
-                    --bg-color: #121212;
-                    --text-color: #e0e0e0;
-                    --heading-color: #ffffff;
-                    --card-bg: #1e1e1e;
-                }
-            }
-        </style>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+    }
+    h1, h2, h3 {
+        color: var(--heading-color);
+    }
+    .card {
+        background-color: var(--card-bg);
+        margin: 10px 0;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    ul {
+        list-style: none;
+        padding: 0;
+    }
+    li {
+        margin: 5px 0;
+    }
+    :root {
+        --bg-color: #ffffff;
+        --text-color: #000000;
+        --heading-color: #333333;
+        --card-bg: #f5f5f5;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #eaeaea;
+            --heading-color: #ffffff;
+            --card-bg: #2a2a2a;
+        }
+    }
+</style>
     </head>
     <body>
         <h1>Next Ticket Stats for All Users</h1>
