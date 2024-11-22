@@ -172,7 +172,10 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         if create_date_str:
             try:
                 create_date = datetime.fromisoformat(create_date_str.replace("Z", "+00:00"))
-                days_since_creation = (datetime.utcnow() - create_date).days
+                if create_date.tzinfo is None:
+                    create_date = create_date.replace(tzinfo=timezone.utc)
+                now_utc = datetime.now(timezone.utc)
+                days_since_creation = (now_utc - create_date).days
                 weight += days_since_creation * 10
                 logger.debug(f"Ticket ID {ticket.get('id')} age: {days_since_creation} days")
             except ValueError:
