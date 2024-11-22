@@ -118,7 +118,8 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             64: -20, # Scheduled next NA
             70: 70,  # Assigned
             71: 70,  # schedule onsite
-            74: -20  # scheduled onsite
+            74: -20,  # scheduled onsite
+            38: -400  # Waiting on Hold
         }
         status = ticket.get("status")
         if status in status_weights:
@@ -235,7 +236,8 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
             64: "Scheduled Next NA",
             70: "Assigned",
             71: "Schedule Onsite",
-            74: "Scheduled Onsite"
+            74: "Scheduled Onsite",
+            38: "Waiting on Hold"
         }
         return status_map.get(status_id, f"Status ID {status_id}")
 
