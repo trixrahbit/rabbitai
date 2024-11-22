@@ -242,23 +242,40 @@ async def handle_command(request: Request):
     await validate_teams_token(auth_header)
     try:
         payload = await request.json()
+        logging.debug(f"Received payload: {payload}")
+
+        # Extract required fields
         command_text = payload.get("text")
-        user_upn = payload.get("from", {}).get("userPrincipalName")
+        user_upn = payload.get("from", {}).get("userPrincipalName")  # Teams UPN
         service_url = payload.get("serviceUrl")
         conversation_id = payload.get("conversation", {}).get("id")
 
-        if not command_text or not user_upn or not service_url or not conversation_id:
-            raise ValueError("Missing required fields")
+        # Check for missing fields
+        if not command_text:
+            logging.error("Missing 'text' in payload.")
+            raise ValueError("Missing 'text' in payload.")
+        if not user_upn:
+            logging.error("Missing 'userPrincipalName' in payload['from'].")
+            raise ValueError("Missing 'userPrincipalName' in payload['from'].")
+        if not service_url:
+            logging.error("Missing 'serviceUrl' in payload.")
+            raise ValueError("Missing 'serviceUrl' in payload.")
+        if not conversation_id:
+            logging.error("Missing 'id' in payload['conversation'].")
+            raise ValueError("Missing 'id' in payload['conversation'].")
 
         # Handle `mytickets` command
         if command_text.startswith("mytickets"):
-            # Fetch user's tickets
+            # Fetch tickets for the user
             tickets = await fetch_tickets_from_webhook(user_upn)
             if not tickets:
                 return JSONResponse(content={"status": "success", "message": "No tickets assigned to you."})
 
-            # Assign weights and construct an Adaptive Card
+            # Assign weights and construct Adaptive Cards for top tickets
             weighted_tickets = assign_ticket_weights(tickets)
+            if not weighted_tickets:
+                return JSONResponse(content={"status": "success", "message": "No weighted tickets available."})
+
             ticket_card = construct_ticket_card(weighted_tickets)
 
             # Send the Adaptive Card to Teams
@@ -266,24 +283,16 @@ async def handle_command(request: Request):
 
             return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
 
-        # Other commands can follow here (e.g., `askRabbit`, `getnextticket`)
-        if command_text.startswith("askRabbit"):
-            args = command_text[len("askRabbit"):].strip()
-            result = await handle_sendtoai(args)
-            response_text = result.get("response", "No response")
-            return JSONResponse(content={"status": "success", "response": response_text})
-
-        if command_text.startswith("getnextticket"):
-            tickets = await fetch_tickets_from_webhook(user_upn)
-            top_tickets = assign_ticket_weights(tickets)
-            ticket_card = construct_ticket_card(top_tickets)
-            await send_message_to_teams(service_url, conversation_id, user_upn, ticket_card)
-            return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
-
+        # Unknown command
         return {"response": "Unknown command"}
+
+    except ValueError as ve:
+        logging.error(f"Validation error: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logging.error(f"Error in /command: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
+
 
 
 
