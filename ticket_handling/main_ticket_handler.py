@@ -64,27 +64,22 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
         except ValueError as e:
             logging.error(f"Invalid datetime format: {e}")
-            return None, None, None
+            return False, None, None  # SLA cannot be met if dates are invalid
 
         # SLA logic
-        if due_date:
-            if met_date:
-                # SLA is met if `met_date` is on or before `due_date`
-                sla_met = met_date <= due_date
-            else:
-                # SLA is not met if `due_date` is in the past and `met_date` is not available
-                now = datetime.now(cst_tz)
-                sla_met = now <= due_date
+        if met_date:
+            # SLA is met if `met_date` is on or before `due_date`
+            sla_met = due_date and met_date <= due_date
         else:
-            # SLA cannot be calculated without a due_date
-            logging.debug("Due date is None, skipping SLA calculation.")
-            return None, None, None
+            # SLA is not met if `met_date` is missing
+            sla_met = False
 
         # Calculate time difference in seconds
         if met_date:
             time_diff_seconds = (due_date - met_date).total_seconds() if due_date else None
         else:
-            time_diff_seconds = (due_date - datetime.now(cst_tz)).total_seconds() if due_date else None
+            now = datetime.now(cst_tz)
+            time_diff_seconds = (due_date - now).total_seconds() if due_date else None
 
         return sla_met, time_diff_seconds, due_date
 
