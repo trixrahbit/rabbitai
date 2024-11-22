@@ -239,19 +239,22 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         for sla in sla_results:
             sla_name = sla["sla_name"]
             sla_met = sla["sla_met"]
-            due_date = sla["due_date_formatted"]  # Use formatted value directly
-            met_date = sla["met_date_formatted"]  # Use formatted value directly
+            due_date_formatted = sla["due_date_formatted"]  # Display string
+            met_date_formatted = sla["met_date_formatted"]  # Display string
+            due_date = sla.get("due_date")  # Original datetime object
+            met_date = sla.get("met_date")  # Original datetime object
 
-            # Debug log for each SLA
-            logging.debug(f"Formatting SLA - {sla_name}: sla_met={sla_met}, due_date={due_date}, met_date={met_date}")
-
-            now = datetime.now(cst_tz)
+            # Debug log for SLA
+            logging.debug(
+                f"Formatting SLA - {sla_name}: sla_met={sla_met}, due_date={due_date_formatted}, met_date={met_date_formatted}")
 
             # Determine SLA status and color
+            now = datetime.now(cst_tz)
+
             if sla_met:
                 sla_status_text = "Met"
                 sla_status_color = "good"  # Green
-            elif met_date == "Not completed" and due_date != "N/A" and datetime.fromisoformat(due_date) > now:
+            elif met_date == "Not completed" and due_date != "N/A" and due_date > now:
                 sla_status_text = "Not Yet Due"
                 sla_status_color = "default"  # Blue
             else:
@@ -284,8 +287,8 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                         "type": "FactSet",
                         "facts": [
                             {"title": "Status:", "value": sla_status_text},
-                            {"title": "Due Date:", "value": due_date},
-                            {"title": "Met Date:", "value": met_date},
+                            {"title": "Due Date:", "value": due_date_formatted},
+                            {"title": "Met Date:", "value": met_date_formatted},
                             {"title": "Time Status:", "value": time_status}
                         ]
                     }
