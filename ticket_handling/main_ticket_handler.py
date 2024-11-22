@@ -43,32 +43,37 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     def check_sla(met_date_str, due_date_str):
         cst_tz = ZoneInfo('America/Chicago')
 
-        if not due_date_str or due_date_str.strip() == '':
-            return None, None, None
         try:
-            due_date_utc = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
-            if due_date_utc.tzinfo is None:
-                due_date_utc = due_date_utc.replace(tzinfo=timezone.utc)
-            due_date = due_date_utc.astimezone(cst_tz)
-        except ValueError:
-            logging.error(f"Invalid due_date_str: {due_date_str}")
+            # Parse due_date_str
+            if due_date_str:
+                due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
+                if due_date.tzinfo is None:  # Ensure offset-aware
+                    due_date = due_date.replace(tzinfo=timezone.utc).astimezone(cst_tz)
+            else:
+                due_date = None
+
+            # Parse met_date_str
+            if met_date_str:
+                met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
+                if met_date.tzinfo is None:  # Ensure offset-aware
+                    met_date = met_date.replace(tzinfo=timezone.utc).astimezone(cst_tz)
+            else:
+                met_date = None
+
+        except ValueError as e:
+            logging.error(f"Invalid datetime format: {e}")
             return None, None, None
 
-        if met_date_str and met_date_str.strip() != '':
-            try:
-                met_date_utc = datetime.fromisoformat(met_date_str.replace("Z", "+00:00"))
-                if met_date_utc.tzinfo is None:
-                    met_date_utc = met_date_utc.replace(tzinfo=timezone.utc)
-                met_date = met_date_utc.astimezone(cst_tz)
-            except ValueError:
-                logging.error(f"Invalid met_date_str: {met_date_str}")
-                return None, None, None
+        # SLA logic
+        if met_date and due_date:
             time_diff_seconds = (due_date - met_date).total_seconds()
             sla_met = met_date <= due_date
-        else:
+        elif due_date:
             now = datetime.now(cst_tz)
             time_diff_seconds = (due_date - now).total_seconds()
             sla_met = now <= due_date
+        else:
+            return None, None, None
 
         return sla_met, time_diff_seconds, due_date
 
