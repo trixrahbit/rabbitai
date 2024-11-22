@@ -10,7 +10,6 @@ from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, F
 from fastapi.responses import FileResponse, JSONResponse
 from jose import JWTError, jwt
 from starlette.responses import HTMLResponse
-
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection
 from models import DeviceData
 from security.auth import get_api_key
@@ -24,7 +23,6 @@ import uuid
 import os
 from ticket_handling.main_ticket_handler import fetch_tickets_from_webhook, assign_ticket_weights, construct_ticket_card
 
-
 # Define the Middleware Class
 class MaxBodySizeMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, max_body_size: int):
@@ -37,11 +35,9 @@ class MaxBodySizeMiddleware(BaseHTTPMiddleware):
             raise HTTPException(status_code=413, detail="Request body too large")
         return await call_next(request)
 
-
 app = FastAPI()
 logging.basicConfig(filename="/var/www/rabbitai/rabbitai.log", level=logging.INFO)
 app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
-
 
 def decode_jwt(token):
     try:
@@ -324,7 +320,6 @@ async def handle_command(request: Request):
         logging.error(f"Error in /command: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
 
-
 @app.get("/nextticket-stats/")
 async def next_ticket_stats():
     try:
@@ -401,9 +396,6 @@ async def next_ticket_stats():
     except Exception as e:
         logging.error(f"Error in /nextticket-stats: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving stats")
-
-
-
 
 @app.get("/next-ticket-stats")
 async def next_ticket_stats_ui():

@@ -4,9 +4,7 @@ from typing import List
 from zoneinfo import ZoneInfo
 import httpx
 from fastapi import HTTPException
-
 from config import logger
-
 
 async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
     url = "https://engine.rewst.io/webhooks/custom/trigger/01933846-ecca-7a63-a943-f09e358edcc3/018e6633-49b0-7f54-b610-e740d3bb1a3e"
@@ -69,19 +67,24 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             return None, None, None
 
         # SLA logic
-        if met_date and due_date:
-            # Both dates are available
-            time_diff_seconds = (due_date - met_date).total_seconds()
-            sla_met = met_date <= due_date
-        elif due_date:
-            # Only due_date is available, calculate based on current time
-            now = datetime.now(cst_tz)
-            time_diff_seconds = (due_date - now).total_seconds()
-            sla_met = now <= due_date
+        if due_date:
+            if met_date:
+                # SLA is met if `met_date` is on or before `due_date`
+                sla_met = met_date <= due_date
+            else:
+                # SLA is not met if `due_date` is in the past and `met_date` is not available
+                now = datetime.now(cst_tz)
+                sla_met = now <= due_date
         else:
-            # No due_date, SLA cannot be calculated
+            # SLA cannot be calculated without a due_date
             logging.debug("Due date is None, skipping SLA calculation.")
             return None, None, None
+
+        # Calculate time difference in seconds
+        if met_date:
+            time_diff_seconds = (due_date - met_date).total_seconds() if due_date else None
+        else:
+            time_diff_seconds = (due_date - datetime.now(cst_tz)).total_seconds() if due_date else None
 
         return sla_met, time_diff_seconds, due_date
 
@@ -192,8 +195,6 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
     return sorted_tickets[:1]
-
-
 
 def format_date(date_str):
     cst_tz = ZoneInfo('America/Chicago')
