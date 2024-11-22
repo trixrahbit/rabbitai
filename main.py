@@ -325,7 +325,7 @@ async def handle_command(request: Request):
         raise HTTPException(status_code=500, detail=f"Error processing command: {e}")
 
 
-@app.get("/next-ticket-stats/{aad_object_id}")
+@app.get("/nextticket-stats/")
 async def next_ticket_stats(aad_object_id: Optional[str] = None):
     if not aad_object_id:
         raise HTTPException(status_code=400, detail="aad_object_id is required")
@@ -381,7 +381,7 @@ async def next_ticket_stats_ui(aad_object_id: Optional[str] = None):
         <div id="stats"></div>
         <script>
             async function fetchStats() {{
-                const response = await fetch('/next-ticket-stats/{aad_object_id}');
+                const response = await fetch('/nextticket-stats/');
                 const stats = await response.json();
                 let html = `<h2>Usage Stats</h2><ul>`;
                 for (const [command, count] of Object.entries(stats.usage_stats)) {{
