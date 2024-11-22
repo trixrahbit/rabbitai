@@ -60,18 +60,30 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             else:
                 met_date = None
 
+            # Debug logging to check timezone-awareness
+            logging.debug(f"Parsed due_date: {due_date}, tzinfo: {due_date.tzinfo}")
+            logging.debug(f"Parsed met_date: {met_date}, tzinfo: {met_date.tzinfo}")
+
         except ValueError as e:
             logging.error(f"Invalid datetime format: {e}")
             return None, None, None
 
         # SLA logic
         if met_date and due_date:
-            time_diff_seconds = (due_date - met_date).total_seconds()
-            sla_met = met_date <= due_date
+            try:
+                time_diff_seconds = (due_date - met_date).total_seconds()
+                sla_met = met_date <= due_date
+            except TypeError as e:
+                logging.error(f"Error subtracting datetimes: {e}")
+                return None, None, None
         elif due_date:
             now = datetime.now(cst_tz)
-            time_diff_seconds = (due_date - now).total_seconds()
-            sla_met = now <= due_date
+            try:
+                time_diff_seconds = (due_date - now).total_seconds()
+                sla_met = now <= due_date
+            except TypeError as e:
+                logging.error(f"Error subtracting datetimes: {e}")
+                return None, None, None
         else:
             return None, None, None
 
