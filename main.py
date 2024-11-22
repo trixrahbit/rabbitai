@@ -347,14 +347,16 @@ async def next_ticket_stats():
                 usage_stats[full_name] = {}
             usage_stats[full_name][command] = count
 
-        # Fetch the last 5 tickets with user names
-        """
-        SELECT DISTINCT up.full_name, cl.result_data
-        FROM CommandLogs cl
-        JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
-        WHERE cl.command = 'getnextticket'
-        ORDER BY cl.created_at DESC
-        """
+        cursor.execute(
+            """
+            SELECT up.full_name, cl.result_data
+            FROM CommandLogs cl
+            JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
+            WHERE cl.command = 'getnextticket'
+            ORDER BY cl.created_at DESC
+            """
+        )
+
         recent_tickets = {}
         for row in cursor.fetchall():
             full_name, result_data = row
