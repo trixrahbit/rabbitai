@@ -253,6 +253,10 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
             # Debug log for each SLA
             logging.debug(f"Formatting SLA - {sla_name}: sla_met={sla_met}, due_date={due_date}, met_date={met_date}")
 
+            # Ensure dates are in CST
+            due_date = due_date.astimezone(cst_tz) if due_date else None
+            met_date = met_date.astimezone(cst_tz) if met_date else None
+
             # Determine SLA status and color
             now = datetime.now(cst_tz)
             if sla_met:
@@ -275,9 +279,9 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
                 else "N/A"
             )
 
-            # Use formatted dates
-            due_date_formatted = sla["due_date_formatted"]
-            met_date_formatted = sla["met_date_formatted"]
+            # Format dates for display
+            due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
+            met_date_formatted = met_date.strftime("%m-%d-%y %-I:%M %p %Z") if met_date else "Not completed"
 
             # Append to timeline
             timeline.append({
