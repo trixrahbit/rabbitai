@@ -2,7 +2,7 @@ import base64
 import html
 import json
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 import jwt
 from jwt import PyJWKClient
 import httpx
@@ -326,7 +326,9 @@ async def handle_command(request: Request):
 
 
 @app.get("/next-ticket-stats/{aad_object_id}")
-async def next_ticket_stats(aad_object_id: str):
+async def next_ticket_stats(aad_object_id: Optional[str] = None):
+    if not aad_object_id:
+        raise HTTPException(status_code=400, detail="aad_object_id is required")
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
