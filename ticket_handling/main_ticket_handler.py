@@ -25,7 +25,7 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
                 raise ValueError("Malformed response: 'my_ticket' is not a list.")
 
             # Exclude tickets with specified queueIDs
-            excluded_queue_ids = {29683506, 29683552, 29683546}
+            excluded_queue_ids = {29683506, 29683552, 29683546, 29683535}
             tickets = [
                 ticket for ticket in tickets
                 if ticket.get('queueID') not in excluded_queue_ids
