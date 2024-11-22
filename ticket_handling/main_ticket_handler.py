@@ -109,6 +109,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
                     "time_left_seconds": time_diff_seconds,
                     "due_date_formatted": due_date_formatted,
                     "met_date_formatted": met_date_formatted,
+                    "due_date": due_date
                 })
 
                 if not sla_met:
