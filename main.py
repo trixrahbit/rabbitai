@@ -331,52 +331,55 @@ async def next_ticket_stats():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Fetch total usage count grouped by user and command
+        # Fetch usage stats by user name and command
         cursor.execute(
             """
-            SELECT aadObjectId, command, COUNT(*) as count
-            FROM CommandLogs
-            GROUP BY aadObjectId, command
+            SELECT up.full_name, cl.command, COUNT(*) as count
+            FROM CommandLogs cl
+            JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
+            GROUP BY up.full_name, cl.command
             """
         )
         usage_stats = {}
         for row in cursor.fetchall():
-            aad_object_id, command, count = row
-            if aad_object_id not in usage_stats:
-                usage_stats[aad_object_id] = {}
-            usage_stats[aad_object_id][command] = count
+            full_name, command, count = row
+            if full_name not in usage_stats:
+                usage_stats[full_name] = {}
+            usage_stats[full_name][command] = count
 
-        # Fetch the last 5 tickets returned by `getnextticket` for all users
+        # Fetch the last 5 tickets with user names
         cursor.execute(
             """
-            SELECT TOP 5 aadObjectId, result_data
-            FROM CommandLogs
-            WHERE command = 'getnextticket'
-            ORDER BY created_at DESC
+            SELECT up.full_name, cl.result_data
+            FROM CommandLogs cl
+            JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
+            WHERE cl.command = 'getnextticket'
+            ORDER BY cl.created_at DESC
             """
         )
         recent_tickets = {}
         for row in cursor.fetchall():
-            aad_object_id, result_data = row
-            if aad_object_id not in recent_tickets:
-                recent_tickets[aad_object_id] = []
-            recent_tickets[aad_object_id].append(json.loads(result_data))
+            full_name, result_data = row
+            if full_name not in recent_tickets:
+                recent_tickets[full_name] = []
+            recent_tickets[full_name].append(json.loads(result_data))
 
-        # Fetch the last 5 responses from `askRabbit` for all users
+        # Fetch the last 5 responses with user names
         cursor.execute(
             """
-            SELECT TOP 5 aadObjectId, result_data
-            FROM CommandLogs
-            WHERE command = 'askRabbit'
-            ORDER BY created_at DESC
+            SELECT up.full_name, cl.result_data
+            FROM CommandLogs cl
+            JOIN userProfiles up ON cl.aadObjectId = up.ms_user_id
+            WHERE cl.command = 'askRabbit'
+            ORDER BY cl.created_at DESC
             """
         )
         recent_responses = {}
         for row in cursor.fetchall():
-            aad_object_id, result_data = row
-            if aad_object_id not in recent_responses:
-                recent_responses[aad_object_id] = []
-            recent_responses[aad_object_id].append(json.loads(result_data))
+            full_name, result_data = row
+            if full_name not in recent_responses:
+                recent_responses[full_name] = []
+            recent_responses[full_name].append(json.loads(result_data))
 
         return {
             "usage_stats": usage_stats,
@@ -389,6 +392,7 @@ async def next_ticket_stats():
 
 
 
+
 @app.get("/next-ticket-stats")
 async def next_ticket_stats_ui():
     return HTMLResponse(content="""
@@ -396,6 +400,48 @@ async def next_ticket_stats_ui():
     <html>
     <head>
         <title>Next Ticket Stats</title>
+        <style>
+            /* General styles */
+            body {
+                font-family: Arial, sans-serif;
+                margin: 20px;
+                padding: 20px;
+                background-color: var(--bg-color);
+                color: var(--text-color);
+            }
+            h1, h2, h3 {
+                color: var(--heading-color);
+            }
+            ul {
+                list-style-type: none;
+                padding: 0;
+            }
+            li {
+                margin: 5px 0;
+            }
+            .card {
+                background-color: var(--card-bg);
+                padding: 15px;
+                margin: 10px 0;
+                border-radius: 8px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            }
+            /* Dark mode variables */
+            :root {
+                --bg-color: #ffffff;
+                --text-color: #000000;
+                --heading-color: #222222;
+                --card-bg: #f9f9f9;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --bg-color: #121212;
+                    --text-color: #e0e0e0;
+                    --heading-color: #ffffff;
+                    --card-bg: #1e1e1e;
+                }
+            }
+        </style>
     </head>
     <body>
         <h1>Next Ticket Stats for All Users</h1>
@@ -406,29 +452,29 @@ async def next_ticket_stats_ui():
                 const stats = await response.json();
                 let html = `<h2>Usage Stats by User</h2>`;
                 for (const [user, commands] of Object.entries(stats.usage_stats)) {
-                    html += `<h3>User: ${user}</h3><ul>`;
+                    html += `<div class="card"><h3>${user}</h3><ul>`;
                     for (const [command, count] of Object.entries(commands)) {
                         html += `<li>${command}: ${count}</li>`;
                     }
-                    html += `</ul>`;
+                    html += `</ul></div>`;
                 }
                 html += `<h2>Recent Tickets by User</h2>`;
                 for (const [user, tickets] of Object.entries(stats.recent_tickets)) {
-                    html += `<h3>User: ${user}</h3><ul>`;
+                    html += `<div class="card"><h3>${user}</h3><ul>`;
                     tickets.forEach(ticket => {
                         ticket.tickets.forEach(t => {
                             html += `<li>Ticket ${t.ticket_id}: ${t.title} (Points: ${t.points})</li>`;
                         });
                     });
-                    html += `</ul>`;
+                    html += `</ul></div>`;
                 }
                 html += `<h2>Recent Responses by User</h2>`;
                 for (const [user, responses] of Object.entries(stats.recent_responses)) {
-                    html += `<h3>User: ${user}</h3><ul>`;
+                    html += `<div class="card"><h3>${user}</h3><ul>`;
                     responses.forEach(response => {
                         html += `<li>${response.response}</li>`;
                     });
-                    html += `</ul>`;
+                    html += `</ul></div>`;
                 }
                 document.getElementById("stats").innerHTML = html;
             }
@@ -437,5 +483,6 @@ async def next_ticket_stats_ui():
     </body>
     </html>
     """)
+
 
 
