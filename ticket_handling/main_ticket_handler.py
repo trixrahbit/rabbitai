@@ -241,8 +241,8 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
             sla_met = sla["sla_met"]
             due_date_formatted = sla["due_date_formatted"]  # Display string
             met_date_formatted = sla["met_date_formatted"]  # Display string
-            due_date = sla.get("due_date")  # Original datetime object
-            met_date = sla.get("met_date")  # Original datetime object
+            due_date = sla.get("due_date")  # Datetime object
+            met_date = sla.get("met_date")  # Datetime object
 
             # Debug log for SLA
             logging.debug(
@@ -254,9 +254,12 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
             if sla_met:
                 sla_status_text = "Met"
                 sla_status_color = "good"  # Green
-            elif met_date == "Not completed" and due_date != "N/A" and due_date > now:
+            elif met_date is None and due_date and due_date > now:
                 sla_status_text = "Not Yet Due"
                 sla_status_color = "default"  # Blue
+            elif met_date is None and due_date and due_date <= now:
+                sla_status_text = "Not Met"
+                sla_status_color = "attention"  # Red
             else:
                 sla_status_text = "Not Met"
                 sla_status_color = "attention"  # Red
