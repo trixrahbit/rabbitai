@@ -2,7 +2,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from weasyprint import HTML, CSS
 import os
 
-def generate_pdf_report(analytics: dict, file="report.pdf"):
+def generate_pdf_report(analytics: dict, filename="report.pdf"):
     """Generates a modern PDF using Jinja2 + WeasyPrint with error handling"""
 
     try:
@@ -15,16 +15,19 @@ def generate_pdf_report(analytics: dict, file="report.pdf"):
         html_content = template.render(analytics=analytics)
 
         # Define PDF output path
-        pdf_path = os.path.join("/tmp", filename=file)
+        pdf_path = os.path.join("/tmp", filename)
 
-        # Generate PDF from HTML
-        HTML(string=html_content).write_pdf(pdf_path)
+        # Optional: Define CSS file path
+        css_path = os.path.join(template_dir, "styles.css")  # Ensure this exists
+
+        # Generate PDF from HTML with CSS
+        HTML(string=html_content).write_pdf(pdf_path, stylesheets=[CSS(css_path)])
 
         return pdf_path
 
     except TemplateNotFound:
-        print("❌ Error: The template file 'report_template.html' was not found in", template_dir)
+        print(f"❌ Error: The template file 'report_template.html' was not found in {template_dir}")
     except Exception as e:
-        print("❌ PDF Generation Failed:", str(e))
+        print(f"❌ PDF Generation Failed: {str(e)}")
 
     return None  # Return None if an error occurs

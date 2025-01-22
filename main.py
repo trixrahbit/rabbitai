@@ -213,7 +213,7 @@ async def generate_report(device_data: List[DeviceData] = Body(...)):
     recommendations = generate_recommendations(analytics)
 
     filename = f"rabbit_report_{uuid.uuid4()}.pdf"
-    pdf_path = generate_pdf_report(analytics, recommendations, filename=filename)
+    pdf_path = generate_pdf_report(analytics, filename=filename)
 
     return {
         "download_url": f"https://rabbit.webitservices.com/download/{filename}",
