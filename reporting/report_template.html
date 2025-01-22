@@ -6,30 +6,43 @@
     <title>Rabbit Report</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; color: #333; background-color: #f8f9fa; }
-        h1 { text-align: center; color: #003366; margin-bottom: 20px; }
+        body { font-family: 'Arial', sans-serif; margin: 20px; color: #333; background-color: #f4f6f9; }
+        h1 { text-align: center; color: #003366; margin-bottom: 30px; }
         .container { width: 90%; margin: auto; }
+
+        /* Cards Layout */
         .row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 15px; }
         .card {
             background: white;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             text-align: center;
-            width: 30%;
+            flex: 1;
             min-width: 250px;
-            margin-bottom: 20px;
+            max-width: 30%;
+            transition: transform 0.3s ease-in-out;
         }
-        .card h3 { margin: 10px 0; font-size: 22px; }
+        .card:hover { transform: scale(1.05); }
+        .card h3 { margin: 10px 0; font-size: 20px; }
         .card p { font-size: 18px; font-weight: bold; }
         .card i { font-size: 40px; margin-bottom: 10px; }
+
+        /* Card Icons */
+        .icon-blue { color: #007BFF; }
+        .icon-green { color: #28a745; }
+        .icon-orange { color: #fd7e14; }
+        .icon-red { color: #dc3545; }
+        .icon-purple { color: #6f42c1; }
+
+        /* Table Styling */
         .table-container { margin-top: 30px; }
         .table-responsive { overflow-x: auto; }
         table {
             width: 100%;
             border-collapse: collapse;
             background: white;
-            border-radius: 8px;
+            border-radius: 10px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
@@ -46,7 +59,7 @@
         }
         tr:nth-child(even) { background-color: #f2f2f2; }
         .section-title {
-            font-size: 20px;
+            font-size: 22px;
             font-weight: bold;
             margin-bottom: 15px;
             color: #003366;
@@ -55,7 +68,6 @@
         }
         .section-title i {
             margin-right: 10px;
-            color: #003366;
         }
     </style>
 </head>
@@ -68,7 +80,7 @@
         <div class="row">
             {% for manufacturer, count in analytics.counts.manufacturers.items() %}
             <div class="card">
-                <i class="fas fa-industry" style="color:#007BFF;"></i>
+                <i class="fas fa-industry icon-blue"></i>
                 <h3>{{ manufacturer }}</h3>
                 <p>{{ count }} Devices</p>
             </div>
@@ -78,25 +90,25 @@
         <!-- Integration Match Widgets -->
         <div class="row">
             <div class="card">
-                <i class="fas fa-check-circle" style="color:green;"></i>
+                <i class="fas fa-check-circle icon-green"></i>
                 <h3>Full Matches</h3>
                 <p>{{ analytics.integration_matches.full_matches | length }}</p>
             </div>
             <div class="card">
-                <i class="fas fa-exclamation-circle" style="color:orange;"></i>
+                <i class="fas fa-exclamation-circle icon-orange"></i>
                 <h3>Partial Matches</h3>
                 <p>{{ analytics.integration_matches.partial_matches | length }}</p>
             </div>
             <div class="card">
-                <i class="fas fa-times-circle" style="color:red;"></i>
-                <h3>No Matches</h3>
-                <p>{{ analytics.integration_matches.no_matches | length }}</p>
+                <i class="fas fa-user-circle icon-purple"></i>
+                <h3>Single Integrations</h3>
+                <p>{{ analytics.integration_matches.single_integrations | length }}</p>
             </div>
         </div>
 
         <!-- Full Matches -->
         <div class="table-container">
-            <h2 class="section-title"><i class="fas fa-check-circle"></i> Full Integration Matches</h2>
+            <h2 class="section-title"><i class="fas fa-check-circle icon-green"></i> Full Integration Matches</h2>
             <div class="table-responsive">
                 <table>
                     <thead>
@@ -119,7 +131,7 @@
 
         <!-- Partial Matches -->
         <div class="table-container">
-            <h2 class="section-title"><i class="fas fa-exclamation-circle"></i> Partial Integration Matches</h2>
+            <h2 class="section-title"><i class="fas fa-exclamation-circle icon-orange"></i> Partial Integration Matches</h2>
             <div class="table-responsive">
                 <table>
                     <thead>
@@ -140,43 +152,22 @@
             </div>
         </div>
 
-        <!-- No Matches -->
+        <!-- Single Integration Matches -->
         <div class="table-container">
-            <h2 class="section-title"><i class="fas fa-times-circle"></i> No Integration Matches</h2>
+            <h2 class="section-title"><i class="fas fa-user-circle icon-purple"></i> Single Integration Matches</h2>
             <div class="table-responsive">
                 <table>
                     <thead>
                         <tr>
                             <th>Device Name</th>
+                            <th>Matched Integrations</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for match in analytics.integration_matches.no_matches %}
+                        {% for match in analytics.integration_matches.single_integrations %}
                         <tr>
                             <td>{{ match.device_name }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Missing Integrations -->
-        <div class="table-container">
-            <h2 class="section-title"><i class="fas fa-unlink"></i> Missing Integrations</h2>
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Device Name</th>
-                            <th>Missing Integrations</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for device_name, missing_list in analytics.missing_integrations.items() %}
-                        <tr>
-                            <td>{{ device_name }}</td>
-                            <td>{{ missing_list | join(', ') }}</td>
+                            <td>{{ match.matched_integrations | join(', ') }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

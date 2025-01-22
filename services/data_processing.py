@@ -31,7 +31,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         "integration_matches": {
             "full_matches": [],
             "partial_matches": [],
-            "no_matches": []
+            "single_integrations": []
         },
         "issues": {
             "no_antivirus_installed": [],
@@ -44,8 +44,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         "integrations": {key: 0 for key in [
             "Datto_RMM", "Huntress", "Workstation_AD", "Server_AD",
             "ImmyBot", "Auvik", "CyberCNS", "ITGlue"
-        ]},
-        "missing_integrations": {},
+        ]}
     }
 
     for device in device_data:
@@ -59,7 +58,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             )
 
         device_integrations = []
-        missing_integrations = []
 
         for integration in [
             {"name": "Datto_RMM", "id_attr": "datto_id"},
@@ -76,8 +74,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             if getattr(device, integration_name, False):
                 analytics["integrations"][integration_name] += 1
                 device_integrations.append(integration_name)
-            else:
-                missing_integrations.append(integration_name)
 
         # Convert device integrations to a set for comparison
         device_integration_set = set(device_integrations)
@@ -88,17 +84,16 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "device_name": device_name,
                 "matched_integrations": device_integrations
             })
-        elif device_integrations:
+        elif len(device_integrations) == 1:
+            analytics["integration_matches"]["single_integrations"].append({
+                "device_name": device_name,
+                "matched_integrations": device_integrations
+            })
+        elif len(device_integrations) > 1:
             analytics["integration_matches"]["partial_matches"].append({
                 "device_name": device_name,
                 "matched_integrations": device_integrations
             })
-        else:
-            analytics["integration_matches"]["no_matches"].append({
-                "device_name": device_name
-            })
-
-        analytics["missing_integrations"][device_name] = missing_integrations
 
         # Track inactive devices
         if device.Inactive_Computer:
