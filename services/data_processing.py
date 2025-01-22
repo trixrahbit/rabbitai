@@ -101,6 +101,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             {"name": "Server_AD", "id_attr": "server_ad_id"},
             {"name": "ImmyBot", "id_attr": "immy_id"},
             {"name": "Auvik", "id_attr": "auvik_id"},
+            {"name": "CyberCNS", "id_attr": "cybercns_id"},
             {"name": "ITGlue", "id_attr": "itglue_id"}
         ]
 

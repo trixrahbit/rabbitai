@@ -52,6 +52,7 @@ class DeviceData(BaseModel):
     huntress_id: Union[int, str] = "N/A"
     immy_id: Optional[str] = "N/A"
     auvik_id: Optional[str] = "N/A"
+    cybercns_id: Optional[str] = "N/A"
     itglue_id: Optional[str] = "N/A"
     manufacturer_name: Optional[str] = "N/A"
     model_name: Optional[str] = "N/A"

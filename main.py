@@ -197,6 +197,7 @@ async def generate_report(device_data: List[DeviceData]):
             "huntress_id": device.huntress_id,
             "immy_id": device.immy_id,
             "auvik_id": device.auvik_id,
+            "cybercns_id": device.cybercns_id,
             "locationName": device.locationName if hasattr(device, "locationName") else "N/A",
             "itglue_id": device.itglue_id if hasattr(device, "itglue_id") else "N/A",
             "manufacturer_name": device.manufacturer_name if hasattr(device, "manufacturer_name") else "N/A",
