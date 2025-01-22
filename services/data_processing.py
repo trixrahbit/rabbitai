@@ -10,6 +10,7 @@ from typing import List, Dict
 import logging
 from models import DeviceData
 
+
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
 
