@@ -6,7 +6,10 @@ def generate_pdf_report(analytics, filename="report.pdf"):
     """Generates a modern PDF using Jinja2 + WeasyPrint with error handling"""
 
     try:
-        # ✅ Ensure `analytics` is a dictionary
+        # ✅ Debugging Step: Print structure of analytics
+        print(f"DEBUG: Type of analytics -> {type(analytics)}")
+        print(f"DEBUG: analytics content -> {json.dumps(analytics, indent=2)}")
+
         if not isinstance(analytics, dict):
             raise ValueError(f"Expected 'analytics' to be a dictionary, but got {type(analytics).__name__}")
 
@@ -21,11 +24,8 @@ def generate_pdf_report(analytics, filename="report.pdf"):
         # Define PDF output path
         pdf_path = os.path.join("/tmp", filename)
 
-        # Optional: Define CSS file path
-        css_path = os.path.join(template_dir, "styles.css")  # Ensure this exists
-
-        # Generate PDF from HTML with CSS
-        HTML(string=html_content).write_pdf(pdf_path, stylesheets=[CSS(css_path)])
+        # Generate PDF from HTML
+        HTML(string=html_content).write_pdf(pdf_path)
 
         return pdf_path
 
@@ -37,3 +37,4 @@ def generate_pdf_report(analytics, filename="report.pdf"):
         print(f"❌ PDF Generation Failed: {str(e)}")
 
     return None  # Return None if an error occurs
+
