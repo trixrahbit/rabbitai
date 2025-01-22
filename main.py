@@ -7,7 +7,7 @@ import jwt
 from jwt import PyJWKClient
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.responses import HTMLResponse
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection
 from models import DeviceData
@@ -234,13 +234,23 @@ def cleanup_file(path: str):
 
 
 @app.get("/download/{filename}")
-async def download_report(filename: str, background_tasks: BackgroundTasks):
+async def download_report(filename: str):
     pdf_path = os.path.join("/tmp", filename)
-    if os.path.exists(pdf_path):
-        background_tasks.add_task(cleanup_file, pdf_path)
-        return FileResponse(path=pdf_path, filename=filename)
-    else:
+
+    if not os.path.exists(pdf_path):
+        logging.error(f"❌ File {pdf_path} not found for download.")
         raise HTTPException(status_code=404, detail="File not found")
+
+    # ✅ Streaming response ensures cleanup only after the file is fully sent
+    def file_iterator():
+        with open(pdf_path, "rb") as f:
+            yield from f
+        os.remove(pdf_path)  # Cleanup happens **only after** the file is sent
+        logging.info(f"✅ Deleted file: {pdf_path}")
+
+    return StreamingResponse(file_iterator(), media_type="application/pdf", headers={
+        "Content-Disposition": f"attachment; filename={filename}"
+    })
 
 # Teams Commands Start Here
 @app.post("/command")
