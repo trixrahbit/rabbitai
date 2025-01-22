@@ -6,6 +6,11 @@ from fastapi import HTTPException
 from config import logger, APP_SECRET
 from models import DeviceData, TicketData
 
+from datetime import datetime
+from typing import List, Dict
+import logging
+from models import DeviceData
+
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
     analytics = {
@@ -49,12 +54,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         }
     }
 
-    older_os_versions = [
-        "Windows 7", "Windows 8", "Windows 8.1", "Windows Vista",
-        "Windows XP", "Windows Server 2008", "Windows Server 2008 R2",
-        "Windows Server 2012", "Windows Server 2012 R2"
-    ]
-
     for device in device_data:
         device_name = device.device_name or "Unnamed Device"
         manufacturer = device.manufacturer_name
@@ -68,7 +67,6 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         if serial_number and serial_number != "N/A":
             analytics["counts"]["unique_serial_numbers"].add(serial_number)
 
-        integration_ids = {}
         device_integrations = []
         missing_integrations = []
 
@@ -86,12 +84,16 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             integration_id = getattr(device, integration["id_attr"], None)
 
             if getattr(device, integration_name, False):
-                if integration_id:
-                    integration_ids[integration_name] = integration_id
                 analytics["counts"]["integrations"][integration_name] += 1
                 device_integrations.append(integration_name)
             else:
                 missing_integrations.append(integration_name)
+
+        if device_integrations:
+            analytics["integration_matches"].append({
+                "device_name": device_name,
+                "matched_integrations": device_integrations
+            })
 
         analytics["missing_integrations"][device_name] = missing_integrations
 
@@ -105,13 +107,14 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 if warranty_date < now:
                     analytics["issues"]["expired_warranty"].append({"device_name": device_name})
             except ValueError:
-                logger.warning(f"Invalid warranty date format for {device_name}")
+                logging.warning(f"Invalid warranty date format for {device_name}")
 
     analytics["counts"]["unique_manufacturers"] = list(analytics["counts"]["unique_manufacturers"])
     analytics["counts"]["unique_models"] = list(analytics["counts"]["unique_models"])
     analytics["counts"]["unique_serial_numbers"] = len(analytics["counts"]["unique_serial_numbers"])
 
     return analytics
+
 
 async def handle_mytickets(data: str) -> dict:
     async with httpx.AsyncClient() as client:
