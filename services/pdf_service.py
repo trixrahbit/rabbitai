@@ -6,6 +6,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from collections import Counter
 import os
 
+
 def add_section_header(elements, title, color=colors.darkblue, icon=None):
     elements.append(Spacer(1, 0.2 * inch))
     header_style = ParagraphStyle(
@@ -15,9 +16,23 @@ def add_section_header(elements, title, color=colors.darkblue, icon=None):
         textColor=color,
         spaceAfter=12
     )
-    icon_html = f'<img src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/svg/{icon}.svg" width="16" height="16" />' if icon else ""
-    elements.append(Paragraph(f"{icon_html} {title}", header_style))
+
+    # Replace FontAwesome icons with Unicode alternatives
+    icon_unicode_map = {
+        "industry": "🏭",  # Factory
+        "link": "🔗",  # Link
+        "unlink": "❌",  # Broken Link
+        "lightbulb": "💡",  # Idea / Recommendation
+        "shield": "🛡️",  # Security
+        "server": "🖥️",  # Server
+        "warning": "⚠️"  # Warning
+    }
+
+    icon_unicode = icon_unicode_map.get(icon, "📊")  # Default: bar chart
+
+    elements.append(Paragraph(f"{icon_unicode} {title}", header_style))
     elements.append(Spacer(1, 0.1 * inch))
+
 
 def create_wrapped_table(data, col_widths):
     table_data = [[Paragraph(str(cell), getSampleStyleSheet()["BodyText"]) if isinstance(cell, str) else cell for cell in row] for row in data]
