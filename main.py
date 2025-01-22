@@ -210,6 +210,8 @@ async def generate_report(device_data: List[DeviceData] = Body(...)):
         summary_list.append(device_summary)
 
     analytics = generate_analytics(device_data)
+    if not isinstance(analytics, dict):
+        analytics = {"data": analytics}  # Wrap in a dictionary
     recommendations = generate_recommendations(analytics)
 
     filename = f"rabbit_report_{uuid.uuid4()}.pdf"
