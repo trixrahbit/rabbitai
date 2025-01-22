@@ -1,96 +1,22 @@
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from collections import Counter
+from jinja2 import Environment, FileSystemLoader
+from weasyprint import HTML
 import os
 
 
-def add_section_header(elements, title, color=colors.darkblue, icon=None):
-    elements.append(Spacer(1, 0.2 * inch))
-    header_style = ParagraphStyle(
-        name="HeaderStyle",
-        fontName="Helvetica-Bold",
-        fontSize=16,
-        textColor=color,
-        spaceAfter=12
-    )
+def generate_pdf_report(analytics: dict, filename="report.pdf"):
+    """Generates a modern PDF using Jinja2 + WeasyPrint"""
 
-    # Replace FontAwesome icons with Unicode alternatives
-    icon_unicode_map = {
-        "industry": "🏭",  # Factory
-        "link": "🔗",  # Link
-        "unlink": "❌",  # Broken Link
-        "lightbulb": "💡",  # Idea / Recommendation
-        "shield": "🛡️",  # Security
-        "server": "🖥️",  # Server
-        "warning": "⚠️"  # Warning
-    }
+    # Load Jinja2 Template
+    template_env = Environment(loader=FileSystemLoader("."))  # Look for templates in current directory
+    template = template_env.get_template("report_template.html")
 
-    icon_unicode = icon_unicode_map.get(icon, "📊")  # Default: bar chart
+    # Render HTML with data
+    html_content = template.render(analytics=analytics)
 
-    elements.append(Paragraph(f"{icon_unicode} {title}", header_style))
-    elements.append(Spacer(1, 0.1 * inch))
-
-
-def create_wrapped_table(data, col_widths):
-    table_data = [[Paragraph(str(cell), getSampleStyleSheet()["BodyText"]) if isinstance(cell, str) else cell for cell in row] for row in data]
-    table = Table(table_data, colWidths=col_widths)
-    table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.lightblue),
-        ('FONTSIZE', (0, 1), (-1, -1), 11),
-    ]))
-    return table
-
-def generate_pdf_report(analytics: dict, recommendations: dict, filename="report.pdf"):
+    # Define PDF output path
     pdf_path = os.path.join("/tmp", filename)
-    doc = SimpleDocTemplate(pdf_path, pagesize=letter)
-    elements = []
-    styles = getSampleStyleSheet()
 
-    title_style = ParagraphStyle(
-        'TitleStyle', fontSize=20, textColor=colors.darkblue, alignment=1, fontName="Helvetica-Bold"
-    )
-    elements.append(Paragraph("Rabbit Reporting v2.0", title_style))
-    elements.append(Spacer(1, 0.4 * inch))
+    # Generate PDF from HTML
+    HTML(string=html_content).write_pdf(pdf_path)
 
-    add_section_header(elements, "Manufacturers Count", color=colors.blue, icon="industry")
-    manufacturer_counts = Counter(analytics["counts"]["unique_manufacturers"])
-    manufacturers_data = [["Manufacturer", "Count"]] + [[name, count] for name, count in manufacturer_counts.items()]
-    elements.append(create_wrapped_table(manufacturers_data, col_widths=[4 * inch, 1.5 * inch]))
-    elements.append(Spacer(1, 0.3 * inch))
-
-    add_section_header(elements, "Integration Matches", color=colors.green, icon="link")
-    integration_data = [["Device Name", "Matched Integrations"]]
-    for match in analytics["integration_matches"]:
-        integration_data.append([match["device_name"], ", ".join(match["matched_integrations"])] )
-    elements.append(create_wrapped_table(integration_data, col_widths=[3 * inch, 3 * inch]))
-    elements.append(Spacer(1, 0.3 * inch))
-
-    add_section_header(elements, "Missing Integrations", color=colors.red, icon="unlink")
-    missing_integrations_data = [["Device Name", "Missing Integrations"]]
-    for device_name, missing_list in analytics["missing_integrations"].items():
-        missing_integrations_data.append([device_name, ", ".join(missing_list)])
-    elements.append(create_wrapped_table(missing_integrations_data, col_widths=[3 * inch, 3 * inch]))
-    elements.append(Spacer(1, 0.3 * inch))
-
-    add_section_header(elements, "Device Recommendations", color=colors.navy, icon="lightbulb")
-    if recommendations.get("device_recommendations"):
-        for rec in recommendations["device_recommendations"]:
-            elements.append(Paragraph(f"<b>{rec.get('issue_type', 'General Issue')}</b>", styles['Heading3']))
-            rec_text = ", ".join([f"{key}: {value}" for key, value in rec.items() if key != "issue_type"])
-            elements.append(Paragraph(rec_text, styles['BodyText']))
-            elements.append(Spacer(1, 0.1 * inch))
-    else:
-        elements.append(Paragraph("No recommendations available.", styles['BodyText']))
-
-    doc.build(elements)
     return pdf_path

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rabbit Report</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        h1 { text-align: center; color: #003366; }
+        .section { margin-top: 20px; padding: 15px; border-radius: 8px; }
+        .blue { background-color: #e3f2fd; }
+        .green { background-color: #e8f5e9; }
+        .red { background-color: #ffebee; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #003366; color: white; }
+        .icon { font-size: 18px; margin-right: 8px; }
+    </style>
+</head>
+<body>
+
+    <h1><i class="fas fa-chart-line"></i> Rabbit Report</h1>
+
+    <!-- Manufacturers Section -->
+    <div class="section blue">
+        <h2><i class="fas fa-industry icon"></i> Manufacturers Count</h2>
+        <table>
+            <tr><th>Manufacturer</th><th>Count</th></tr>
+            {% for name, count in analytics.counts.unique_manufacturers.items() %}
+                <tr><td>{{ name }}</td><td>{{ count }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <!-- Integration Matches -->
+    <div class="section green">
+        <h2><i class="fas fa-link icon"></i> Integration Matches</h2>
+        <table>
+            <tr><th>Device Name</th><th>Matched Integrations</th></tr>
+            {% for match in analytics.integration_matches %}
+                <tr><td>{{ match.device_name }}</td><td>{{ match.matched_integrations | join(', ') }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <!-- Missing Integrations -->
+    <div class="section red">
+        <h2><i class="fas fa-unlink icon"></i> Missing Integrations</h2>
+        <table>
+            <tr><th>Device Name</th><th>Missing Integrations</th></tr>
+            {% for device_name, missing_list in analytics.missing_integrations.items() %}
+                <tr><td>{{ device_name }}</td><td>{{ missing_list | join(', ') }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+
+</body>
+</html>
