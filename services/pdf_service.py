@@ -2,13 +2,13 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from weasyprint import HTML, CSS
 import os
 
-def generate_pdf_report(analytics: dict, filename="report.pdf"):
+def generate_pdf_report(analytics, filename="report.pdf"):
     """Generates a modern PDF using Jinja2 + WeasyPrint with error handling"""
 
     try:
-        # ✅ Ensure `analytics` is a dictionary before rendering
+        # ✅ Ensure `analytics` is a dictionary
         if not isinstance(analytics, dict):
-            raise ValueError("Expected 'analytics' to be a dictionary, but got a list.")
+            raise ValueError(f"Expected 'analytics' to be a dictionary, but got {type(analytics).__name__}")
 
         # Define the template directory
         template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../reporting"))
