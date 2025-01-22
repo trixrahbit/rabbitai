@@ -6,7 +6,11 @@ def generate_pdf_report(analytics: dict, filename="report.pdf"):
     """Generates a modern PDF using Jinja2 + WeasyPrint with error handling"""
 
     try:
-        # ✅ Explicitly set the correct template directory
+        # ✅ Ensure `analytics` is a dictionary before rendering
+        if not isinstance(analytics, dict):
+            raise ValueError("Expected 'analytics' to be a dictionary, but got a list.")
+
+        # Define the template directory
         template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../reporting"))
         template_env = Environment(loader=FileSystemLoader(template_dir))
         template = template_env.get_template("report_template.html")
@@ -25,6 +29,8 @@ def generate_pdf_report(analytics: dict, filename="report.pdf"):
 
         return pdf_path
 
+    except ValueError as ve:
+        print(f"❌ ValueError: {ve}")
     except TemplateNotFound:
         print(f"❌ Error: The template file 'report_template.html' was not found in {template_dir}")
     except Exception as e:
