@@ -60,24 +60,23 @@ async def validate_teams_token(auth_header: str):
 
     jwks_uri = openid_config["jwks_uri"]
 
-    async with httpx.AsyncClient() as client:
-        jwks_response = await client.get(jwks_uri)
-        jwks = jwks_response.json()
-
-    signing_key = jwt.api_jwk.PyJWKSet.from_dict(jwks).get_signing_key_from_jwt(token)
+    # ✅ Use PyJWKClient to get the signing key correctly
+    jwks_client = PyJWKClient(jwks_uri)
+    signing_key = jwks_client.get_signing_key(token).key  # ✅ Correct method
 
     try:
         decoded_token = jwt.decode(
             token,
-            signing_key.key,
+            signing_key,
             algorithms=["RS256"],
             audience=APP_ID,
             issuer="https://api.botframework.com"
         )
-        logging.info(f"Token successfully validated.")
+        logging.info("Token successfully validated.")
         return decoded_token
     except jwt.InvalidTokenError as e:
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
+
 
 
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
