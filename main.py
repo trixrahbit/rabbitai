@@ -8,7 +8,6 @@ from jwt import PyJWKClient
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse
-from jose import JWTError, jwt
 from starlette.responses import HTMLResponse
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection
 from models import DeviceData
@@ -22,6 +21,7 @@ from services.pdf_service import generate_pdf_report
 import uuid
 import os
 from ticket_handling.main_ticket_handler import fetch_tickets_from_webhook, assign_ticket_weights, construct_ticket_card
+from fastapi import Body
 
 # Define the Middleware Class
 class MaxBodySizeMiddleware(BaseHTTPMiddleware):
@@ -39,14 +39,13 @@ app = FastAPI()
 logging.basicConfig(filename="/var/www/rabbitai/rabbitai.log", level=logging.INFO)
 app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
 
-def decode_jwt(token):
+def decode_jwt(token: str):
     try:
-        parts = token.split(".")
-        header = json.loads(base64.urlsafe_b64decode(parts[0] + "==").decode("utf-8"))
-        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "==").decode("utf-8"))
-        return header, payload
+        decoded = jwt.decode(token, options={"verify_signature": False})
+        return decoded
     except Exception as e:
         return {"error": f"Failed to decode token: {e}"}
+
 
 async def validate_teams_token(auth_header: str):
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -54,7 +53,6 @@ async def validate_teams_token(auth_header: str):
 
     token = auth_header.split(" ")[1]
 
-    # Fetch OpenID configuration
     async with httpx.AsyncClient() as client:
         response = await client.get(OPENID_CONFIG_URL)
         response.raise_for_status()
@@ -62,11 +60,12 @@ async def validate_teams_token(auth_header: str):
 
     jwks_uri = openid_config["jwks_uri"]
 
-    # Fetch JWKS
-    jwk_client = PyJWKClient(jwks_uri)
-    signing_key = jwk_client.get_signing_key_from_jwt(token)
+    async with httpx.AsyncClient() as client:
+        jwks_response = await client.get(jwks_uri)
+        jwks = jwks_response.json()
 
-    # Validate token
+    signing_key = jwt.api_jwk.PyJWKSet.from_dict(jwks).get_signing_key_from_jwt(token)
+
     try:
         decoded_token = jwt.decode(
             token,
@@ -75,20 +74,18 @@ async def validate_teams_token(auth_header: str):
             audience=APP_ID,
             issuer="https://api.botframework.com"
         )
-        logging.info(f"Token successfully validated. Decoded token: {decoded_token}")
+        logging.info(f"Token successfully validated.")
         return decoded_token
     except jwt.InvalidTokenError as e:
-        logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
+
 
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
     try:
         body = await request.body()
-        logging.info("Raw request body: %s", body)
-
+        logging.info("Raw request body: %s", body.decode("utf-8"))
         payload = await request.json()
-
         if isinstance(payload, list):
             ticket_count = len(payload)
         elif isinstance(payload, dict):
@@ -102,10 +99,16 @@ async def count_tickets(request: Request):
         logging.error("Error processing request: %s", str(e))
         raise HTTPException(status_code=500, detail="Error processing JSON data")
 
-def calculate_resolution_time(create_date, resolved_date):
-    if create_date and resolved_date:
-        return (datetime.fromisoformat(resolved_date[:-1]) - datetime.fromisoformat(create_date[:-1])).total_seconds() / 3600
-    return None
+def calculate_resolution_time(create_date: Optional[str], resolved_date: Optional[str]):
+    if not create_date or not resolved_date:
+        return None
+    try:
+        start = datetime.fromisoformat(create_date.rstrip("Z"))  # Handle 'Z'
+        end = datetime.fromisoformat(resolved_date.rstrip("Z"))
+        return (end - start).total_seconds() / 3600
+    except ValueError:
+        return None
+
 
 def check_sla_met(ticket):
     return ticket.get("serviceLevelAgreementHasBeenMet") is True
@@ -169,7 +172,7 @@ async def ticket_stats(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/report/", dependencies=[Depends(get_api_key)])
-async def generate_report(device_data: List[DeviceData]):
+async def generate_report(device_data: List[DeviceData] = Body(...)):
     summary_list = []
     for device in device_data:
         device_summary = {
@@ -222,11 +225,13 @@ async def generate_report(device_data: List[DeviceData]):
     }
 
 def cleanup_file(path: str):
-    try:
-        os.remove(path)
-        print(f"Deleted file: {path}")
-    except Exception as e:
-        print(f"Error deleting file: {e}")
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+            logging.info(f"Deleted file: {path}")
+        except Exception as e:
+            logging.error(f"Error deleting file: {e}")
+
 
 @app.get("/download/{filename}")
 async def download_report(filename: str, background_tasks: BackgroundTasks):
