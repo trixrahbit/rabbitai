@@ -25,6 +25,7 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
                 "Server_AD": 0,
                 "ImmyBot": 0,
                 "Auvik": 0,
+                "CyberCNS": 0,
                 "ITGlue": 0
             },
             "match_summary": {

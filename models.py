@@ -65,6 +65,7 @@ class DeviceData(BaseModel):
     ImmyBot: bool = False
     Auvik: bool = False
     ITGlue: bool = False
+    CyberCNS: bool = False
     Inactive_Computer: bool = False
 
     @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue", "Inactive_Computer", pre=True)
