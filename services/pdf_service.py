@@ -1,3 +1,5 @@
+import json
+
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from weasyprint import HTML, CSS
 import os
