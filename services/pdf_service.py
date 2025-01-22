@@ -1,7 +1,7 @@
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from collections import Counter
 import os
@@ -15,9 +15,8 @@ def add_section_header(elements, title, color=colors.darkblue, icon=None):
         textColor=color,
         spaceAfter=12
     )
-    if icon:
-        elements.append(Image(icon, width=0.4 * inch, height=0.4 * inch))
-    elements.append(Paragraph(title, header_style))
+    icon_html = f'<img src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/svg/{icon}.svg" width="16" height="16" />' if icon else ""
+    elements.append(Paragraph(f"{icon_html} {title}", header_style))
     elements.append(Spacer(1, 0.1 * inch))
 
 def create_wrapped_table(data, col_widths):
@@ -48,27 +47,27 @@ def generate_pdf_report(analytics: dict, recommendations: dict, filename="report
     elements.append(Paragraph("Rabbit Reporting v2.0", title_style))
     elements.append(Spacer(1, 0.4 * inch))
 
-    add_section_header(elements, "Manufacturers Count", color=colors.blue, icon="icons/manufacturers.png")
+    add_section_header(elements, "Manufacturers Count", color=colors.blue, icon="industry")
     manufacturer_counts = Counter(analytics["counts"]["unique_manufacturers"])
     manufacturers_data = [["Manufacturer", "Count"]] + [[name, count] for name, count in manufacturer_counts.items()]
     elements.append(create_wrapped_table(manufacturers_data, col_widths=[4 * inch, 1.5 * inch]))
     elements.append(Spacer(1, 0.3 * inch))
 
-    add_section_header(elements, "Integration Matches", color=colors.green, icon="icons/integrations.png")
+    add_section_header(elements, "Integration Matches", color=colors.green, icon="link")
     integration_data = [["Device Name", "Matched Integrations"]]
     for match in analytics["integration_matches"]:
         integration_data.append([match["device_name"], ", ".join(match["matched_integrations"])] )
     elements.append(create_wrapped_table(integration_data, col_widths=[3 * inch, 3 * inch]))
     elements.append(Spacer(1, 0.3 * inch))
 
-    add_section_header(elements, "Missing Integrations", color=colors.red, icon="icons/missing.png")
+    add_section_header(elements, "Missing Integrations", color=colors.red, icon="unlink")
     missing_integrations_data = [["Device Name", "Missing Integrations"]]
     for device_name, missing_list in analytics["missing_integrations"].items():
         missing_integrations_data.append([device_name, ", ".join(missing_list)])
     elements.append(create_wrapped_table(missing_integrations_data, col_widths=[3 * inch, 3 * inch]))
     elements.append(Spacer(1, 0.3 * inch))
 
-    add_section_header(elements, "Device Recommendations", color=colors.navy, icon="icons/recommendations.png")
+    add_section_header(elements, "Device Recommendations", color=colors.navy, icon="lightbulb")
     if recommendations.get("device_recommendations"):
         for rec in recommendations["device_recommendations"]:
             elements.append(Paragraph(f"<b>{rec.get('issue_type', 'General Issue')}</b>", styles['Heading3']))
