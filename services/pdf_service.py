@@ -6,8 +6,8 @@ def generate_pdf_report(analytics: dict, filename="report.pdf"):
     """Generates a modern PDF using Jinja2 + WeasyPrint with error handling"""
 
     try:
-        # Define the template directory dynamically
-        template_dir = os.path.join(os.path.dirname(__file__), "templates")
+        # ✅ Explicitly set the correct template directory
+        template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../reporting"))
         template_env = Environment(loader=FileSystemLoader(template_dir))
         template = template_env.get_template("report_template.html")
 
