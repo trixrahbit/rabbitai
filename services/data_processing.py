@@ -5,7 +5,6 @@ import httpx
 from fastapi import HTTPException
 from config import logger, APP_SECRET
 from models import DeviceData, TicketData
-
 from datetime import datetime
 from typing import List, Dict
 import logging
@@ -13,6 +12,13 @@ from models import DeviceData
 
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
+
+    # Define full match sets
+    FULL_MATCH_SETS = [
+        {"Datto_RMM", "Huntress", "Workstation_AD", "ImmyBot", "CyberCNS", "ITGlue"},
+        {"Datto_RMM", "Huntress", "Server_AD", "ImmyBot", "CyberCNS", "ITGlue"},
+    ]
+
     analytics = {
         "counts": {
             "total_devices": len(device_data),
@@ -45,9 +51,10 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
         device_name = device.device_name or "Unnamed Device"
         manufacturer = device.manufacturer_name
 
+        # Count manufacturers
         if manufacturer and manufacturer != "N/A":
             analytics["counts"]["manufacturers"][manufacturer] = (
-                analytics["counts"]["manufacturers"].get(manufacturer, 0) + 1
+                    analytics["counts"]["manufacturers"].get(manufacturer, 0) + 1
             )
 
         device_integrations = []
@@ -71,12 +78,16 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             else:
                 missing_integrations.append(integration_name)
 
-        if len(device_integrations) == len(analytics["integrations"]):
+        # Convert device integrations to a set for comparison
+        device_integration_set = set(device_integrations)
+
+        # Determine match type
+        if any(device_integration_set == full_match for full_match in FULL_MATCH_SETS):
             analytics["integration_matches"]["full_matches"].append({
                 "device_name": device_name,
                 "matched_integrations": device_integrations
             })
-        elif len(device_integrations) > 0:
+        elif device_integrations:
             analytics["integration_matches"]["partial_matches"].append({
                 "device_name": device_name,
                 "matched_integrations": device_integrations
@@ -88,14 +99,12 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
 
         analytics["missing_integrations"][device_name] = missing_integrations
 
+        # Track inactive devices
         if device.Inactive_Computer:
             analytics["counts"]["inactive_devices"] += 1
             analytics["issues"]["not_seen_recently"].append({"device_name": device_name})
 
     return analytics
-
-
-
 
 async def handle_mytickets(data: str) -> dict:
     async with httpx.AsyncClient() as client:
