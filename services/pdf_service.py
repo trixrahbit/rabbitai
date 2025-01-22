@@ -15,7 +15,7 @@ def generate_pdf_report(analytics: dict, filename="report.pdf"):
         html_content = template.render(analytics=analytics)
 
         # Define PDF output path
-        pdf_path = os.path.join("/tmp", filename)
+        pdf_path = os.path.join("/tmp", filename=filename)
 
         # Generate PDF from HTML
         HTML(string=html_content).write_pdf(pdf_path)
