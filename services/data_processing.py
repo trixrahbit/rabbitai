@@ -16,21 +16,15 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     analytics = {
         "counts": {
             "total_devices": len(device_data),
-            "unique_manufacturers": set(),
-            "unique_models": set(),
-            "unique_serial_numbers": set(),
+            "manufacturers": {},  # Dictionary to track device count per manufacturer
             "inactive_devices": 0,
             "no_antivirus": 0,
             "no_last_reboot": 0,
-            "integrations": {key: 0 for key in [
-                "Datto_RMM", "Huntress", "Workstation_AD", "Server_AD",
-                "ImmyBot", "Auvik", "CyberCNS", "ITGlue"
-            ]},
-            "match_summary": {
-                "full_matches": 0,
-                "partial_matches": 0,
-                "no_matches": 0
-            }
+        },
+        "integration_matches": {
+            "full_matches": [],
+            "partial_matches": [],
+            "no_matches": []
         },
         "issues": {
             "no_antivirus_installed": [],
@@ -40,32 +34,21 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             "reboot_required": [],
             "expired_warranty": []
         },
-        "trends": {
-            "recently_active_devices": 0,
-            "recently_inactive_devices": 0
-        },
-        "integration_matches": [],
+        "integrations": {key: 0 for key in [
+            "Datto_RMM", "Huntress", "Workstation_AD", "Server_AD",
+            "ImmyBot", "Auvik", "CyberCNS", "ITGlue"
+        ]},
         "missing_integrations": {},
-        "os_metrics": {
-            "end_of_life": [],
-            "end_of_support": [],
-            "supported": [],
-            "os_counts": {}
-        }
     }
 
     for device in device_data:
         device_name = device.device_name or "Unnamed Device"
         manufacturer = device.manufacturer_name
-        model = device.model_name
-        serial_number = device.serial_number
 
         if manufacturer and manufacturer != "N/A":
-            analytics["counts"]["unique_manufacturers"].add(manufacturer)
-        if model and model != "N/A":
-            analytics["counts"]["unique_models"].add(model)
-        if serial_number and serial_number != "N/A":
-            analytics["counts"]["unique_serial_numbers"].add(serial_number)
+            analytics["counts"]["manufacturers"][manufacturer] = (
+                analytics["counts"]["manufacturers"].get(manufacturer, 0) + 1
+            )
 
         device_integrations = []
         missing_integrations = []
@@ -81,18 +64,26 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             {"name": "ITGlue", "id_attr": "itglue_id"}
         ]:
             integration_name = integration["name"]
-            integration_id = getattr(device, integration["id_attr"], None)
 
             if getattr(device, integration_name, False):
-                analytics["counts"]["integrations"][integration_name] += 1
+                analytics["integrations"][integration_name] += 1
                 device_integrations.append(integration_name)
             else:
                 missing_integrations.append(integration_name)
 
-        if device_integrations:
-            analytics["integration_matches"].append({
+        if len(device_integrations) == len(analytics["integrations"]):
+            analytics["integration_matches"]["full_matches"].append({
                 "device_name": device_name,
                 "matched_integrations": device_integrations
+            })
+        elif len(device_integrations) > 0:
+            analytics["integration_matches"]["partial_matches"].append({
+                "device_name": device_name,
+                "matched_integrations": device_integrations
+            })
+        else:
+            analytics["integration_matches"]["no_matches"].append({
+                "device_name": device_name
             })
 
         analytics["missing_integrations"][device_name] = missing_integrations
@@ -101,19 +92,9 @@ def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
             analytics["counts"]["inactive_devices"] += 1
             analytics["issues"]["not_seen_recently"].append({"device_name": device_name})
 
-        if device.warrantyDate and device.warrantyDate != "N/A":
-            try:
-                warranty_date = datetime.strptime(device.warrantyDate, "%Y-%m-%d")
-                if warranty_date < now:
-                    analytics["issues"]["expired_warranty"].append({"device_name": device_name})
-            except ValueError:
-                logging.warning(f"Invalid warranty date format for {device_name}")
-
-    analytics["counts"]["unique_manufacturers"] = list(analytics["counts"]["unique_manufacturers"])
-    analytics["counts"]["unique_models"] = list(analytics["counts"]["unique_models"])
-    analytics["counts"]["unique_serial_numbers"] = len(analytics["counts"]["unique_serial_numbers"])
-
     return analytics
+
+
 
 
 async def handle_mytickets(data: str) -> dict:
