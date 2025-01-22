@@ -181,6 +181,7 @@ async def generate_report(device_data: List[DeviceData]):
             "Server_AD": device.Server_AD,
             "ImmyBot": device.ImmyBot,
             "Auvik": device.Auvik,
+            "CyberCNS": device.CyberCNS,
             "Inactive_Computer": device.Inactive_Computer,
             "LastLoggedInUser": device.LastLoggedOnUser,
             "IPv4Address": device.IPv4Address,
@@ -393,6 +394,8 @@ async def handle_command(request: Request):
             except Exception as e:
                 logging.error(f"Error processing `mytickets` command: {e}")
                 raise HTTPException(status_code=500, detail="Failed to process `mytickets` command.")
+
+
 
     except Exception as e:
         logging.error(f"Error processing command: {e}")
