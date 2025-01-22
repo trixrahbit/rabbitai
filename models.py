@@ -69,7 +69,7 @@ class DeviceData(BaseModel):
     CyberCNS: bool = False
     Inactive_Computer: bool = False
 
-    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "ITGlue", "Inactive_Computer", pre=True)
+    @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "CyberCNS", "ITGlue", "Inactive_Computer", pre=True)
     def parse_yes_no(cls, v):
         if isinstance(v, str):
             return v == "Yes"
