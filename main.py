@@ -210,8 +210,14 @@ async def generate_report(device_data: List[DeviceData] = Body(...)):
         summary_list.append(device_summary)
 
     analytics = generate_analytics(device_data)
-    if not isinstance(analytics, dict):
-        analytics = {"data": analytics}  # Wrap in a dictionary
+
+    # ✅ Convert unique_manufacturers from a list to a dictionary with counts
+    if isinstance(analytics.get("counts", {}).get("unique_manufacturers"), list):
+        manufacturer_counts = {}
+        for manufacturer in analytics["counts"]["unique_manufacturers"]:
+            manufacturer_counts[manufacturer] = manufacturer_counts.get(manufacturer, 0) + 1
+        analytics["counts"]["unique_manufacturers"] = manufacturer_counts  # Convert to dictionary
+
     recommendations = generate_recommendations(analytics)
 
     filename = f"rabbit_report_{uuid.uuid4()}.pdf"
