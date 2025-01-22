@@ -39,13 +39,14 @@ app = FastAPI()
 logging.basicConfig(filename="/var/www/rabbitai/rabbitai.log", level=logging.INFO)
 app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
 
-def decode_jwt(token: str):
+def decode_jwt(token):
     try:
-        decoded = jwt.decode(token, options={"verify_signature": False})
-        return decoded
+        parts = token.split(".")
+        header = json.loads(base64.urlsafe_b64decode(parts[0] + "==").decode("utf-8"))
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "==").decode("utf-8"))
+        return header, payload
     except Exception as e:
         return {"error": f"Failed to decode token: {e}"}
-
 
 async def validate_teams_token(auth_header: str):
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -53,6 +54,7 @@ async def validate_teams_token(auth_header: str):
 
     token = auth_header.split(" ")[1]
 
+    # Fetch OpenID configuration
     async with httpx.AsyncClient() as client:
         response = await client.get(OPENID_CONFIG_URL)
         response.raise_for_status()
@@ -60,21 +62,23 @@ async def validate_teams_token(auth_header: str):
 
     jwks_uri = openid_config["jwks_uri"]
 
-    # ✅ Use PyJWKClient to get the signing key correctly
-    jwks_client = PyJWKClient(jwks_uri)
-    signing_key = jwks_client.get_signing_key(token).key  # ✅ Correct method
+    # Fetch JWKS
+    jwk_client = PyJWKClient(jwks_uri)
+    signing_key = jwk_client.get_signing_key_from_jwt(token)
 
+    # Validate token
     try:
         decoded_token = jwt.decode(
             token,
-            signing_key,
+            signing_key.key,
             algorithms=["RS256"],
             audience=APP_ID,
             issuer="https://api.botframework.com"
         )
-        logging.info("Token successfully validated.")
+        logging.info(f"Token successfully validated. Decoded token: {decoded_token}")
         return decoded_token
     except jwt.InvalidTokenError as e:
+        logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
 
 
