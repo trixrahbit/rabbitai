@@ -436,38 +436,50 @@ def parse_date(date_str: str) -> Optional[datetime]:
         return None
 
 @app.post("/process_contract_services/")
-async def process_contract_services(input_data: Union[List[ContractService], Dict[str, List[ContractService]]]):
+async def process_contract_services(
+    request: Request
+):
+    try:
+        raw_body = await request.body()
+        logging.info(f"🔍 Raw Request Body: {raw_body.decode('utf-8')}")
 
-    # If input is a dictionary, extract the list
-    if isinstance(input_data, dict):
-        services = input_data.get("services", [])
-    else:
-        services = input_data  # Already a list
+        json_data = await request.json()
+        logging.info(f"📌 Parsed JSON: {json.dumps(json_data, indent=2)}")
 
-    if not isinstance(services, list):
-        raise HTTPException(status_code=400, detail="Invalid input: Expected a list or a dictionary with key 'services'")
+        # Ensure the expected format (list or dict)
+        if isinstance(json_data, dict):
+            services = json_data.get("data", [])
+        else:
+            services = json_data  # Assume list
 
-    corrected_services = []
+        if not isinstance(services, list):
+            raise HTTPException(status_code=400, detail="Invalid input: Expected a list or a dictionary with key 'data'")
 
-    for service in services:
-        start_dt = parse_date(service.startDate)
-        end_dt = parse_date(service.endDate)
+        corrected_services = []
 
-        if not start_dt or not end_dt:
-            raise HTTPException(status_code=400, detail=f"Invalid date format in service ID {service.id}")
+        for service in services:
+            start_dt = parse_date(service["startDate"])
+            end_dt = parse_date(service["endDate"])
 
-        corrected_services.append({
-            "contractID": service.contractID,
-            "id": service.id,
-            "serviceID": service.serviceID,
-            "startDate": start_dt,  # Corrected ISO format
-            "endDate": end_dt,
-            "unitCost": service.unitCost,
-            "unitPrice": service.unitPrice,
-            "internalCurrencyPrice": service.internalCurrencyPrice,
-            "organizationalLevelAssociationID": service.organizationalLevelAssociationID,
-            "invoiceDescription": service.invoiceDescription,
-            "approveAndPostDate": service.approveAndPostDate
-        })
+            if not start_dt or not end_dt:
+                raise HTTPException(status_code=400, detail=f"Invalid date format in service ID {service.get('id')}")
 
-    return {"corrected_services": corrected_services}
+            corrected_services.append({
+                "contractID": service.get("contractID"),
+                "id": service.get("id"),
+                "serviceID": service.get("serviceID"),
+                "startDate": start_dt.isoformat(),  # Ensure ISO format
+                "endDate": end_dt.isoformat(),
+                "unitCost": service.get("unitCost"),
+                "unitPrice": service.get("unitPrice"),
+                "internalCurrencyPrice": service.get("internalCurrencyPrice"),
+                "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
+                "invoiceDescription": service.get("invoiceDescription"),
+                "approveAndPostDate": service.get("approveAndPostDate")
+            })
+
+        return {"corrected_services": corrected_services}
+
+    except Exception as e:
+        logging.error(f"🚨 JSON Processing Error: {e}")
+        raise HTTPException(status_code=400, detail=f"JSON processing error: {str(e)}")
