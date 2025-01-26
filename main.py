@@ -435,10 +435,6 @@ def parse_date(date_str: str) -> Optional[datetime]:
     except (TypeError, ValueError):
         return None
 
-from fastapi import Body
-
-from fastapi import Body
-
 @app.post("/process_contract_services/")
 async def process_contract_services(
     input_data: Union[List[Dict], Dict[str, List[Dict]]] = Body(...)
