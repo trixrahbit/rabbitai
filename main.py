@@ -442,51 +442,31 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
             logging.error(f"🚨 Invalid date format: {date_str}")
             return None
 
-@app.post("/process_contract_services/", response_model=List[ProcessedContractService])
-async def process_contract_services(
-    input_data: Union[List[Dict], Dict[str, List[Dict]]] = Body(...)
-):
-    logging.info(f"🔍 Received JSON: {input_data}")
-
-    # Extract services list from dictionary or assume input is a list
-    services = input_data.get("data", []) if isinstance(input_data, dict) else input_data
-
-    if not isinstance(services, list):
-        raise HTTPException(status_code=400, detail="Invalid input: Expected a list or a dictionary with key 'data'")
-
+@app.post("/process_contract_services/")
+async def process_contract_services(input_data: List[Dict] = Body(...)):
     corrected_services = []
 
-    for service in services:
-        try:
-            start_dt = parse_date(service.get("startDate"))
-            end_dt = parse_date(service.get("endDate"))
-            approve_dt = parse_date(service.get("approveAndPostDate"))
+    for service in input_data:
+        start_dt = parse_date(service.get("startDate"))
+        end_dt = parse_date(service.get("endDate"))
+        approve_dt = parse_date(service.get("approveAndPostDate"))
 
-            if not start_dt or not end_dt:
-                logging.error(f"🚨 Skipping service {service.get('id')}: Invalid date format")
-                continue  # Skip invalid entries
+        corrected_service = {
+            "contractID": service.get("contractID"),
+            "id": service.get("id"),
+            "serviceID": service.get("serviceID"),
+            "startDate": start_dt.isoformat() if start_dt else None,  # ISO format
+            "endDate": end_dt.isoformat() if end_dt else None,  # ISO format
+            "approveAndPostDate": approve_dt.isoformat() if approve_dt else None,
+            "unitCost": service.get("unitCost"),
+            "unitPrice": service.get("unitPrice"),
+            "internalCurrencyPrice": service.get("internalCurrencyPrice"),
+            "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
+            "invoiceDescription": service.get("invoiceDescription"),
+        }
 
-            corrected_service = ProcessedContractService(
-                contractID=service.get("contractID"),
-                id=service.get("id"),
-                serviceID=service.get("serviceID"),
-                startDate=start_dt,  # Keeps it as datetime
-                endDate=end_dt,  # Keeps it as datetime
-                approveAndPostDate=approve_dt,
-                unitCost=service.get("unitCost"),
-                unitPrice=service.get("unitPrice"),
-                internalCurrencyPrice=service.get("internalCurrencyPrice"),
-                organizationalLevelAssociationID=service.get("organizationalLevelAssociationID"),
-                invoiceDescription=service.get("invoiceDescription"),
-            )
-            corrected_services.append(corrected_service)
+        corrected_services.append(corrected_service)
 
-        except ValidationError as e:
-            logging.error(f"🚨 Validation error processing service ID {service.get('id')}: {e}")
-            continue  # Skip invalid entries
-
-    logging.info(f"✅ Processed {len(corrected_services)} services successfully.")
-
-    return corrected_services  # Returns **datetime objects**, not strings!
+    return JSONResponse(content={"corrected_services": jsonable_encoder(corrected_services)})
 
 
