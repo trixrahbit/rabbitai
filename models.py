@@ -2,20 +2,6 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Union, Any
 from datetime import datetime
 
-
-class DataAggregationRequest(BaseModel):
-    data: List[Dict[str, Any]] = Field(..., description="List of records to aggregate and generate PDF from")
-    # Example of the expected structure:
-    # [
-    #     {"name": "Alice", "age": 30, "occupation": "Engineer"},
-    #     {"name": "Bob", "age": 25, "occupation": "Designer"}
-    # ]
-
-
-class EmailRequest(BaseModel):
-    email: str = Field(..., description="Email address to send the PDF report to")
-
-
 class UserDefinedField(BaseModel):
     name: str
     value: Optional[str] = None

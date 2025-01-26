@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     DEPLOYMENT_NAME: str
     DB_USER: str
     DB_PASSWORD: str
+    DB_SECONDARY_USER: str
+    DB_SECONDARY_PASSWORD: str
 
     class Config:
         env_file = ".env"
