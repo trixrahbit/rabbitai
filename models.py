@@ -71,7 +71,7 @@ class DeviceData(BaseModel):
         populate_by_name = True  # Ensure compatibility with Pydantic v2
 
 
-class ContractService(BaseModel):
+class ContractUnit(BaseModel):
     contractID: Optional[int] = None
     id: Optional[int] = None
     serviceID: Optional[int] = None
@@ -85,7 +85,7 @@ class ContractService(BaseModel):
     approveAndPostDate: Optional[str] = None
 
 
-class ProcessedContractService(BaseModel):
+class ProcessedContractUnit(BaseModel):
     contractID: Optional[int]
     id: Optional[int]
     serviceID: Optional[int]
@@ -97,3 +97,47 @@ class ProcessedContractService(BaseModel):
     internalCurrencyPrice: Optional[float] = None
     organizationalLevelAssociationID: Optional[int]
     invoiceDescription: Optional[str] = None
+
+class Contract(BaseModel):
+    id: int
+    status: int
+    endDate: str
+    setupFee: Optional[float] = None
+    companyID: int
+    contactID: Optional[int] = None
+    startDate: str
+    contactName: Optional[str] = None
+    description: Optional[str] = None
+    isCompliant: bool
+    contractName: str
+    contractType: int
+    estimatedCost: Optional[float] = None
+    opportunityID: Optional[int] = None
+    contractNumber: Optional[str] = None
+    estimatedHours: Optional[float] = None
+    billToCompanyID: Optional[int] = None
+    contractCategory: int
+    estimatedRevenue: Optional[float] = None
+    billingPreference: int
+    isDefaultContract: bool
+    renewedContractID: Optional[int] = None
+    userDefinedFields: Optional[List[UserDefinedField]] = None
+    contractPeriodType: int
+    overageBillingRate: Optional[float] = None
+    exclusionContractID: Optional[int] = None
+    purchaseOrderNumber: Optional[str] = None
+    lastModifiedDateTime: str
+    setupFeeBillingCodeID: Optional[int] = None
+    billToCompanyContactID: Optional[int] = None
+    contractExclusionSetID: Optional[int] = None
+    serviceLevelAgreementID: Optional[int] = None
+    internalCurrencySetupFee: Optional[float] = None
+    organizationalLevelAssociationID: Optional[int] = None
+    internalCurrencyOverageBillingRate: Optional[float] = None
+    timeReportingRequiresStartAndStopTimes: int
+
+    @validator("startDate", "endDate", "lastModifiedDateTime", pre=True)
+    def parse_dates(cls, v):
+        if isinstance(v, str):
+            return datetime.fromisoformat(v.replace("Z", ""))
+        return v
