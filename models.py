@@ -85,14 +85,14 @@ class DeviceData(BaseModel):
 
 
 class ContractService(BaseModel):
-    contractID: int
-    id: int
-    serviceID: int
-    startDate: str
-    endDate: str
-    unitCost: Optional[float] = 0.0
-    unitPrice: Optional[float] = 0.0
-    internalCurrencyPrice: Optional[float] = 0.0
-    organizationalLevelAssociationID: Optional[int] = 0
-    invoiceDescription: Optional[str] = ""
+    contractID: Optional[int] = None
+    id: Optional[int] = None
+    serviceID: Optional[int] = None
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
+    unitCost: Optional[float] = None
+    unitPrice: Optional[float] = None
+    internalCurrencyPrice: Optional[float] = None
+    organizationalLevelAssociationID: Optional[int] = None
+    invoiceDescription: Optional[str] = None
     approveAndPostDate: Optional[str] = None
