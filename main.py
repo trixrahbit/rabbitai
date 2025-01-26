@@ -592,41 +592,43 @@ async def process_contracts_in_background(input_data: List[Dict]):
                                 organizationalLevelAssociationID, internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
-                contract.get("id"),
-                contract.get("status"),
-                end_dt,
-                contract.get("setupFee"),
-                contract.get("companyID"),
-                contract.get("contactID"),
-                start_dt,
-                contract.get("contactName"),
-                contract.get("description"),
-                contract.get("isCompliant"),
-                contract.get("contractName"),
-                contract.get("contractType"),
-                contract.get("estimatedCost"),
-                contract.get("opportunityID"),
-                contract.get("contractNumber"),
-                contract.get("estimatedHours"),
-                contract.get("billToCompanyID"),
-                contract.get("contractCategory"),
-                contract.get("estimatedRevenue"),
-                contract.get("billingPreference"),
-                contract.get("isDefaultContract"),
-                contract.get("renewedContractID"),
-                contract.get("contractPeriodType"),
-                contract.get("overageBillingRate"),
-                contract.get("exclusionContractID"),
-                contract.get("purchaseOrderNumber"),
-                last_modified_dt,  # ✅ Now always populated
-                contract.get("setupFeeBillingCodeID"),
-                contract.get("billToCompanyContactID"),
-                contract.get("contractExclusionSetID"),
-                contract.get("serviceLevelAgreementID"),
-                contract.get("internalCurrencySetupFee"),
-                contract.get("organizationalLevelAssociationID"),
-                contract.get("internalCurrencyOverageBillingRate"),
-                contract.get("timeReportingRequiresStartAndStopTimes"))
+                (
+                    contract.get("id"),
+                    contract.get("status"),
+                    end_dt,
+                    contract.get("setupFee"),
+                    contract.get("companyID"),
+                    contract.get("contactID"),
+                    start_dt,
+                    contract.get("contactName"),
+                    contract.get("description"),
+                    contract.get("isCompliant"),
+                    contract.get("contractName"),
+                    contract.get("contractType"),
+                    contract.get("estimatedCost"),
+                    contract.get("opportunityID"),
+                    contract.get("contractNumber"),
+                    contract.get("estimatedHours"),
+                    contract.get("billToCompanyID"),
+                    contract.get("contractCategory"),
+                    contract.get("estimatedRevenue"),
+                    contract.get("billingPreference"),
+                    contract.get("isDefaultContract"),
+                    contract.get("renewedContractID"),
+                    contract.get("contractPeriodType"),
+                    contract.get("overageBillingRate"),
+                    contract.get("exclusionContractID"),
+                    contract.get("purchaseOrderNumber"),
+                    last_modified_dt,  # ✅ Ensure not NULL
+                    contract.get("setupFeeBillingCodeID"),
+                    contract.get("billToCompanyContactID"),
+                    contract.get("contractExclusionSetID"),
+                    contract.get("serviceLevelAgreementID"),
+                    contract.get("internalCurrencySetupFee"),
+                    contract.get("organizationalLevelAssociationID"),
+                    contract.get("internalCurrencyOverageBillingRate"),
+                    contract.get("timeReportingRequiresStartAndStopTimes")
+                ))
 
             except pyodbc.Error as e:
                 logging.error(f"🚨 Database MERGE failed for Contract ID {contract.get('id')}: {e}", exc_info=True)
@@ -643,6 +645,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
         cursor.close()
         conn.close()
         logging.info("🔌 Database connection closed.")
+
 
 
 @app.post("/process_contracts/")
