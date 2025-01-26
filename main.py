@@ -440,67 +440,51 @@ from fastapi import Body
 from fastapi import Body
 
 @app.post("/process_contract_services/")
-async def process_contract_services(request: Request):
-    try:
-        # Read raw request body
-        raw_body = await request.json()
-        raw_text = raw_body.decode("utf-8").strip()  # Ensure no leading/trailing spaces
-        logging.info(f"🔍 Raw Request Body: {raw_text}")
+async def process_contract_services(
+    input_data: Union[List[Dict], Dict[str, List[Dict]]] = Body(...)
+):
+    logging.info(f"🔍 Received JSON: {input_data}")
 
-        # Check if the body is empty
-        if not raw_text:
-            logging.error("🚨 Empty request body received.")
-            raise HTTPException(status_code=400, detail="Empty request body")
+    # If input is a dictionary, extract the "data" list
+    if isinstance(input_data, dict):
+        services = input_data.get("data", [])
+    else:
+        services = input_data  # Assume it's a list
 
-        # Try to parse JSON normally
+    if not isinstance(services, list):
+        raise HTTPException(status_code=400, detail="Invalid input: Expected a list or a dictionary with key 'data'")
+
+    corrected_services = []
+
+    for service in services:
         try:
-            input_data = json.loads(raw_text)
-        except json.JSONDecodeError as e:
-            logging.error(f"🚨 JSON Decode Error: {e}")
-            raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
+            start_dt = parse_date(service.get("startDate"))
+            end_dt = parse_date(service.get("endDate"))
 
-        logging.info(f"📌 Parsed JSON: {json.dumps(input_data, indent=2)}")
+            if not start_dt or not end_dt:
+                logging.error(f"🚨 Skipping service {service.get('id')}: Invalid date format")
+                continue  # Skip invalid entries
 
-        # Check if it's a dictionary or a list
-        if isinstance(input_data, dict):
-            services = input_data.get("data", [])  # Support dictionary format
-        else:
-            services = input_data  # Assume it's a list
+            corrected_services.append({
+                "contractID": service.get("contractID"),
+                "id": service.get("id"),
+                "serviceID": service.get("serviceID"),
+                "startDate": start_dt.isoformat(),
+                "endDate": end_dt.isoformat(),
+                "unitCost": service.get("unitCost"),
+                "unitPrice": service.get("unitPrice"),
+                "internalCurrencyPrice": service.get("internalCurrencyPrice"),
+                "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
+                "invoiceDescription": service.get("invoiceDescription"),
+                "approveAndPostDate": service.get("approveAndPostDate")
+            })
 
-        if not isinstance(services, list):
-            raise HTTPException(status_code=400, detail="Invalid input: Expected a list or a dictionary with key 'data'")
+        except Exception as e:
+            logging.error(f"🚨 Error processing service ID {service.get('id')}: {e}")
+            continue  # Skip but continue processing
 
-        corrected_services = []
+    logging.info(f"✅ Processed {len(corrected_services)} services successfully.")
 
-        for service in services:
-            try:
-                start_dt = parse_date(service["startDate"])
-                end_dt = parse_date(service["endDate"])
-
-                if not start_dt or not end_dt:
-                    raise ValueError(f"Invalid date format in service ID {service.get('id')}")
-
-                corrected_services.append({
-                    "contractID": service.get("contractID"),
-                    "id": service.get("id"),
-                    "serviceID": service.get("serviceID"),
-                    "startDate": start_dt.isoformat(),
-                    "endDate": end_dt.isoformat(),
-                    "unitCost": service.get("unitCost"),
-                    "unitPrice": service.get("unitPrice"),
-                    "internalCurrencyPrice": service.get("internalCurrencyPrice"),
-                    "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
-                    "invoiceDescription": service.get("invoiceDescription"),
-                    "approveAndPostDate": service.get("approveAndPostDate")
-                })
-            except Exception as e:
-                logging.error(f"🚨 Error processing service: {service} - {str(e)}")
-                continue  # Skip invalid entries but continue processing others
-
-        return {"corrected_services": corrected_services}
-
-    except Exception as e:
-        logging.error(f"🚨 Unexpected Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    return {"corrected_services": corrected_services}
 
 
