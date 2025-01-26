@@ -446,7 +446,7 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
 
 @app.post("/process_contract_services/")
 async def process_contract_services(input_data: List[Dict] = Body(...)):
-    conn = get_db_connection()
+    conn = get_secondary_db_connection()
     cursor = conn.cursor()
 
     try:
