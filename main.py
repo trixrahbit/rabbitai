@@ -437,22 +437,28 @@ def parse_date(date_str: str) -> Optional[datetime]:
 
 from fastapi import Body
 
+from fastapi import Body
+
 @app.post("/process_contract_services/")
 async def process_contract_services(request: Request):
     try:
         # Read raw request body
         raw_body = await request.body()
-        raw_text = raw_body.decode("utf-8")
+        raw_text = raw_body.decode("utf-8").strip()  # Ensure no leading/trailing spaces
         logging.info(f"🔍 Raw Request Body: {raw_text}")
 
-        # Fix single quotes (if needed) and parse JSON manually
-        if "'" in raw_text and '"' not in raw_text:
-            fixed_json = raw_text.replace("'", '"')  # Convert to valid JSON format
-        else:
-            fixed_json = raw_text
+        # Check if the body is empty
+        if not raw_text:
+            logging.error("🚨 Empty request body received.")
+            raise HTTPException(status_code=400, detail="Empty request body")
 
-        # Parse JSON after fixing formatting
-        input_data = json.loads(fixed_json)
+        # Try to parse JSON normally
+        try:
+            input_data = json.loads(raw_text)
+        except json.JSONDecodeError as e:
+            logging.error(f"🚨 JSON Decode Error: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
+
         logging.info(f"📌 Parsed JSON: {json.dumps(input_data, indent=2)}")
 
         # Check if it's a dictionary or a list
@@ -467,33 +473,34 @@ async def process_contract_services(request: Request):
         corrected_services = []
 
         for service in services:
-            start_dt = parse_date(service["startDate"])
-            end_dt = parse_date(service["endDate"])
+            try:
+                start_dt = parse_date(service["startDate"])
+                end_dt = parse_date(service["endDate"])
 
-            if not start_dt or not end_dt:
-                raise HTTPException(status_code=400, detail=f"Invalid date format in service ID {service.get('id')}")
+                if not start_dt or not end_dt:
+                    raise ValueError(f"Invalid date format in service ID {service.get('id')}")
 
-            corrected_services.append({
-                "contractID": service.get("contractID"),
-                "id": service.get("id"),
-                "serviceID": service.get("serviceID"),
-                "startDate": start_dt.isoformat(),  # Ensure ISO format
-                "endDate": end_dt.isoformat(),
-                "unitCost": service.get("unitCost"),
-                "unitPrice": service.get("unitPrice"),
-                "internalCurrencyPrice": service.get("internalCurrencyPrice"),
-                "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
-                "invoiceDescription": service.get("invoiceDescription"),
-                "approveAndPostDate": service.get("approveAndPostDate")
-            })
+                corrected_services.append({
+                    "contractID": service.get("contractID"),
+                    "id": service.get("id"),
+                    "serviceID": service.get("serviceID"),
+                    "startDate": start_dt.isoformat(),
+                    "endDate": end_dt.isoformat(),
+                    "unitCost": service.get("unitCost"),
+                    "unitPrice": service.get("unitPrice"),
+                    "internalCurrencyPrice": service.get("internalCurrencyPrice"),
+                    "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
+                    "invoiceDescription": service.get("invoiceDescription"),
+                    "approveAndPostDate": service.get("approveAndPostDate")
+                })
+            except Exception as e:
+                logging.error(f"🚨 Error processing service: {service} - {str(e)}")
+                continue  # Skip invalid entries but continue processing others
 
         return {"corrected_services": corrected_services}
-
-    except json.JSONDecodeError as e:
-        logging.error(f"🚨 JSON Processing Error: {e}")
-        raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
 
     except Exception as e:
         logging.error(f"🚨 Unexpected Error: {e}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
 
