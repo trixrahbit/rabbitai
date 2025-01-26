@@ -435,22 +435,31 @@ def parse_date(date_str: str) -> Optional[datetime]:
     except (TypeError, ValueError):
         return None
 
+from fastapi import Body
+
 @app.post("/process_contract_services/")
-async def process_contract_services(
-    request: Request
-):
+async def process_contract_services(request: Request):
     try:
+        # Read raw request body
         raw_body = await request.body()
-        logging.info(f"🔍 Raw Request Body: {raw_body.decode('utf-8')}")
+        raw_text = raw_body.decode("utf-8")
+        logging.info(f"🔍 Raw Request Body: {raw_text}")
 
-        json_data = await request.json()
-        logging.info(f"📌 Parsed JSON: {json.dumps(json_data, indent=2)}")
-
-        # Ensure the expected format (list or dict)
-        if isinstance(json_data, dict):
-            services = json_data.get("data", [])
+        # Fix single quotes (if needed) and parse JSON manually
+        if "'" in raw_text and '"' not in raw_text:
+            fixed_json = raw_text.replace("'", '"')  # Convert to valid JSON format
         else:
-            services = json_data  # Assume list
+            fixed_json = raw_text
+
+        # Parse JSON after fixing formatting
+        input_data = json.loads(fixed_json)
+        logging.info(f"📌 Parsed JSON: {json.dumps(input_data, indent=2)}")
+
+        # Check if it's a dictionary or a list
+        if isinstance(input_data, dict):
+            services = input_data.get("data", [])  # Support dictionary format
+        else:
+            services = input_data  # Assume it's a list
 
         if not isinstance(services, list):
             raise HTTPException(status_code=400, detail="Invalid input: Expected a list or a dictionary with key 'data'")
@@ -480,6 +489,11 @@ async def process_contract_services(
 
         return {"corrected_services": corrected_services}
 
-    except Exception as e:
+    except json.JSONDecodeError as e:
         logging.error(f"🚨 JSON Processing Error: {e}")
-        raise HTTPException(status_code=400, detail=f"JSON processing error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
+
+    except Exception as e:
+        logging.error(f"🚨 Unexpected Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
