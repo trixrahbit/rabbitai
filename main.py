@@ -446,51 +446,71 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
 
 @app.post("/process_contract_services/")
 async def process_contract_services(input_data: List[Dict] = Body(...)):
+    logging.info(f"🔍 Received JSON Payload: {input_data}")
+
     conn = get_secondary_db_connection()
     cursor = conn.cursor()
 
     try:
         # ✅ Enable IDENTITY_INSERT before inserting values
+        logging.info("🔧 Enabling IDENTITY_INSERT for dbo.ContractServices")
         cursor.execute("SET IDENTITY_INSERT dbo.ContractServices ON;")
+
+        inserted_count = 0
 
         for service in input_data:
             start_dt = parse_date(service.get("startDate"))
             end_dt = parse_date(service.get("endDate"))
             approve_dt = parse_date(service.get("approveAndPostDate"))
 
+            logging.info(f"📌 Processing Service ID {service.get('id')} - startDate: {start_dt}, endDate: {end_dt}, approveAndPostDate: {approve_dt}")
+
             try:
-                cursor.execute("""
+                query = """
                     INSERT INTO dbo.ContractServices 
                     (id, contractID, serviceID, startDate, endDate, approveAndPostDate, unitCost, unitPrice, internalCurrencyPrice, organizationalLevelAssociationID, invoiceDescription)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                service.get("id"),  # ✅ Using id from JSON
-                service.get("contractID"),
-                service.get("serviceID"),
-                start_dt,
-                end_dt,
-                approve_dt,
-                service.get("unitCost"),
-                service.get("unitPrice"),
-                service.get("internalCurrencyPrice"),
-                service.get("organizationalLevelAssociationID"),
-                service.get("invoiceDescription"))
+                """
+
+                params = (
+                    service.get("id"),  # ✅ Using id from JSON
+                    service.get("contractID"),
+                    service.get("serviceID"),
+                    start_dt,
+                    end_dt,
+                    approve_dt,
+                    service.get("unitCost"),
+                    service.get("unitPrice"),
+                    service.get("internalCurrencyPrice"),
+                    service.get("organizationalLevelAssociationID"),
+                    service.get("invoiceDescription")
+                )
+
+                logging.info(f"📝 Executing Query: {query} \nWith Parameters: {params}")
+                cursor.execute(query, params)
+                inserted_count += 1
 
             except pyodbc.Error as e:
-                raise HTTPException(status_code=500, detail=f"Database insert failed for service ID {service.get('id')}: {e}")
+                logging.error(f"🚨 Database insert failed for Service ID {service.get('id')}: {e}")
+                continue  # Skip failed record but continue processing
 
         # ✅ Disable IDENTITY_INSERT after inserting values
+        logging.info("🔧 Disabling IDENTITY_INSERT for dbo.ContractServices")
         cursor.execute("SET IDENTITY_INSERT dbo.ContractServices OFF;")
 
         conn.commit()
-        return {"message": f"Successfully inserted {len(input_data)} services into ContractServices."}
+        logging.info(f"✅ Successfully inserted {inserted_count}/{len(input_data)} services into ContractServices.")
+
+        return {"message": f"Successfully inserted {inserted_count} services into ContractServices."}
 
     except Exception as e:
         conn.rollback()
+        logging.error(f"🔥 Critical Error: {e}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
     finally:
         cursor.close()
         conn.close()
+        logging.info("🔌 Database connection closed.")
 
 
