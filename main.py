@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from typing import List, Dict, Optional, Union
 import jwt
+from fastapi.encoders import jsonable_encoder
 from jwt import PyJWKClient
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
