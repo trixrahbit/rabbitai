@@ -585,14 +585,44 @@ async def process_contracts_in_background(input_data: List[Dict]):
                             internalCurrencyOverageBillingRate = source.internalCurrencyOverageBillingRate,
                             timeReportingRequiresStartAndStopTimes = source.timeReportingRequiresStartAndStopTimes
                     WHEN NOT MATCHED THEN
-                        INSERT (id, status, endDate, setupFee, companyID, contactID, startDate, contactName, description, isCompliant,
-                                contractName, contractType, estimatedCost, opportunityID, contractNumber, estimatedHours, billToCompanyID,
-                                contractCategory, estimatedRevenue, billingPreference, isDefaultContract, renewedContractID, contractPeriodType,
-                                overageBillingRate, exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID,
-                                billToCompanyContactID, contractExclusionSetID, serviceLevelAgreementID, internalCurrencySetupFee,
-                                organizationalLevelAssociationID, internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """
+                        INSERT INTO dbo.Contracts (id, 
+                                                    status, 
+                                                    endDate, 
+                                                    setupFee, 
+                                                    companyID, 
+                                                    contactID, 
+                                                    startDate,
+                                                   contactName, 
+                                                   description, 
+                                                   isCompliant, 
+                                                   contractName, 
+                                                   contractType, 
+                                                   estimatedCost, 
+                                                   opportunityID,
+                                                    contractNumber, 
+                                                    estimatedHours, 
+                                                   billToCompanyID, 
+                                                   contractCategory, 
+                                                   estimatedRevenue, 
+                                                   billingPreference,
+                                                    isDefaultContract, 
+                                                    renewedContractID, 
+                                                   contractPeriodType, 
+                                                   overageBillingRate, 
+                                                   exclusionContractID,
+                                                    purchaseOrderNumber,
+                                                    lastModifiedDateTime, 
+                                                   setupFeeBillingCodeID,
+                                                    billToCompanyContactID,
+                                                    contractExclusionSetID,
+                                                    serviceLevelAgreementID, 
+                                                   internalCurrencySetupFee, 
+                                                   organizationalLevelAssociationID,
+                                                    internalCurrencyOverageBillingRate, 
+                                                   timeReportingRequiresStartAndStopTimes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                         ?, ?, ?, ?, ?)
+                    """
 
                 # Ensure every value exists and replace None with default values
                 values = (
