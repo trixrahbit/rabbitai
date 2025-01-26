@@ -2,7 +2,7 @@ import base64
 import html
 import json
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 import jwt
 from jwt import PyJWKClient
 import httpx
@@ -436,8 +436,17 @@ def parse_date(date_str: str) -> Optional[datetime]:
         return None
 
 @app.post("/process_contract_services/")
-async def process_contract_services(services: List[ContractService]):
-    """Receives a list of contract services, converts dates to datetime, and returns corrected list."""
+async def process_contract_services(input_data: Union[List[ContractService], Dict[str, List[ContractService]]]):
+
+    # If input is a dictionary, extract the list
+    if isinstance(input_data, dict):
+        services = input_data.get("services", [])
+    else:
+        services = input_data  # Already a list
+
+    if not isinstance(services, list):
+        raise HTTPException(status_code=400, detail="Invalid input: Expected a list or a dictionary with key 'services'")
+
     corrected_services = []
 
     for service in services:
@@ -447,13 +456,12 @@ async def process_contract_services(services: List[ContractService]):
         if not start_dt or not end_dt:
             raise HTTPException(status_code=400, detail=f"Invalid date format in service ID {service.id}")
 
-        # Append corrected entry
         corrected_services.append({
             "contractID": service.contractID,
             "id": service.id,
             "serviceID": service.serviceID,
-            "startDate": start_dt.isoformat(),
-            "endDate": end_dt.isoformat(),
+            "startDate": start_dt,  # Corrected ISO format
+            "endDate": end_dt,
             "unitCost": service.unitCost,
             "unitPrice": service.unitPrice,
             "internalCurrencyPrice": service.internalCurrencyPrice,
