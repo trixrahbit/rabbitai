@@ -8,9 +8,10 @@ from jwt import PyJWKClient
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from pydantic import ValidationError
 from starlette.responses import HTMLResponse
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection
-from models import DeviceData, ContractService
+from models import DeviceData, ContractService, ProcessedContractService
 from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -429,20 +430,19 @@ async def handle_command(request: Request):
         raise HTTPException(status_code=500, detail="Failed to process command.")
 
 def parse_date(date_str: Optional[str]) -> Optional[datetime]:
-    """Safely convert string timestamps to datetime objects."""
+    """Convert ISO 8601 string timestamps to datetime objects."""
     if not date_str:
         return None
     try:
-        # Ensure all timestamps are properly formatted
-        if date_str.endswith("Z"):
-            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
-        else:
-            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")  # Handles missing "Z"
-    except ValueError as e:
-        logging.error(f"🚨 Invalid date format: {date_str} - {e}")
-        return None
+        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")
+    except ValueError:
+        try:
+            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")  # Handles 'Z' format
+        except ValueError:
+            logging.error(f"🚨 Invalid date format: {date_str}")
+            return None
 
-@app.post("/process_contract_services/")
+@app.post("/process_contract_services/", response_model=List[ProcessedContractService])
 async def process_contract_services(
     input_data: Union[List[Dict], Dict[str, List[Dict]]] = Body(...)
 ):
@@ -466,26 +466,27 @@ async def process_contract_services(
                 logging.error(f"🚨 Skipping service {service.get('id')}: Invalid date format")
                 continue  # Skip invalid entries
 
-            corrected_services.append({
-                "contractID": service.get("contractID"),
-                "id": service.get("id"),
-                "serviceID": service.get("serviceID"),
-                "startDate": start_dt.isoformat(),  # Convert to ISO 8601 format
-                "endDate": end_dt.isoformat(),
-                "approveAndPostDate": approve_dt.isoformat() if approve_dt else None,
-                "unitCost": service.get("unitCost"),
-                "unitPrice": service.get("unitPrice"),
-                "internalCurrencyPrice": service.get("internalCurrencyPrice"),
-                "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
-                "invoiceDescription": service.get("invoiceDescription"),
-            })
+            corrected_service = ProcessedContractService(
+                contractID=service.get("contractID"),
+                id=service.get("id"),
+                serviceID=service.get("serviceID"),
+                startDate=start_dt,  # Keeps it as datetime
+                endDate=end_dt,  # Keeps it as datetime
+                approveAndPostDate=approve_dt,
+                unitCost=service.get("unitCost"),
+                unitPrice=service.get("unitPrice"),
+                internalCurrencyPrice=service.get("internalCurrencyPrice"),
+                organizationalLevelAssociationID=service.get("organizationalLevelAssociationID"),
+                invoiceDescription=service.get("invoiceDescription"),
+            )
+            corrected_services.append(corrected_service)
 
-        except Exception as e:
-            logging.error(f"🚨 Error processing service ID {service.get('id')}: {e}")
-            continue  # Skip but continue processing
+        except ValidationError as e:
+            logging.error(f"🚨 Validation error processing service ID {service.get('id')}: {e}")
+            continue  # Skip invalid entries
 
     logging.info(f"✅ Processed {len(corrected_services)} services successfully.")
 
-    return {"corrected_services": corrected_services}
+    return corrected_services  # Returns **datetime objects**, not strings!
 
 

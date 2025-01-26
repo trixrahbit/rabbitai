@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Union, Any
+from datetime import datetime
 
 
 class DataAggregationRequest(BaseModel):
@@ -96,3 +97,17 @@ class ContractService(BaseModel):
     organizationalLevelAssociationID: Optional[int] = None
     invoiceDescription: Optional[str] = None
     approveAndPostDate: Optional[str] = None
+
+
+class ProcessedContractService(BaseModel):
+    contractID: Optional[int]
+    id: Optional[int]
+    serviceID: Optional[int]
+    startDate: datetime
+    endDate: datetime
+    approveAndPostDate: Optional[datetime] = None
+    unitCost: Optional[float] = None
+    unitPrice: Optional[float] = None
+    internalCurrencyPrice: Optional[float] = None
+    organizationalLevelAssociationID: Optional[int]
+    invoiceDescription: Optional[str] = None
