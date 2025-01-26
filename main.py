@@ -538,12 +538,12 @@ async def process_contracts_in_background(input_data: List[Dict]):
                 query = """
                     MERGE INTO dbo.Contracts AS target
                     USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) 
-                    AS source (id, status, endDate, setupFee, companyID, contactID, startDate, contactName, description, isCompliant, 
-                               contractName, contractType, estimatedCost, opportunityID, contractNumber, estimatedHours, billToCompanyID, 
-                               contractCategory, estimatedRevenue, billingPreference, isDefaultContract, renewedContractID, contractPeriodType, 
-                               overageBillingRate, exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID, 
-                               billToCompanyContactID, contractExclusionSetID, serviceLevelAgreementID, internalCurrencySetupFee, 
-                               organizationalLevelAssociationID, internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes)
+                        AS source (id, status, endDate, setupFee, companyID, contactID, startDate, contactName, description, isCompliant, 
+                                   contractName, contractType, estimatedCost, opportunityID, contractNumber, estimatedHours, billToCompanyID, 
+                                   contractCategory, estimatedRevenue, billingPreference, isDefaultContract, renewedContractID, contractPeriodType, 
+                                   overageBillingRate, exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID, 
+                                   billToCompanyContactID, contractExclusionSetID, serviceLevelAgreementID, internalCurrencySetupFee, 
+                                   organizationalLevelAssociationID, internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes)
                     ON target.id = source.id
                     WHEN MATCHED THEN
                         UPDATE SET 
@@ -588,7 +588,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
                                 overageBillingRate, exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID, 
                                 billToCompanyContactID, contractExclusionSetID, serviceLevelAgreementID, internalCurrencySetupFee, 
                                 organizationalLevelAssociationID, internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes)
-                        SELECT * FROM source;  -- ✅ Uses values from the source, avoiding duplicate placeholders
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """
 
                 values = (
@@ -632,20 +632,17 @@ async def process_contracts_in_background(input_data: List[Dict]):
                 cursor.execute(query, values)
 
             except pyodbc.Error as e:
-                logging.error(f"🚨 Database MERGE failed for Contract ID {contract.get('id')}: {e}", exc_info=True)
+                logging.error(f"🚨 MERGE failed for Contract ID {contract.get('id')}: {e}", exc_info=True)
                 continue
 
         conn.commit()
-        logging.info(f"✅ Successfully processed {len(input_data)} contracts into Contracts table.")
+        logging.info(f"✅ Successfully processed {len(input_data)} contracts.")
 
     except Exception as e:
         conn.rollback()
-        logging.error(f"🔥 Critical Error during contract processing: {e}", exc_info=True)
+        logging.critical(f"🔥 Critical Error during contracts processing: {e}", exc_info=True)
 
-    finally:
-        cursor.close()
-        conn.close()
-        logging.info("🔌 Database connection closed.")
+
 
 
 
