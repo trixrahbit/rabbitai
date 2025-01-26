@@ -429,10 +429,13 @@ async def handle_command(request: Request):
         raise HTTPException(status_code=500, detail="Failed to process command.")
 
 def parse_date(date_str: str) -> Optional[datetime]:
-    """Safely convert string timestamps to datetime objects."""
+    """Safely convert ISO 8601 string timestamps to datetime objects."""
     try:
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
-    except (TypeError, ValueError):
+        if not date_str:
+            return None
+        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")  # Convert to datetime
+    except ValueError as e:
+        logging.error(f"🚨 Invalid date format: {date_str} - {e}")
         return None
 
 @app.post("/process_contract_services/")
@@ -441,11 +444,8 @@ async def process_contract_services(
 ):
     logging.info(f"🔍 Received JSON: {input_data}")
 
-    # If input is a dictionary, extract the "data" list
-    if isinstance(input_data, dict):
-        services = input_data.get("data", [])
-    else:
-        services = input_data  # Assume it's a list
+    # Extract services list from dictionary or assume input is a list
+    services = input_data.get("data", []) if isinstance(input_data, dict) else input_data
 
     if not isinstance(services, list):
         raise HTTPException(status_code=400, detail="Invalid input: Expected a list or a dictionary with key 'data'")
@@ -465,8 +465,8 @@ async def process_contract_services(
                 "contractID": service.get("contractID"),
                 "id": service.get("id"),
                 "serviceID": service.get("serviceID"),
-                "startDate": start_dt.isoformat(),
-                "endDate": end_dt.isoformat(),
+                "startDate": start_dt,  # Converted to datetime object
+                "endDate": end_dt,  # Converted to datetime object
                 "unitCost": service.get("unitCost"),
                 "unitPrice": service.get("unitPrice"),
                 "internalCurrencyPrice": service.get("internalCurrencyPrice"),
@@ -482,5 +482,4 @@ async def process_contract_services(
     logging.info(f"✅ Processed {len(corrected_services)} services successfully.")
 
     return {"corrected_services": corrected_services}
-
 
