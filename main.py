@@ -10,7 +10,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, F
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.responses import HTMLResponse
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection
-from models import DeviceData
+from models import DeviceData, ContractService
 from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -428,3 +428,38 @@ async def handle_command(request: Request):
         logging.error(f"Error processing command: {e}")
         raise HTTPException(status_code=500, detail="Failed to process command.")
 
+def parse_date(date_str: str) -> Optional[datetime]:
+    """Safely convert string timestamps to datetime objects."""
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
+    except (TypeError, ValueError):
+        return None
+
+@app.post("/process_contract_services/")
+async def process_contract_services(services: List[ContractService]):
+    """Receives a list of contract services, converts dates to datetime, and returns corrected list."""
+    corrected_services = []
+
+    for service in services:
+        start_dt = parse_date(service.startDate)
+        end_dt = parse_date(service.endDate)
+
+        if not start_dt or not end_dt:
+            raise HTTPException(status_code=400, detail=f"Invalid date format in service ID {service.id}")
+
+        # Append corrected entry
+        corrected_services.append({
+            "contractID": service.contractID,
+            "id": service.id,
+            "serviceID": service.serviceID,
+            "startDate": start_dt.isoformat(),
+            "endDate": end_dt.isoformat(),
+            "unitCost": service.unitCost,
+            "unitPrice": service.unitPrice,
+            "internalCurrencyPrice": service.internalCurrencyPrice,
+            "organizationalLevelAssociationID": service.organizationalLevelAssociationID,
+            "invoiceDescription": service.invoiceDescription,
+            "approveAndPostDate": service.approveAndPostDate
+        })
+
+    return {"corrected_services": corrected_services}

@@ -82,3 +82,17 @@ class DeviceData(BaseModel):
 
     class Config:
         populate_by_name = True  # Ensure compatibility with Pydantic v2
+
+
+class ContractService(BaseModel):
+    contractID: int
+    id: int
+    serviceID: int
+    startDate: str
+    endDate: str
+    unitCost: Optional[float] = 0.0
+    unitPrice: Optional[float] = 0.0
+    internalCurrencyPrice: Optional[float] = 0.0
+    organizationalLevelAssociationID: Optional[int] = 0
+    invoiceDescription: Optional[str] = ""
+    approveAndPostDate: Optional[str] = None
