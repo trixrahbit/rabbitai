@@ -55,6 +55,24 @@ def get_db_connection():
         logging.error(f"Failed to connect to the database: {e}")
         raise
 
+def get_secondary_db_connection():
+    try:
+        conn = pyodbc.connect(
+            f"Driver={{ODBC Driver 18 for SQL Server}};"
+            f"Server=tcp:rewst.database.windows.net,1433;"
+            f"Database=webit_analytics;"
+            f"Uid={DB_USER};"
+            f"Pwd={DB_PASSWORD};"
+            f"Encrypt=yes;"
+            f"TrustServerCertificate=yes;"
+            f"Connection Timeout=30;"
+        )
+        logging.debug("Database connection established successfully.")
+        return conn
+    except pyodbc.Error as e:
+        logging.error(f"Failed to connect to the database: {e}")
+        raise
+
 # Logging configuration
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)

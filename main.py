@@ -11,7 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, F
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import ValidationError
 from starlette.responses import HTMLResponse
-from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection
+from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection, get_secondary_db_connection
 from models import DeviceData, ContractService, ProcessedContractService
 from security.auth import get_api_key
 import logging
@@ -445,29 +445,63 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
 
 @app.post("/process_contract_services/")
 async def process_contract_services(input_data: List[Dict] = Body(...)):
+    if not input_data:
+        raise HTTPException(status_code=400, detail="Empty request body received.")
+
+    logging.info(f"🔍 Received {len(input_data)} contract services for processing.")
+
+    # Get Database Connection
+    conn = get_secondary_db_connection()
+    cursor = conn.cursor()
+
     corrected_services = []
 
     for service in input_data:
-        start_dt = parse_date(service.get("startDate"))
-        end_dt = parse_date(service.get("endDate"))
-        approve_dt = parse_date(service.get("approveAndPostDate"))
+        try:
+            start_dt = parse_date(service.get("startDate"))
+            end_dt = parse_date(service.get("endDate"))
+            approve_dt = parse_date(service.get("approveAndPostDate"))
 
-        corrected_service = {
-            "contractID": service.get("contractID"),
-            "id": service.get("id"),
-            "serviceID": service.get("serviceID"),
-            "startDate": start_dt.isoformat() if start_dt else None,  # ISO format
-            "endDate": end_dt.isoformat() if end_dt else None,  # ISO format
-            "approveAndPostDate": approve_dt.isoformat() if approve_dt else None,
-            "unitCost": service.get("unitCost"),
-            "unitPrice": service.get("unitPrice"),
-            "internalCurrencyPrice": service.get("internalCurrencyPrice"),
-            "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
-            "invoiceDescription": service.get("invoiceDescription"),
-        }
+            corrected_service = {
+                "contractID": service.get("contractID"),
+                "id": service.get("id"),
+                "serviceID": service.get("serviceID"),
+                "startDate": start_dt,  # Stored as datetime in SQL
+                "endDate": end_dt,  # Stored as datetime in SQL
+                "approveAndPostDate": approve_dt,  # Stored as datetime in SQL
+                "unitCost": service.get("unitCost"),
+                "unitPrice": service.get("unitPrice"),
+                "internalCurrencyPrice": service.get("internalCurrencyPrice"),
+                "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
+                "invoiceDescription": service.get("invoiceDescription"),
+            }
 
-        corrected_services.append(corrected_service)
+            corrected_services.append(corrected_service)
 
-    return JSONResponse(content={"corrected_services": jsonable_encoder(corrected_services)})
+            # Insert Data into SQL Database
+            cursor.execute("""
+                INSERT INTO ContractServices (
+                    contractID, id, serviceID, startDate, endDate, approveAndPostDate, 
+                    unitCost, unitPrice, internalCurrencyPrice, 
+                    organizationalLevelAssociationID, invoiceDescription
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                corrected_service["contractID"], corrected_service["id"], corrected_service["serviceID"],
+                corrected_service["startDate"], corrected_service["endDate"], corrected_service["approveAndPostDate"],
+                corrected_service["unitCost"], corrected_service["unitPrice"], corrected_service["internalCurrencyPrice"],
+                corrected_service["organizationalLevelAssociationID"], corrected_service["invoiceDescription"]
+            ))
+
+        except Exception as e:
+            logging.error(f"🚨 Error processing service ID {service.get('id')}: {e}")
+            continue  # Skip invalid entries
+
+    conn.commit()
+    conn.close()
+
+    logging.info(f"✅ Successfully processed and stored {len(corrected_services)} services.")
+
+    return JSONResponse(content={"stored_services": jsonable_encoder(corrected_services)})
 
 
