@@ -428,12 +428,16 @@ async def handle_command(request: Request):
         logging.error(f"Error processing command: {e}")
         raise HTTPException(status_code=500, detail="Failed to process command.")
 
-def parse_date(date_str: str) -> Optional[datetime]:
-    """Safely convert ISO 8601 string timestamps to datetime objects."""
+def parse_date(date_str: Optional[str]) -> Optional[datetime]:
+    """Safely convert string timestamps to datetime objects."""
+    if not date_str:
+        return None
     try:
-        if not date_str:
-            return None
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")  # Convert to datetime
+        # Ensure all timestamps are properly formatted
+        if date_str.endswith("Z"):
+            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
+        else:
+            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")  # Handles missing "Z"
     except ValueError as e:
         logging.error(f"🚨 Invalid date format: {date_str} - {e}")
         return None
@@ -456,6 +460,7 @@ async def process_contract_services(
         try:
             start_dt = parse_date(service.get("startDate"))
             end_dt = parse_date(service.get("endDate"))
+            approve_dt = parse_date(service.get("approveAndPostDate"))
 
             if not start_dt or not end_dt:
                 logging.error(f"🚨 Skipping service {service.get('id')}: Invalid date format")
@@ -465,14 +470,14 @@ async def process_contract_services(
                 "contractID": service.get("contractID"),
                 "id": service.get("id"),
                 "serviceID": service.get("serviceID"),
-                "startDate": start_dt,  # Converted to datetime object
-                "endDate": end_dt,  # Converted to datetime object
+                "startDate": start_dt.isoformat(),  # Convert to ISO 8601 format
+                "endDate": end_dt.isoformat(),
+                "approveAndPostDate": approve_dt.isoformat() if approve_dt else None,
                 "unitCost": service.get("unitCost"),
                 "unitPrice": service.get("unitPrice"),
                 "internalCurrencyPrice": service.get("internalCurrencyPrice"),
                 "organizationalLevelAssociationID": service.get("organizationalLevelAssociationID"),
                 "invoiceDescription": service.get("invoiceDescription"),
-                "approveAndPostDate": service.get("approveAndPostDate")
             })
 
         except Exception as e:
@@ -482,4 +487,5 @@ async def process_contract_services(
     logging.info(f"✅ Processed {len(corrected_services)} services successfully.")
 
     return {"corrected_services": corrected_services}
+
 
