@@ -34,6 +34,8 @@ BOT_CLIENT_ID = settings.BOT_CLIENT_ID
 BOT_CLIENT_SECRET = settings.BOT_CLIENT_SECRET
 DB_USER = settings.DB_USER
 DB_PASSWORD = settings.DB_PASSWORD
+DB_SECONDARY_USER = settings.DB_SECONDARY_USER
+DB_SECONDARY_PASSWORD = settings.DB_SECONDARY_PASSWORD
 
 OPENID_CONFIG_URL = "https://login.botframework.com/v1/.well-known/openidconfiguration"
 
@@ -61,8 +63,8 @@ def get_secondary_db_connection():
             f"Driver={{ODBC Driver 18 for SQL Server}};"
             f"Server=tcp:rewst.database.windows.net,1433;"
             f"Database=webit_analytics;"
-            f"Uid={DB_USER};"
-            f"Pwd={DB_PASSWORD};"
+            f"Uid={DB_SECONDARY_USER};"
+            f"Pwd={DB_SECONDARY_PASSWORD};"
             f"Encrypt=yes;"
             f"TrustServerCertificate=yes;"
             f"Connection Timeout=30;"
