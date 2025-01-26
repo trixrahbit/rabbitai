@@ -592,46 +592,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
-                # Ensure every value exists and replace None with default values
-                values = (
-                    contract.get("id", 0),
-                    contract.get("status", ""),
-                    end_dt,
-                    contract.get("setupFee", 0),
-                    contract.get("companyID", 0),
-                    contract.get("contactID", 0),
-                    start_dt,
-                    contract.get("contactName", ""),
-                    contract.get("description", ""),
-                    contract.get("isCompliant", False),
-                    contract.get("contractName", ""),
-                    contract.get("contractType", ""),
-                    contract.get("estimatedCost", 0),
-                    contract.get("opportunityID", None),
-                    contract.get("contractNumber", ""),
-                    contract.get("estimatedHours", 0),
-                    contract.get("billToCompanyID", 0),
-                    contract.get("contractCategory", ""),
-                    contract.get("estimatedRevenue", 0),
-                    contract.get("billingPreference", ""),
-                    contract.get("isDefaultContract", False),
-                    contract.get("renewedContractID", None),
-                    contract.get("contractPeriodType", ""),
-                    contract.get("overageBillingRate", 0),
-                    contract.get("exclusionContractID", None),
-                    contract.get("purchaseOrderNumber", ""),
-                    last_modified_dt,
-                    contract.get("setupFeeBillingCodeID", None),
-                    contract.get("billToCompanyContactID", None),
-                    contract.get("contractExclusionSetID", None),
-                    contract.get("serviceLevelAgreementID", None),
-                    contract.get("internalCurrencySetupFee", 0),
-                    contract.get("organizationalLevelAssociationID", None),
-                    contract.get("internalCurrencyOverageBillingRate", 0),
-                    contract.get("timeReportingRequiresStartAndStopTimes", False)
-                )
-
-                cursor.execute(query, values)
+                cursor.execute(query)
 
             except pyodbc.Error as e:
                 logging.error(f"🚨 Database MERGE failed for Contract ID {contract.get('id')}: {e}", exc_info=True)
