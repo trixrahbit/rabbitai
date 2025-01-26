@@ -457,11 +457,27 @@ async def process_contract_services(input_data: List[Dict] = Body(...)):
 
             try:
                 cursor.execute("""
-                    INSERT INTO dbo.ContractServices 
-                    (id, contractID, serviceID, startDate, endDate, approveAndPostDate, unitCost, unitPrice, internalCurrencyPrice, organizationalLevelAssociationID, invoiceDescription)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    MERGE INTO dbo.ContractServices AS target
+                    USING (SELECT ? AS id, ? AS contractID, ? AS serviceID, ? AS startDate, ? AS endDate, ? AS approveAndPostDate,
+                                  ? AS unitCost, ? AS unitPrice, ? AS internalCurrencyPrice, ? AS organizationalLevelAssociationID, ? AS invoiceDescription) AS source
+                    ON target.id = source.id
+                    WHEN MATCHED THEN
+                        UPDATE SET 
+                            contractID = source.contractID,
+                            serviceID = source.serviceID,
+                            startDate = source.startDate,
+                            endDate = source.endDate,
+                            approveAndPostDate = source.approveAndPostDate,
+                            unitCost = source.unitCost,
+                            unitPrice = source.unitPrice,
+                            internalCurrencyPrice = source.internalCurrencyPrice,
+                            organizationalLevelAssociationID = source.organizationalLevelAssociationID,
+                            invoiceDescription = source.invoiceDescription
+                    WHEN NOT MATCHED THEN
+                        INSERT (id, contractID, serviceID, startDate, endDate, approveAndPostDate, unitCost, unitPrice, internalCurrencyPrice, organizationalLevelAssociationID, invoiceDescription)
+                        VALUES (source.id, source.contractID, source.serviceID, source.startDate, source.endDate, source.approveAndPostDate, source.unitCost, source.unitPrice, source.internalCurrencyPrice, source.organizationalLevelAssociationID, source.invoiceDescription);
                 """,
-                service.get("id"),  # ✅ Manually inserting ID, no need for IDENTITY_INSERT
+                service.get("id"),
                 service.get("contractID"),
                 service.get("serviceID"),
                 start_dt,
@@ -474,11 +490,11 @@ async def process_contract_services(input_data: List[Dict] = Body(...)):
                 service.get("invoiceDescription"))
 
             except pyodbc.Error as e:
-                logging.error(f"🚨 Database insert failed for Service ID {service.get('id')}: {e}")
+                logging.error(f"🚨 Database MERGE failed for Service ID {service.get('id')}: {e}")
                 continue  # Log error but continue processing
 
         conn.commit()
-        return {"message": f"Successfully inserted {len(input_data)} services into ContractServices."}
+        return {"message": f"Successfully processed {len(input_data)} services into ContractServices."}
 
     except Exception as e:
         conn.rollback()
@@ -487,5 +503,7 @@ async def process_contract_services(input_data: List[Dict] = Body(...)):
     finally:
         cursor.close()
         conn.close()
+
+
 
 
