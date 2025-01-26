@@ -443,7 +443,7 @@ from fastapi import Body
 async def process_contract_services(request: Request):
     try:
         # Read raw request body
-        raw_body = await request.body()
+        raw_body = await request.json()
         raw_text = raw_body.decode("utf-8").strip()  # Ensure no leading/trailing spaces
         logging.info(f"🔍 Raw Request Body: {raw_text}")
 
