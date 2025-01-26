@@ -444,8 +444,8 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
             logging.error(f"🚨 Invalid date format: {date_str}")
             return None
 
-@app.post("/process_contract_services/")
-async def process_contract_services(input_data: List[Dict] = Body(...)):
+async def process_services_in_background(input_data: List[Dict]):
+    """Background task to insert/merge contract services into the database."""
     conn = get_secondary_db_connection()
     cursor = conn.cursor()
 
@@ -494,15 +494,29 @@ async def process_contract_services(input_data: List[Dict] = Body(...)):
                 continue  # Log error but continue processing
 
         conn.commit()
-        return {"message": f"Successfully processed {len(input_data)} services into ContractServices."}
+        logging.info(f"✅ Successfully processed {len(input_data)} services into ContractServices.")
 
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+        logging.error(f"🔥 Critical Error during database processing: {e}")
 
     finally:
         cursor.close()
         conn.close()
+        logging.info("🔌 Database connection closed.")
+
+
+@app.post("/process_contract_services/")
+async def process_contract_services(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
+    """
+    Accepts input data, immediately responds with 200 OK, and processes database updates asynchronously.
+    """
+    logging.info("🔄 Received contract services data, starting background processing...")
+
+    # ✅ Send the task to background and immediately return success response
+    background_tasks.add_task(process_services_in_background, input_data)
+
+    return {"message": "✅ Received successfully. Processing in background."}
 
 
 
