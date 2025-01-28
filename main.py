@@ -286,10 +286,17 @@ async def handle_command(request: Request):
             raise ValueError("Missing required fields")
 
         # Process `askRabbit` command
+        # Process `askRabbit` command
         if command_text.startswith("askRabbit"):
             args = command_text[len("askRabbit"):].strip()
             result = await handle_sendtoai(args)
+
+            # Extract response as a string
             response_text = result.get("response", "No response received.")
+
+            if isinstance(response_text, list):  # Ensure it's not a list of dicts
+                response_text = " ".join(
+                    [item["text"] for item in response_text if isinstance(item, dict) and "text" in item])
 
             # Log the command and response to the database
             try:
@@ -306,7 +313,7 @@ async def handle_command(request: Request):
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
-            # Format Adaptive Card like the `mytickets` style
+            # Properly formatted Adaptive Card
             body = [
                 {
                     "type": "TextBlock",
