@@ -877,3 +877,15 @@ VALUES (
         conn.close()
         logging.info("🔌 Database connection closed.")
 
+@app.post("/process_time_entries/")
+async def process_time_entries(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
+    """
+    Accepts time entry data, immediately responds with 200 OK, and processes database updates asynchronously.
+    """
+    logging.info("🔄 Received time entry data, starting background processing...")
+
+    # ✅ Send the task to background and immediately return success response
+    background_tasks.add_task(process_timeentries_in_background, input_data)
+
+    return {"message": "✅ Received successfully. Processing in background."}
+
