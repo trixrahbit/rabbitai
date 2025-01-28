@@ -289,7 +289,7 @@ async def handle_command(request: Request):
         if command_text.startswith("askRabbit"):
             args = command_text[len("askRabbit"):].strip()
             result = await handle_sendtoai(args)
-            response_text = result.get("response", "No response")
+            response_text = result.get("response", "No response received.")
 
             # Log the command and response to the database
             try:
@@ -306,14 +306,38 @@ async def handle_command(request: Request):
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
-            # Construct a simple text response for Teams
-            message_payload = {
-                "type": "message",
-                "text": response_text
+            # Construct Adaptive Card response
+            adaptive_card = {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                    {
+                        "type": "TextBlock",
+                        "text": "**Rabbit AI Response**",
+                        "wrap": True,
+                        "weight": "Bolder",
+                        "size": "Large",
+                        "spacing": "Medium"
+                    },
+                    {
+                        "type": "TextBlock",
+                        "text": response_text,
+                        "wrap": True,
+                        "spacing": "Small"
+                    }
+                ],
+                "actions": [
+                    {
+                        "type": "Action.Submit",
+                        "title": "Ask Another Question",
+                        "data": {"command": "askRabbit "}
+                    }
+                ],
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json"
             }
 
-            # Send response back to Teams
-            await send_message_to_teams(service_url, conversation_id, aad_object_id, message_payload)
+            # Send Adaptive Card response to Teams
+            await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
 
             return JSONResponse(content={"status": "success", "response": response_text})
 
