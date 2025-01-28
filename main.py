@@ -321,7 +321,7 @@ async def handle_command(request: Request):
                     },
                     {
                         "type": "TextBlock",
-                        "text": response_text,
+                        "text": response_text,  # Ensure this is a string
                         "wrap": True,
                         "spacing": "Small"
                     }
