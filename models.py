@@ -68,7 +68,21 @@ class DeviceData(BaseModel):
     class Config:
         populate_by_name = True  # Ensure compatibility with Pydantic v2
 
-class ContractUnit(BaseModel):
+# class ContractUnit(BaseModel):
+#     contractID: Optional[int] = None
+#     id: Optional[int] = None
+#     serviceID: Optional[int] = None
+#     startDate: Optional[str] = None
+#     endDate: Optional[str] = None
+#     unitCost: Optional[float] = None
+#     unitPrice: Optional[float] = None
+#     internalCurrencyPrice: Optional[float] = None
+#     organizationalLevelAssociationID: Optional[int] = None
+#     invoiceDescription: Optional[str] = None
+#     approveAndPostDate: Optional[str] = None
+#     units: Optional[float] = None
+
+class ProcessedContractUnit(BaseModel):
     contractID: Optional[int] = None
     id: Optional[int] = None
     serviceID: Optional[int] = None
@@ -80,19 +94,7 @@ class ContractUnit(BaseModel):
     organizationalLevelAssociationID: Optional[int] = None
     invoiceDescription: Optional[str] = None
     approveAndPostDate: Optional[str] = None
-
-class ProcessedContractUnit(BaseModel):
-    contractID: Optional[int]
-    id: Optional[int]
-    serviceID: Optional[int]
-    startDate: datetime
-    endDate: datetime
-    approveAndPostDate: Optional[datetime] = None
-    unitCost: Optional[float] = None
-    unitPrice: Optional[float] = None
-    internalCurrencyPrice: Optional[float] = None
-    organizationalLevelAssociationID: Optional[int]
-    invoiceDescription: Optional[str] = None
+    units: Optional[float] = None
 
 class Contract(BaseModel):
     id: int

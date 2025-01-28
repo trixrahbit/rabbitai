@@ -457,11 +457,17 @@ async def process_units_in_background(input_data: List[Dict]):
             end_dt = parse_date(service.get("endDate"))
             approve_dt = parse_date(service.get("approveAndPostDate"))
 
+            # ✅ Fixing field mappings from JSON
+            unit_cost = service.get("cost", None)  # Correct mapping
+            unit_price = service.get("price", None)  # Correct mapping
+            units = service.get("units", None)  # Ensure it is included
+
             try:
                 cursor.execute("""
                     MERGE INTO dbo.ContractUnits AS target
-                    USING (SELECT ? AS id, ? AS contractID, ? AS serviceID, ? AS startDate, ? AS endDate, ? AS approveAndPostDate,
-                                  ? AS unitCost, ? AS unitPrice, ? AS internalCurrencyPrice, ? AS organizationalLevelAssociationID, ? AS invoiceDescription) AS source
+                    USING (SELECT ? AS id, ? AS contractID, ? AS serviceID, ? AS startDate, ? AS endDate, 
+                                  ? AS approveAndPostDate, ? AS unitCost, ? AS unitPrice, ? AS internalCurrencyPrice, 
+                                  ? AS organizationalLevelAssociationID, ? AS invoiceDescription, ? AS units) AS source
                     ON target.id = source.id
                     WHEN MATCHED THEN
                         UPDATE SET 
@@ -474,10 +480,16 @@ async def process_units_in_background(input_data: List[Dict]):
                             unitPrice = source.unitPrice,
                             internalCurrencyPrice = source.internalCurrencyPrice,
                             organizationalLevelAssociationID = source.organizationalLevelAssociationID,
-                            invoiceDescription = source.invoiceDescription
+                            invoiceDescription = source.invoiceDescription,
+                            units = source.units
                     WHEN NOT MATCHED THEN
-                        INSERT (id, contractID, serviceID, startDate, endDate, approveAndPostDate, unitCost, unitPrice, internalCurrencyPrice, organizationalLevelAssociationID, invoiceDescription)
-                        VALUES (source.id, source.contractID, source.serviceID, source.startDate, source.endDate, source.approveAndPostDate, source.unitCost, source.unitPrice, source.internalCurrencyPrice, source.organizationalLevelAssociationID, source.invoiceDescription);
+                        INSERT (id, contractID, serviceID, startDate, endDate, approveAndPostDate, 
+                                unitCost, unitPrice, internalCurrencyPrice, organizationalLevelAssociationID, 
+                                invoiceDescription, units)
+                        VALUES (source.id, source.contractID, source.serviceID, source.startDate, 
+                                source.endDate, source.approveAndPostDate, source.unitCost, source.unitPrice, 
+                                source.internalCurrencyPrice, source.organizationalLevelAssociationID, 
+                                source.invoiceDescription, source.units);
                 """,
                 service.get("id"),
                 service.get("contractID"),
@@ -485,11 +497,12 @@ async def process_units_in_background(input_data: List[Dict]):
                 start_dt,
                 end_dt,
                 approve_dt,
-                service.get("unitCost"),
-                service.get("unitPrice"),
+                unit_cost,  # Fixed mapping
+                unit_price,  # Fixed mapping
                 service.get("internalCurrencyPrice"),
                 service.get("organizationalLevelAssociationID"),
-                service.get("invoiceDescription"))
+                service.get("invoiceDescription"),
+                units)  # Fixed missing field
 
             except pyodbc.Error as e:
                 logging.error(f"🚨 MERGE failed for Contract Unit ID {service.get('id')}: {e}", exc_info=True)
@@ -506,6 +519,7 @@ async def process_units_in_background(input_data: List[Dict]):
         cursor.close()
         conn.close()
         logging.info("🔌 Database connection closed.")
+
 
 @app.post("/process_contract_units/")
 async def process_contract_units(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
