@@ -744,6 +744,21 @@ async def process_timeentries_in_background(input_data: List[Dict]):
 
     try:
         for entry in input_data:
+            # Ensure contractID exists
+            cursor.execute("SELECT 1 FROM dbo.Contracts WHERE id = ?", entry.get("contractID"))
+            if not cursor.fetchone():
+                logging.warning(f"🚨 Skipping Time Entry ID {entry.get('id')}: contractID {entry.get('contractID')} does not exist.")
+                continue  # Skip this entry
+
+            # Ensure ticketID exists (if not None)
+            ticket_id = entry.get("ticketID")
+            if ticket_id is not None:
+                cursor.execute("SELECT 1 FROM dbo.Tickets WHERE id = ?", ticket_id)
+                if not cursor.fetchone():
+                    logging.warning(f"🚨 Skipping Time Entry ID {entry.get('id')}: ticketID {ticket_id} does not exist.")
+                    continue  # Skip this entry
+
+            # Convert dates
             create_dt = parse_date(entry.get("createDateTime"))
             date_worked = parse_date(entry.get("dateWorked"))
             end_dt = parse_date(entry.get("endDateTime"))
@@ -757,26 +772,11 @@ async def process_timeentries_in_background(input_data: List[Dict]):
                 query = """
 MERGE INTO dbo.TimeEntries AS target
 USING (SELECT 
-    ? AS id,
-    ? AS contractID,
-    ? AS contractServiceBundleID,
-    ? AS contractServiceID,
-    ? AS createDateTime,
-    ? AS creatorUserID,
-    ? AS dateWorked,
-    ? AS endDateTime,
-    ? AS hoursToBill,
-    ? AS hoursWorked,
-    ? AS internalNotes,
-    ? AS isNonBillable,
-    ? AS lastModifiedDateTime,
-    ? AS resourceID,
-    ? AS roleID,
-    ? AS startDateTime,
-    ? AS summaryNotes,
-    ? AS taskID,
-    ? AS ticketID,
-    ? AS timeEntryType
+    ? AS id, ? AS contractID, ? AS contractServiceBundleID, ? AS contractServiceID,
+    ? AS createDateTime, ? AS creatorUserID, ? AS dateWorked, ? AS endDateTime,
+    ? AS hoursToBill, ? AS hoursWorked, ? AS internalNotes, ? AS isNonBillable,
+    ? AS lastModifiedDateTime, ? AS resourceID, ? AS roleID, ? AS startDateTime,
+    ? AS summaryNotes, ? AS taskID, ? AS ticketID, ? AS timeEntryType
 ) AS source
 ON target.id = source.id
 
@@ -877,6 +877,7 @@ VALUES (
         cursor.close()
         conn.close()
         logging.info("🔌 Database connection closed.")
+
 
 @app.post("/process_time_entries/")
 async def process_time_entries(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
