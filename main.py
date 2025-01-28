@@ -790,17 +790,18 @@ WHEN MATCHED AND (
     target.endDateTime <> source.endDateTime OR
     target.hoursToBill <> source.hoursToBill OR
     target.hoursWorked <> source.hoursWorked OR
-    target.internalNotes <> source.internalNotes OR
+    CAST(target.internalNotes AS NVARCHAR(MAX)) <> CAST(source.internalNotes AS NVARCHAR(MAX)) OR
     target.isNonBillable <> source.isNonBillable OR
     target.lastModifiedDateTime <> source.lastModifiedDateTime OR
     target.resourceID <> source.resourceID OR
     target.roleID <> source.roleID OR
     target.startDateTime <> source.startDateTime OR
-    target.summaryNotes <> source.summaryNotes OR
+    CAST(target.summaryNotes AS NVARCHAR(MAX)) <> CAST(source.summaryNotes AS NVARCHAR(MAX)) OR
     target.taskID <> source.taskID OR
     target.ticketID <> source.ticketID OR
     target.timeEntryType <> source.timeEntryType
 )
+
 THEN UPDATE SET
     contractID = source.contractID,
     contractServiceBundleID = source.contractServiceBundleID,
