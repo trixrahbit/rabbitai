@@ -306,34 +306,47 @@ async def handle_command(request: Request):
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
-            # Construct Adaptive Card response
+            # Format Adaptive Card like the `mytickets` style
+            body = [
+                {
+                    "type": "TextBlock",
+                    "text": "**Rabbit AI Response**",
+                    "wrap": True,
+                    "weight": "Bolder",
+                    "size": "Medium",
+                    "spacing": "Medium"
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"**Question:** {args}",
+                    "wrap": True,
+                    "weight": "Bolder",
+                    "spacing": "Small"
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"**Answer:**\n\n{response_text}",
+                    "wrap": True,
+                    "spacing": "Small"
+                },
+                {
+                    "type": "ActionSet",
+                    "spacing": "Medium",
+                    "actions": [
+                        {
+                            "type": "Action.Submit",
+                            "title": "Ask Another Question",
+                            "data": {"command": "askRabbit "}
+                        }
+                    ]
+                }
+            ]
+
+            # Final Adaptive Card
             adaptive_card = {
                 "type": "AdaptiveCard",
-                "version": "1.4",
-                "body": [
-                    {
-                        "type": "TextBlock",
-                        "text": "**Rabbit AI Response**",
-                        "wrap": True,
-                        "weight": "Bolder",
-                        "size": "Large",
-                        "spacing": "Medium"
-                    },
-                    {
-                        "type": "TextBlock",
-                        "text": response_text,  # Ensure this is a string
-                        "wrap": True,
-                        "spacing": "Small"
-                    }
-                ],
-                "actions": [
-                    {
-                        "type": "Action.Submit",
-                        "title": "Ask Another Question",
-                        "data": {"command": "askRabbit "}
-                    }
-                ],
-                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json"
+                "version": "1.2",
+                "body": body
             }
 
             # Send Adaptive Card response to Teams
