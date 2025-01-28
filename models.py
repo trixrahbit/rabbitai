@@ -140,24 +140,28 @@ class Contract(BaseModel):
 
 class TimeEntries(BaseModel):
     id: int
-    date: str
-    duration: float
-    billable: bool
-    description: Optional[str] = None
+    contractID: int
+    contractServiceBundleID: Optional[int] = None
+    contractServiceID: Optional[int] = None
+    createDateTime: str
+    creatorUserID: int
+    dateWorked: str
+    endDateTime: Optional[str] = None
+    hoursToBill: float
+    hoursWorked: float
     internalNotes: Optional[str] = None
-    invoiceNotes: Optional[str] = None
-    isBilled: bool
-    isLocked: bool
-    isPaid: bool
-    isRunning: bool
+    isNonBillable: bool
     lastModifiedDateTime: str
-    projectID: int
-    serviceID: int
+    resourceID: int
+    roleID: int
+    startDateTime: str
+    summaryNotes: Optional[str] = None
+    taskID: Optional[int] = None
+    ticketID: Optional[int] = None
     timeEntryType: int
-    userID: int
     userDefinedFields: Optional[List[UserDefinedField]] = None
 
-    @validator("date", "lastModifiedDateTime", pre=True)
+    @validator("createDateTime", "dateWorked", "endDateTime", "lastModifiedDateTime", "startDateTime", pre=True)
     def parse_dates(cls, v):
         if isinstance(v, str):
             return datetime.fromisoformat(v.replace("Z", ""))
