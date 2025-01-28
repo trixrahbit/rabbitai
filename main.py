@@ -312,7 +312,7 @@ async def handle_command(request: Request):
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
-            # Properly formatted Adaptive Card
+            # Properly formatted Adaptive Card with an input field
             body = [
                 {
                     "type": "TextBlock",
@@ -336,13 +336,21 @@ async def handle_command(request: Request):
                     "spacing": "Small"
                 },
                 {
+                    "type": "Input.Text",
+                    "id": "new_question",
+                    "placeholder": "Type your next question here..."
+                },
+                {
                     "type": "ActionSet",
                     "spacing": "Medium",
                     "actions": [
                         {
                             "type": "Action.Submit",
-                            "title": "Ask Another Question",
-                            "data": {"command": "askRabbit "}
+                            "title": "Submit Question",
+                            "data": {
+                                "command": "askRabbit",
+                                "question": "${new_question}"
+                            }
                         }
                     ]
                 }
