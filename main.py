@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import ValidationError
 from starlette.responses import HTMLResponse
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection, get_secondary_db_connection
-from models import DeviceData, ContractUnit, ProcessedContractUnit
+from models import DeviceData, ProcessedContractUnit
 from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
