@@ -6,7 +6,6 @@ class UserDefinedField(BaseModel):
     name: str
     value: Optional[str] = None
 
-
 class TicketData(BaseModel):
     id: int
     title: str
@@ -16,7 +15,6 @@ class TicketData(BaseModel):
     createDate: str
     completedDate: Optional[str] = None
     userDefinedFields: Optional[List[UserDefinedField]] = None
-
 
 class DeviceData(BaseModel):
     Name: str = "N/A"
@@ -70,7 +68,6 @@ class DeviceData(BaseModel):
     class Config:
         populate_by_name = True  # Ensure compatibility with Pydantic v2
 
-
 class ContractUnit(BaseModel):
     contractID: Optional[int] = None
     id: Optional[int] = None
@@ -83,7 +80,6 @@ class ContractUnit(BaseModel):
     organizationalLevelAssociationID: Optional[int] = None
     invoiceDescription: Optional[str] = None
     approveAndPostDate: Optional[str] = None
-
 
 class ProcessedContractUnit(BaseModel):
     contractID: Optional[int]
@@ -137,6 +133,31 @@ class Contract(BaseModel):
     timeReportingRequiresStartAndStopTimes: int
 
     @validator("startDate", "endDate", "lastModifiedDateTime", pre=True)
+    def parse_dates(cls, v):
+        if isinstance(v, str):
+            return datetime.fromisoformat(v.replace("Z", ""))
+        return v
+
+class TimeEntries(BaseModel):
+    id: int
+    date: str
+    duration: float
+    billable: bool
+    description: Optional[str] = None
+    internalNotes: Optional[str] = None
+    invoiceNotes: Optional[str] = None
+    isBilled: bool
+    isLocked: bool
+    isPaid: bool
+    isRunning: bool
+    lastModifiedDateTime: str
+    projectID: int
+    serviceID: int
+    timeEntryType: int
+    userID: int
+    userDefinedFields: Optional[List[UserDefinedField]] = None
+
+    @validator("date", "lastModifiedDateTime", pre=True)
     def parse_dates(cls, v):
         if isinstance(v, str):
             return datetime.fromisoformat(v.replace("Z", ""))

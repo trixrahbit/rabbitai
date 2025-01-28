@@ -737,3 +737,143 @@ async def process_contracts(input_data: List[Dict] = Body(...), background_tasks
 
     return {"message": "✅ Received successfully. Processing in background."}
 
+async def process_timeentries_in_background(input_data: List[Dict]):
+    """Background task to insert/merge time entry data into the database."""
+    conn = get_secondary_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        for entry in input_data:
+            create_dt = parse_date(entry.get("createDateTime"))
+            date_worked = parse_date(entry.get("dateWorked"))
+            end_dt = parse_date(entry.get("endDateTime"))
+            last_modified_dt = parse_date(entry.get("lastModifiedDateTime"))
+            start_dt = parse_date(entry.get("startDateTime"))
+
+            if last_modified_dt is None:
+                last_modified_dt = datetime.utcnow()
+
+            try:
+                query = """
+MERGE INTO dbo.TimeEntries AS target
+USING (SELECT 
+    ? AS id,
+    ? AS contractID,
+    ? AS contractServiceBundleID,
+    ? AS contractServiceID,
+    ? AS createDateTime,
+    ? AS creatorUserID,
+    ? AS dateWorked,
+    ? AS endDateTime,
+    ? AS hoursToBill,
+    ? AS hoursWorked,
+    ? AS internalNotes,
+    ? AS isNonBillable,
+    ? AS lastModifiedDateTime,
+    ? AS resourceID,
+    ? AS roleID,
+    ? AS startDateTime,
+    ? AS summaryNotes,
+    ? AS taskID,
+    ? AS ticketID,
+    ? AS timeEntryType
+) AS source
+ON target.id = source.id
+
+WHEN MATCHED AND (
+    target.contractID <> source.contractID OR
+    target.contractServiceBundleID <> source.contractServiceBundleID OR
+    target.contractServiceID <> source.contractServiceID OR
+    target.createDateTime <> source.createDateTime OR
+    target.creatorUserID <> source.creatorUserID OR
+    target.dateWorked <> source.dateWorked OR
+    target.endDateTime <> source.endDateTime OR
+    target.hoursToBill <> source.hoursToBill OR
+    target.hoursWorked <> source.hoursWorked OR
+    target.internalNotes <> source.internalNotes OR
+    target.isNonBillable <> source.isNonBillable OR
+    target.lastModifiedDateTime <> source.lastModifiedDateTime OR
+    target.resourceID <> source.resourceID OR
+    target.roleID <> source.roleID OR
+    target.startDateTime <> source.startDateTime OR
+    target.summaryNotes <> source.summaryNotes OR
+    target.taskID <> source.taskID OR
+    target.ticketID <> source.ticketID OR
+    target.timeEntryType <> source.timeEntryType
+)
+THEN UPDATE SET
+    contractID = source.contractID,
+    contractServiceBundleID = source.contractServiceBundleID,
+    contractServiceID = source.contractServiceID,
+    createDateTime = source.createDateTime,
+    creatorUserID = source.creatorUserID,
+    dateWorked = source.dateWorked,
+    endDateTime = source.endDateTime,
+    hoursToBill = source.hoursToBill,
+    hoursWorked = source.hoursWorked,
+    internalNotes = source.internalNotes,
+    isNonBillable = source.isNonBillable,
+    lastModifiedDateTime = source.lastModifiedDateTime,
+    resourceID = source.resourceID,
+    roleID = source.roleID,
+    startDateTime = source.startDateTime,
+    summaryNotes = source.summaryNotes,
+    taskID = source.taskID,
+    ticketID = source.ticketID,
+    timeEntryType = source.timeEntryType
+
+WHEN NOT MATCHED THEN 
+INSERT (
+    id, contractID, contractServiceBundleID, contractServiceID, createDateTime, creatorUserID, dateWorked, endDateTime,
+    hoursToBill, hoursWorked, internalNotes, isNonBillable, lastModifiedDateTime, resourceID, roleID, startDateTime, 
+    summaryNotes, taskID, ticketID, timeEntryType
+)
+VALUES (
+    source.id, source.contractID, source.contractServiceBundleID, source.contractServiceID, source.createDateTime,
+    source.creatorUserID, source.dateWorked, source.endDateTime, source.hoursToBill, source.hoursWorked,
+    source.internalNotes, source.isNonBillable, source.lastModifiedDateTime, source.resourceID, source.roleID,
+    source.startDateTime, source.summaryNotes, source.taskID, source.ticketID, source.timeEntryType
+);
+                """
+
+                values = (
+                    entry.get("id", 0),
+                    entry.get("contractID", 0),
+                    entry.get("contractServiceBundleID", None),
+                    entry.get("contractServiceID", None),
+                    create_dt,
+                    entry.get("creatorUserID", 0),
+                    date_worked,
+                    end_dt,
+                    entry.get("hoursToBill", 0.0),
+                    entry.get("hoursWorked", 0.0),
+                    entry.get("internalNotes", ""),
+                    entry.get("isNonBillable", False),
+                    last_modified_dt,
+                    entry.get("resourceID", 0),
+                    entry.get("roleID", 0),
+                    start_dt,
+                    entry.get("summaryNotes", ""),
+                    entry.get("taskID", None),
+                    entry.get("ticketID", 0),
+                    entry.get("timeEntryType", 0)
+                )
+
+                cursor.execute(query, values)
+
+            except pyodbc.Error as e:
+                logging.error(f"🚨 MERGE failed for Time Entry ID {entry.get('id')}: {e}", exc_info=True)
+                continue
+
+        conn.commit()
+        logging.info(f"✅ Successfully processed {len(input_data)} time entries.")
+
+    except Exception as e:
+        conn.rollback()
+        logging.critical(f"🔥 Critical Error during time entries processing: {e}", exc_info=True)
+
+    finally:
+        cursor.close()
+        conn.close()
+        logging.info("🔌 Database connection closed.")
+
