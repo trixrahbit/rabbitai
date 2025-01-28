@@ -306,6 +306,15 @@ async def handle_command(request: Request):
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
+            # Construct a simple text response for Teams
+            message_payload = {
+                "type": "message",
+                "text": response_text
+            }
+
+            # Send response back to Teams
+            await send_message_to_teams(service_url, conversation_id, aad_object_id, message_payload)
+
             return JSONResponse(content={"status": "success", "response": response_text})
 
         # Process `getnextticket` command
