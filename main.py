@@ -493,14 +493,9 @@ async def process_contracts_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract data into the database."""
     conn = get_secondary_db_connection()
 
-    # ✅ Log connection type to verify it's a DBAPI connection
-    logging.info(f"🔍 Connection Type: {type(conn)}")
+    logging.info(f"🔍 Connection Type: {type(conn)}")  # ✅ Debug Connection Type
 
     try:
-        cursor = conn.cursor()  # 🚨 Where the error happens
-
-        logging.info("✅ Cursor successfully created.")
-
         for contract in input_data:
             logging.info(f"🔄 Processing contract ID: {contract.get('id')}")
 
@@ -645,7 +640,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
             )
 
             logging.info(f"📝 Executing query for Contract ID {contract.get('id')}")
-            cursor.execute(query, values)
+            conn.execute(query, values)  # ✅ Fix applied here
 
         conn.commit()
         logging.info(f"✅ Successfully processed {len(input_data)} contracts.")
@@ -655,9 +650,9 @@ async def process_contracts_in_background(input_data: List[Dict]):
         logging.critical(f"🔥 Critical Error during contracts processing: {e}", exc_info=True)
 
     finally:
-        cursor.close()
         conn.close()
         logging.info("🔌 Database connection closed.")
+
 
 
 
