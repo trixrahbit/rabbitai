@@ -224,12 +224,13 @@ def merge_with_tickets(revenue_df, tickets_df):
     return final_df
 
 # ✅ Store Data in SQL Efficiently
+# ✅ Store Data in SQL
 def store_to_db(final_df):
-    """Store results in Azure SQL efficiently."""
+    """Store results in Azure SQL."""
     conn = get_secondary_db_connection()
     cursor = conn.cursor()
 
-    # ✅ Create Table If Not Exists
+    # ✅ Ensure table exists
     cursor.execute("""
     IF OBJECT_ID('dbo.ClientMonthlySummary', 'U') IS NULL
     CREATE TABLE dbo.ClientMonthlySummary (
@@ -247,15 +248,37 @@ def store_to_db(final_df):
     );
     """)
 
-    # ✅ Convert DataFrame to List of Tuples for Bulk Insert
-    records = final_df.to_records(index=False)
-    values = [tuple(row) for row in records]
+    # ✅ Convert NumPy data types to native Python types
+    final_df = final_df.astype({
+        "ClientID": "int",
+        "ContractID": "int",
+        "ServiceID": "int",
+        "RevenueMonth": "string",  # Convert DATE to string for PyODBC
+        "MonthlyRevenue": "float",
+        "TicketsCreated": "int"
+    })
 
-    # ✅ Batch Insert (Faster)
+    # ✅ Convert DataFrame rows to list of tuples (Python native types)
+    values = [
+        (
+            int(row.ClientID),
+            str(row.ClientName),
+            int(row.ContractID),
+            str(row.ContractName),
+            int(row.ServiceID),
+            str(row.ServiceName),
+            str(row.RevenueMonth),  # Convert date to string format YYYY-MM-DD
+            float(row.MonthlyRevenue),
+            int(row.TicketsCreated)
+        )
+        for _, row in final_df.iterrows()
+    ]
+
+    # ✅ Batch Insert (Fix for PyODBC's NumPy issue)
     insert_query = """
     MERGE INTO dbo.ClientMonthlySummary AS target
-    USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)) AS source 
-    (ClientID, ClientName, ContractID, ContractName, ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, TicketsCreated)
+    USING (SELECT ? AS ClientID, ? AS ClientName, ? AS ContractID, ? AS ContractName, 
+                  ? AS ServiceID, ? AS ServiceName, ? AS RevenueMonth, ? AS MonthlyRevenue, ? AS TicketsCreated) AS source
     ON target.ClientID = source.ClientID AND target.ContractID = source.ContractID AND target.RevenueMonth = source.RevenueMonth
     WHEN MATCHED THEN
         UPDATE SET MonthlyRevenue = source.MonthlyRevenue, TicketsCreated = source.TicketsCreated, LastUpdated = GETDATE()
@@ -264,11 +287,14 @@ def store_to_db(final_df):
         VALUES (source.ClientID, source.ClientName, source.ContractID, source.ContractName, source.ServiceID, source.ServiceName, source.RevenueMonth, source.MonthlyRevenue, source.TicketsCreated);
     """
 
-    cursor.executemany(insert_query, values)  # ✅ Batch Insert
+    # ✅ Execute batch insert/update
+    cursor.executemany(insert_query, values)
     conn.commit()
+
     cursor.close()
     conn.close()
     logger.info(f"✅ Data updated successfully at {datetime.now()}")
+
 
 # ✅ Pipeline Runner (Runs Every 30 Mins)
 def run_pipeline():
