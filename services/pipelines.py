@@ -1,3 +1,5 @@
+from threading import Thread
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -24,3 +26,8 @@ def run_kpi_pipeline():
         # calculate_reactive_tickets_per_endpoint(session)
     finally:
         session.close()
+
+
+def start_kpi_background_update():
+    thread = Thread(target=run_kpi_pipeline, daemon=True)
+    thread.start()

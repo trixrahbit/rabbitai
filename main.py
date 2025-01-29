@@ -949,8 +949,8 @@ def update_client_revenue(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_pipeline)
     return {"message": "✅ Client revenue update scheduled!"}
 
-# @app.on_event("startup")
-# def startup_event():
-#     """Start automatic updates when FastAPI starts."""
-#     logging.info("🚀 FastAPI startup: Initializing revenue update process...")
-#     start_background_update()
+@app.on_event("startup")
+def startup_kpi_event():
+    """Start automatic updates when FastAPI starts."""
+    logging.info("🚀 FastAPI startup: Initializing KPI update process...")
+    start_background_update()
