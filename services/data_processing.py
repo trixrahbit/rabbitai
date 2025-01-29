@@ -201,8 +201,10 @@ def fetch_data():
 
     contracts_query = """
     SELECT 
-        ContractID, ContractName, CompanyID AS ClientID, CompanyName, ServiceID, ServiceName,
-        StartDate, EndDate, Units, UnitPrice, Cost, BillingPreference, TotalRevenue, TotalCost
+        ContractID, ContractName, CompanyID AS ClientID, 
+        CompanyName AS ClientName,  -- ✅ Rename CompanyName to ClientName
+        ServiceID, ServiceName, StartDate, EndDate, 
+        Units, UnitPrice, Cost, BillingPreference, TotalRevenue, TotalCost
     FROM dbo.ContractSummary
     """
 
@@ -223,10 +225,12 @@ def fetch_data():
     contracts_df = pd.read_sql(contracts_query, conn)
     tickets_df = pd.read_sql(tickets_query, conn)
 
+    # ✅ Ensure column renaming consistency
+    contracts_df.rename(columns={"CompanyName": "ClientName"}, inplace=True)
+
     logger.info(f"🔍 Contracts Columns: {contracts_df.dtypes}")
     logger.info(f"🔍 Tickets Columns: {tickets_df.dtypes}")
 
-    # ✅ Ensure ContractID & ClientID match formats
     contracts_df["ContractID"] = contracts_df["ContractID"].astype(str)
     contracts_df["ClientID"] = contracts_df["ClientID"].astype(str)
 
@@ -235,6 +239,7 @@ def fetch_data():
 
     conn.close()
     return contracts_df, tickets_df
+
 
 
 # ✅ Calculate Monthly Revenue Using ContractSummary
