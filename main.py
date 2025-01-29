@@ -630,6 +630,19 @@ async def process_contracts_in_background(input_data: List[Dict]):
                 "billingPreference": contract.get("billingPreference", ""),
                 "isDefaultContract": contract.get("isDefaultContract", False),
                 "renewedContractID": contract.get("renewedContractID", None),
+                "contractPeriodType": contract.get("contractPeriodType", 0),  # 👈 Ensure this field always has a value
+                "overageBillingRate": contract.get("overageBillingRate", 0),
+                "exclusionContractID": contract.get("exclusionContractID", None),
+                "purchaseOrderNumber": contract.get("purchaseOrderNumber", ""),
+                "lastModifiedDateTime": last_modified_dt,
+                "setupFeeBillingCodeID": contract.get("setupFeeBillingCodeID", None),
+                "billToCompanyContactID": contract.get("billToCompanyContactID", None),
+                "contractExclusionSetID": contract.get("contractExclusionSetID", None),
+                "serviceLevelAgreementID": contract.get("serviceLevelAgreementID", None),
+                "internalCurrencySetupFee": contract.get("internalCurrencySetupFee", 0),
+                "organizationalLevelAssociationID": contract.get("organizationalLevelAssociationID", None),
+                "internalCurrencyOverageBillingRate": contract.get("internalCurrencyOverageBillingRate", 0),
+                "timeReportingRequiresStartAndStopTimes": contract.get("timeReportingRequiresStartAndStopTimes", False)
             }
 
             try:
