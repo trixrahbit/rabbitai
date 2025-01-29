@@ -10,6 +10,12 @@ def calculate_sla_met(session):
     FROM tickets
     """)
     result = session.execute(query).fetchone()
+
+    sla_met_count = result[1] if result and result[1] is not None else 0  # ✅ Extract second value
+
+    kpi_insert(session, "SLA Met", "Service Desk", "Team", sla_met_count)
+
+
 def calculate_csat_rolling_30(session):
     query = """
     SELECT AVG(score) AS csat_score
@@ -29,9 +35,11 @@ def calculate_ticket_aging(session):
 
     result = session.execute(query).fetchone()
 
-    if result:
-        aging_tickets = result[0]  # ✅ Extract count value
-        kpi_insert(session, "Ticket Aging Over 5", "Service Desk", "Team", aging_tickets)
+    aging_tickets = result[0] if result and result[0] is not None else 0  # ✅ Extract scalar
+
+    kpi_insert(session, "Ticket Aging Over 5", "Service Desk", "Team", aging_tickets)
+
+
 def calculate_support_calls(session):
     query = """
     SELECT COUNT(*) AS total_calls
@@ -63,4 +71,9 @@ def calculate_avg_resolution_time(session):
     """)
     result = session.execute(query).fetchone()
 
-    kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", result)
+    if result and result[0] is not None:
+        avg_resolution_time = result[0]  # ✅ Extract scalar value
+    else:
+        avg_resolution_time = 0  # ✅ Default to 0 if no value
+
+    kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
