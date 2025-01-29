@@ -20,12 +20,13 @@ def calculate_csat_rolling_30(session):
 
     kpi_insert(session, "CSAT Rolling 30", "Service Desk", "Team", result)
 def calculate_ticket_aging(session):
-    query = """
-    SELECT COUNT(*) AS aged_tickets
+    query = query = """
+    SELECT COUNT(*) AS aging_tickets
     FROM tickets
-    WHERE DATEDIFF(DAY, created_date, GETDATE()) > 5
-    AND status NOT IN ('Waiting Client', 'Closed');
-    """
+    WHERE DATEDIFF(DAY, createDate, GETDATE()) > 5
+    AND status NOT IN (7, 69, 5, 41) -- Assuming these are waiting statuses
+"""
+
     result = session.execute(query).fetchone()
 
     kpi_insert(session, "Ticket Aging Over 5", "Service Desk", "Team", result)
