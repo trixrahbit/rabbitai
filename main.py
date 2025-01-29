@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from starlette.responses import HTMLResponse
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection, get_secondary_db_connection
-from models import DeviceData, ProcessedContractUnit
+from models.models import DeviceData, ProcessedContractUnit
 from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
