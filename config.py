@@ -1,7 +1,8 @@
 import logging
 from sqlalchemy import create_engine
 from sqlalchemy.pool import QueuePool
-from models import Settings
+
+from models.models import Settings
 
 # Instantiate settings
 settings = Settings()
