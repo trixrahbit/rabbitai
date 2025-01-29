@@ -348,7 +348,7 @@ async def handle_command(request: Request):
                             "type": "Action.Submit",
                             "title": "Submit Question",
                             "data": {
-                                "command": "askRabbit"
+                                "command": "askRabbit",
                             }
                         }
                     ]
