@@ -286,7 +286,7 @@ async def handle_command(request: Request):
             raise ValueError("Missing required fields")
 
         # Process `askRabbit` command
-        if command_text.startswith("askRabbit"):
+        if command_text.startswith("askrabbit"):
             args = command_text[len("askRabbit"):].strip()
             result = await handle_sendtoai(args)
 
