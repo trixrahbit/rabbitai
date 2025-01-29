@@ -276,7 +276,7 @@ async def handle_command(request: Request):
         payload = await request.json()
         logging.debug(f"Received payload: {json.dumps(payload, indent=2)}")
 
-        command_text = payload.get("text")
+        command_text = payload.get("text", "").strip().lower()  # Normalize command to lowercase
         aad_object_id = payload.get("from", {}).get("aadObjectId")
         service_url = payload.get("serviceUrl")
         conversation_id = payload.get("conversation", {}).get("id")
@@ -286,7 +286,7 @@ async def handle_command(request: Request):
             raise ValueError("Missing required fields")
 
         # Process `askRabbit` command
-        if command_text.startswith("askRabbit"):
+        if command_text.startswith("askrabbit"):
             args = command_text[len("askRabbit"):].strip()
             result = await handle_sendtoai(args)
 
