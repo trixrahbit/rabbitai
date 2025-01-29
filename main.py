@@ -335,24 +335,6 @@ async def handle_command(request: Request):
                     "wrap": True,
                     "spacing": "Small"
                 },
-                {
-                    "type": "Input.Text",
-                    "id": "new_question",
-                    "placeholder": "Type your next question here..."
-                },
-                {
-                    "type": "ActionSet",
-                    "spacing": "Medium",
-                    "actions": [
-                        {
-                            "type": "Action.Submit",
-                            "title": "Submit Question",
-                            "data": {
-                                "command": "askRabbit",
-                            }
-                        }
-                    ]
-                }
             ]
 
             # Final Adaptive Card
