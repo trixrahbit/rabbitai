@@ -289,7 +289,7 @@ def store_to_db(final_df):
     """Efficiently stores results in Azure SQL using SQLAlchemy."""
     session = get_secondary_db_connection()
 
-    # ✅ Ensure `ClientName` and other critical fields have default values
+    # ✅ Ensure critical fields have default values
     final_df.fillna({
         "ClientName": "Unknown Client",
         "ContractName": "Unknown Contract",
@@ -298,6 +298,10 @@ def store_to_db(final_df):
         "MonthlyCost": 0,
         "TicketsCreated": 0
     }, inplace=True)
+
+    # ✅ Log any remaining missing values for debugging
+    if final_df["ClientName"].isnull().any():
+        logger.warning(f"⚠️ ClientName still has missing values after fillna(). Data:\n{final_df}")
 
     try:
         insert_query = text("""
@@ -331,11 +335,12 @@ def store_to_db(final_df):
 
 
 
+
 # ✅ Pipeline Runner (Runs Every 30 Mins)
 def run_pipeline():
     while True:
-        logging.info("🔄 Updating Contract Summary Table...")
-        update_contract_summary()  # ✅ Ensure ContractSummary is up to date before fetching data.
+        logging.info("🔄 Updating Contract Summary...")
+        update_contract_summary()  # ✅ Ensure contract summary is up to date before fetching
 
         logging.info("🚀 Fetching Data...")
         contracts_df, tickets_df = fetch_data()
@@ -356,6 +361,7 @@ def run_pipeline():
 
         logging.info("⏳ Sleeping for 30 minutes before next update...")
         time.sleep(1800)
+
 
 # ✅ Run Pipeline in Background
 def start_background_update():
