@@ -583,7 +583,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
                     timeReportingRequiresStartAndStopTimes = source.timeReportingRequiresStartAndStopTimes
             WHEN NOT MATCHED THEN 
             INSERT (
-                id, status, endDate, setupFee, companyID, contactID, startDate, contactName, description, isCompliant,
+                status, endDate, setupFee, companyID, contactID, startDate, contactName, description, isCompliant,
                 contractName, contractType, estimatedCost, opportunityID, contractNumber, estimatedHours, billToCompanyID,
                 contractCategory, estimatedRevenue, billingPreference, isDefaultContract, renewedContractID, contractPeriodType,
                 overageBillingRate, exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID,
@@ -591,7 +591,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
                 organizationalLevelAssociationID, internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes
             )
             VALUES (
-                source.id, source.status, source.endDate, source.setupFee, source.companyID, source.contactID, source.startDate, 
+                source.status, source.endDate, source.setupFee, source.companyID, source.contactID, source.startDate, 
                 source.contactName, source.description, source.isCompliant, source.contractName, source.contractType, 
                 source.estimatedCost, source.opportunityID, source.contractNumber, source.estimatedHours, source.billToCompanyID,
                 source.contractCategory, source.estimatedRevenue, source.billingPreference, source.isDefaultContract, 
