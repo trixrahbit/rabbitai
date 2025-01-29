@@ -2,6 +2,29 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Union, Any
 from datetime import datetime
 
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    CLIENT_ID: str
+    TENANT_ID: str
+    CLIENT_SECRET: str
+    BOT_CLIENT_ID: str
+    BOT_CLIENT_SECRET: str
+    API_KEY: str  # For API key-based security
+    APP_ID: str
+    APP_SECRET: str
+    AZURE_API_KEY: str
+    AZURE_OPENAI_ENDPOINT: str
+    DEPLOYMENT_NAME: str
+    DB_USER: str
+    DB_PASSWORD: str
+    DB_SECONDARY_USER: str
+    DB_SECONDARY_PASSWORD: str
+
+    class Config:
+        env_file = ".env"
+
 class UserDefinedField(BaseModel):
     name: str
     value: Optional[str] = None

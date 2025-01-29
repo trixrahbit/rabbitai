@@ -1,27 +1,7 @@
 import logging
-import pyodbc
-from pydantic_settings import BaseSettings
-
-# Config
-class Settings(BaseSettings):
-    CLIENT_ID: str
-    TENANT_ID: str
-    CLIENT_SECRET: str
-    BOT_CLIENT_ID: str
-    BOT_CLIENT_SECRET: str
-    API_KEY: str  # For API key-based security
-    APP_ID: str
-    APP_SECRET: str
-    AZURE_API_KEY: str
-    AZURE_OPENAI_ENDPOINT: str
-    DEPLOYMENT_NAME: str
-    DB_USER: str
-    DB_PASSWORD: str
-    DB_SECONDARY_USER: str
-    DB_SECONDARY_PASSWORD: str
-
-    class Config:
-        env_file = ".env"
+from sqlalchemy import create_engine
+from sqlalchemy.pool import QueuePool
+from models import Settings
 
 # Instantiate settings
 settings = Settings()
@@ -40,42 +20,63 @@ DB_SECONDARY_USER = settings.DB_SECONDARY_USER
 DB_SECONDARY_PASSWORD = settings.DB_SECONDARY_PASSWORD
 
 OPENID_CONFIG_URL = "https://login.botframework.com/v1/.well-known/openidconfiguration"
+# Connection Strings for SQLAlchemy
+PRIMARY_DATABASE_URL = (
+    f"mssql+pyodbc://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_SERVER}/{settings.DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+)
+SECONDARY_DATABASE_URL = (
+    f"mssql+pyodbc://{settings.DB_SECONDARY_USER}:{settings.DB_SECONDARY_PASSWORD}@{settings.DB_SERVER}/{settings.DB_SECONDARY_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+)
 
+# SQLAlchemy Engine with Connection Pooling
+engine = create_engine(
+    PRIMARY_DATABASE_URL,
+    poolclass=QueuePool,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+    echo=False
+)
+
+secondary_engine = create_engine(
+    SECONDARY_DATABASE_URL,
+    poolclass=QueuePool,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+    echo=False
+)
+
+# Function to get a database connection
 def get_db_connection():
+    """Returns a new database connection using SQLAlchemy engine."""
     try:
-        conn = pyodbc.connect(
-            f"Driver={{ODBC Driver 18 for SQL Server}};"
-            f"Server=tcp:rewst.database.windows.net,1433;"
-            f"Database=rabbitops;"
-            f"Uid={DB_USER};"
-            f"Pwd={DB_PASSWORD};"
-            f"Encrypt=yes;"
-            f"TrustServerCertificate=yes;"
-            f"Connection Timeout=30;"
-        )
-        logging.debug("Database connection established successfully.")
+        conn = engine.connect()
+        logging.debug("✅ Primary database connection established successfully.")
         return conn
-    except pyodbc.Error as e:
-        logging.error(f"Failed to connect to the database: {e}")
+    except Exception as e:
+        logging.error(f"❌ Primary database connection failed: {e}")
         raise
 
+# Function to get a secondary database connection
 def get_secondary_db_connection():
+    """Returns a new connection to the secondary database."""
     try:
-        conn = pyodbc.connect(
-            f"Driver={{ODBC Driver 18 for SQL Server}};"
-            f"Server=tcp:rewst.database.windows.net,1433;"
-            f"Database=webit_analytics;"
-            f"Uid={DB_SECONDARY_USER};"
-            f"Pwd={DB_SECONDARY_PASSWORD};"
-            f"Encrypt=yes;"
-            f"TrustServerCertificate=yes;"
-            f"Connection Timeout=30;"
-        )
-        logging.debug("Database connection established successfully.")
+        conn = secondary_engine.connect()
+        logging.debug("✅ Secondary database connection established successfully.")
         return conn
-    except pyodbc.Error as e:
-        logging.error(f"Failed to connect to the database: {e}")
+    except Exception as e:
+        logging.error(f"❌ Secondary database connection failed: {e}")
         raise
+
+# Ensure connections are closed properly
+def close_db_connection(conn):
+    """Closes the given database connection."""
+    try:
+        conn.close()
+        logging.debug("🔌 Database connection closed.")
+    except Exception as e:
+        logging.error(f"⚠️ Error closing connection: {e}")
 
 # Logging configuration
 logging.basicConfig(level=logging.DEBUG)

@@ -12,8 +12,14 @@ from datetime import datetime
 from typing import List, Dict
 import logging
 from models import DeviceData
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
+from config import engine
 
 
+
+# Set up a session factory for database interactions
+SessionLocal = sessionmaker(bind=engine)
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
 
@@ -123,55 +129,36 @@ def count_open_tickets(tickets: List[TicketData]) -> int:
 
 # ✅ Fetch Data
 def fetch_data():
-    """Fetch contracts, contract services, contract units, and tickets from Azure SQL."""
-    conn = get_secondary_db_connection()
+    """Fetch contracts, contract services, contract units, and tickets from Azure SQL efficiently."""
+    session = SessionLocal()
+    try:
+        contracts_query = text("""
+            SELECT c.id AS ContractID, c.contractName, c.companyID AS ClientID, cl.companyName AS ClientName,
+                   cs.id AS ServiceID, cs.internalDescription AS ServiceName, 
+                   cu.unitPrice, cu.units, cu.startDate, cu.endDate
+            FROM dbo.Contracts c
+            JOIN dbo.Clients cl ON c.companyID = cl.id
+            JOIN dbo.Contract_Services cs ON c.id = cs.contractID
+            JOIN dbo.ContractUnits cu ON cs.id = cu.serviceID
+            WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE())  
+        """)
+        contracts_df = pd.read_sql(contracts_query, session.bind)
 
-    contracts_query = """
-    SELECT c.id AS ContractID, c.contractName, c.companyID AS ClientID, cl.companyName AS ClientName,
-           cs.id AS ServiceID, cs.internalDescription AS ServiceName, 
-           cu.unitPrice, cu.units, cu.startDate, cu.endDate
-    FROM dbo.Contracts c
-    JOIN dbo.Clients cl ON c.companyID = cl.id
-    JOIN dbo.Contract_Services cs ON c.id = cs.contractID
-    JOIN dbo.ContractUnits cu ON cs.id = cu.serviceID
-    WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE());
-    """
+        tickets_query = text("""
+            SELECT t.contractID, t.companyID AS ClientID, 
+                   YEAR(t.createDate) AS TicketYear, MONTH(t.createDate) AS TicketMonth, COUNT(t.id) AS TicketCount
+            FROM dbo.tickets t
+            WHERE t.createDate >= DATEADD(YEAR, -2, GETDATE())  
+            GROUP BY t.contractID, t.companyID, YEAR(t.createDate), MONTH(t.createDate)
+        """)
+        tickets_df = pd.read_sql(tickets_query, session.bind)
 
-    tickets_query = """
-    WITH TicketContractMapping AS (
-        SELECT 
-            t.id AS TicketID, 
-            t.companyID AS ClientID, 
-            ISNULL(t.contractID, c.id) AS ContractID,  -- ✅ Assign contract if missing
-            YEAR(t.createDate) AS TicketYear, 
-            MONTH(t.createDate) AS TicketMonth
-        FROM dbo.tickets t
-        LEFT JOIN dbo.Contracts c
-            ON t.companyID = c.companyID
-            AND t.createDate BETWEEN c.startDate AND c.endDate
-    )
-    SELECT ContractID, ClientID, TicketYear, TicketMonth, COUNT(TicketID) AS TicketCount
-    FROM TicketContractMapping
-    GROUP BY ContractID, ClientID, TicketYear, TicketMonth;
-    """
-
-    contracts_df = pd.read_sql(contracts_query, conn)
-    tickets_df = pd.read_sql(tickets_query, conn)
-
-    conn.close()
-
-    # ✅ Convert ContractID and ClientID to int to avoid merging errors
-    contracts_df["ContractID"] = contracts_df["ContractID"].astype("Int64")
-    contracts_df["ClientID"] = contracts_df["ClientID"].astype("Int64")
-
-    tickets_df["ContractID"] = tickets_df["ContractID"].astype("Int64")
-    tickets_df["ClientID"] = tickets_df["ClientID"].astype("Int64")
-
-    # Debugging: Check final column types
-    logging.info(f"🔍 Contracts Columns: {contracts_df.dtypes}")
-    logging.info(f"🔍 Tickets Columns: {tickets_df.dtypes}")
-
-    return contracts_df, tickets_df
+        return contracts_df, tickets_df
+    except Exception as e:
+        logging.error(f"❌ Error fetching data: {e}")
+        return pd.DataFrame(), pd.DataFrame()
+    finally:
+        session.close()
 
 
 # ✅ Calculate Monthly Revenue
@@ -226,96 +213,55 @@ def merge_with_tickets(revenue_df, tickets_df):
 # ✅ Store Data in SQL Efficiently
 # ✅ Store Data in SQL
 def store_to_db(final_df):
-    """Store results in Azure SQL."""
-    conn = get_secondary_db_connection()
-    cursor = conn.cursor()
-
-    # ✅ Ensure table exists
-    cursor.execute("""
-    IF OBJECT_ID('dbo.ClientMonthlySummary', 'U') IS NULL
-    CREATE TABLE dbo.ClientMonthlySummary (
-        id INT IDENTITY(1,1) PRIMARY KEY,
-        ClientID INT NOT NULL,
-        ClientName NVARCHAR(255) NOT NULL,
-        ContractID INT NOT NULL,
-        ContractName NVARCHAR(255) NOT NULL,
-        ServiceID INT NOT NULL,
-        ServiceName NVARCHAR(255) NOT NULL,
-        RevenueMonth DATE NOT NULL,
-        MonthlyRevenue DECIMAL(18,2) NOT NULL,
-        TicketsCreated INT NOT NULL,
-        LastUpdated DATETIME DEFAULT GETDATE()
-    );
-    """)
-
-    # ✅ Convert NumPy data types to native Python types
-    final_df = final_df.astype({
-        "ClientID": "int",
-        "ContractID": "int",
-        "ServiceID": "int",
-        "RevenueMonth": "string",  # Convert DATE to string for PyODBC
-        "MonthlyRevenue": "float",
-        "TicketsCreated": "int"
-    })
-
-    # ✅ Convert DataFrame rows to list of tuples (Python native types)
-    values = [
-        (
-            int(row.ClientID),
-            str(row.ClientName),
-            int(row.ContractID),
-            str(row.ContractName),
-            int(row.ServiceID),
-            str(row.ServiceName),
-            str(row.RevenueMonth),  # Convert date to string format YYYY-MM-DD
-            float(row.MonthlyRevenue),
-            int(row.TicketsCreated)
-        )
-        for _, row in final_df.iterrows()
-    ]
-
-    # ✅ Batch Insert (Fix for PyODBC's NumPy issue)
-    insert_query = """
-    MERGE INTO dbo.ClientMonthlySummary AS target
-    USING (SELECT ? AS ClientID, ? AS ClientName, ? AS ContractID, ? AS ContractName, 
-                  ? AS ServiceID, ? AS ServiceName, ? AS RevenueMonth, ? AS MonthlyRevenue, ? AS TicketsCreated) AS source
-    ON target.ClientID = source.ClientID AND target.ContractID = source.ContractID AND target.RevenueMonth = source.RevenueMonth
-    WHEN MATCHED THEN
-        UPDATE SET MonthlyRevenue = source.MonthlyRevenue, TicketsCreated = source.TicketsCreated, LastUpdated = GETDATE()
-    WHEN NOT MATCHED THEN 
-        INSERT (ClientID, ClientName, ContractID, ContractName, ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, TicketsCreated)
-        VALUES (source.ClientID, source.ClientName, source.ContractID, source.ContractName, source.ServiceID, source.ServiceName, source.RevenueMonth, source.MonthlyRevenue, source.TicketsCreated);
-    """
-
-    # ✅ Execute batch insert/update
-    cursor.executemany(insert_query, values)
-    conn.commit()
-
-    cursor.close()
-    conn.close()
-    logger.info(f"✅ Data updated successfully at {datetime.now()}")
+    """Efficiently stores results in Azure SQL."""
+    session = SessionLocal()
+    try:
+        insert_query = text("""
+            MERGE INTO dbo.ClientMonthlySummary AS target
+            USING (VALUES (:ClientID, :ClientName, :ContractID, :ContractName, 
+                           :ServiceID, :ServiceName, :RevenueMonth, :MonthlyRevenue, :TicketsCreated))
+            AS source (ClientID, ClientName, ContractID, ContractName, 
+                       ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, TicketsCreated)
+            ON target.ClientID = source.ClientID AND target.ContractID = source.ContractID AND target.RevenueMonth = source.RevenueMonth
+            WHEN MATCHED THEN
+                UPDATE SET MonthlyRevenue = source.MonthlyRevenue, TicketsCreated = source.TicketsCreated, LastUpdated = GETDATE()
+            WHEN NOT MATCHED THEN 
+                INSERT (ClientID, ClientName, ContractID, ContractName, ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, TicketsCreated)
+                VALUES (source.ClientID, source.ClientName, source.ContractID, source.ContractName, source.ServiceID, source.ServiceName, source.RevenueMonth, source.MonthlyRevenue, source.TicketsCreated);
+        """)
+        session.execute(insert_query, final_df.to_dict(orient='records'))
+        session.commit()
+        logging.info("✅ Data updated successfully.")
+    except Exception as e:
+        session.rollback()
+        logging.error(f"❌ Error inserting data: {e}")
+    finally:
+        session.close()
 
 
 # ✅ Pipeline Runner (Runs Every 30 Mins)
 def run_pipeline():
     while True:
-        logger.info("🚀 Fetching Data...")
+        logging.info("🚀 Fetching Data...")
         contracts_df, tickets_df = fetch_data()
+        if contracts_df.empty or tickets_df.empty:
+            logging.warning("⚠️ Skipping iteration due to missing data.")
+            time.sleep(1800)
+            continue
 
-        logger.info("💰 Calculating Monthly Revenue...")
+        logging.info("💰 Calculating Monthly Revenue...")
         revenue_df = calculate_monthly_revenue(contracts_df)
 
-        logger.info("📊 Merging with Ticket Data...")
+        logging.info("📊 Merging with Ticket Data...")
         final_df = merge_with_tickets(revenue_df, tickets_df)
 
-        logger.info("💾 Storing Data in Database...")
+        logging.info("💾 Storing Data in Database...")
         store_to_db(final_df)
 
-        logger.info("⏳ Sleeping for 30 minutes before next update...")
-        time.sleep(1800)  # Sleep for 30 minutes (1800 seconds)
+        logging.info("⏳ Sleeping for 30 minutes before next update...")
+        time.sleep(1800)
 
 # ✅ Run Pipeline in Background
 def start_background_update():
-    """Run revenue update in a separate thread."""
     thread = Thread(target=run_pipeline, daemon=True)
     thread.start()
