@@ -334,7 +334,7 @@ async def handle_command(request: Request):
                     "text": f"**Answer:**\n\n{response_text}",
                     "wrap": True,
                     "spacing": "Small"
-                },
+                }
             ]
 
             # Final Adaptive Card
@@ -343,7 +343,6 @@ async def handle_command(request: Request):
                 "version": "1.2",
                 "body": body
             }
-
             # Send Adaptive Card response to Teams
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
 
