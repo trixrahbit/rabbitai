@@ -134,25 +134,38 @@ def fetch_data():
     JOIN dbo.Clients cl ON c.companyID = cl.id
     JOIN dbo.Contract_Services cs ON c.id = cs.contractID
     JOIN dbo.ContractUnits cu ON cs.id = cu.serviceID
-    WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE())
+    WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE());
     """
 
     tickets_query = """
-    SELECT t.contractID, t.companyID AS ClientID, 
-           YEAR(t.createDate) AS TicketYear, MONTH(t.createDate) AS TicketMonth, COUNT(t.id) AS TicketCount
-    FROM dbo.tickets t
-    WHERE t.createDate >= DATEADD(YEAR, -2, GETDATE())  
-    GROUP BY t.contractID, t.companyID, YEAR(t.createDate), MONTH(t.createDate)
+    WITH TicketContractMapping AS (
+        SELECT 
+            t.id AS TicketID, 
+            t.companyID AS ClientID, 
+            ISNULL(t.contractID, c.id) AS ContractID,  -- ✅ Assign contract if missing
+            YEAR(t.createDate) AS TicketYear, 
+            MONTH(t.createDate) AS TicketMonth
+        FROM dbo.tickets t
+        LEFT JOIN dbo.Contracts c
+            ON t.companyID = c.companyID
+            AND t.createDate BETWEEN c.startDate AND c.endDate
+    )
+    SELECT ContractID, ClientID, TicketYear, TicketMonth, COUNT(TicketID) AS TicketCount
+    FROM TicketContractMapping
+    GROUP BY ContractID, ClientID, TicketYear, TicketMonth;
     """
 
     contracts_df = pd.read_sql(contracts_query, conn)
     tickets_df = pd.read_sql(tickets_query, conn)
+
     conn.close()
 
-    logger.info(f"📊 Contracts Fetched: {contracts_df.shape}")
-    logger.info(f"📊 Tickets Fetched: {tickets_df.shape}")
+    # Debugging: Check column names
+    logging.info(f"🔍 Contracts Columns: {contracts_df.columns}")
+    logging.info(f"🔍 Tickets Columns: {tickets_df.columns}")
 
     return contracts_df, tickets_df
+
 
 # ✅ Calculate Monthly Revenue
 def calculate_monthly_revenue(contracts_df):
