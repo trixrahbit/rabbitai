@@ -495,6 +495,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
     conn = get_secondary_db_connection()
 
     logging.info(f"🔍 Connection Type: {type(conn)}")  # ✅ Debug Connection Type
+    logging.info(f"📦 Received {len(input_data)} contracts to process.")
 
     try:
         for contract in input_data:
@@ -640,10 +641,14 @@ async def process_contracts_in_background(input_data: List[Dict]):
                 "timeReportingRequiresStartAndStopTimes": contract.get("timeReportingRequiresStartAndStopTimes", False)
             }
 
-            conn.execute(query, values)  # ✅ Fixed: Use SQLAlchemy `text` object
+            logging.info(f"📝 Executing query for Contract ID {contract.get('id')}...")
+            conn.execute(query, values)
             conn.commit()
 
         logging.info(f"✅ Successfully processed {len(input_data)} contracts.")
+
+    except Exception as e:
+        logging.critical(f"🔥 Critical Error: {e}", exc_info=True)
 
     finally:
         conn.close()
