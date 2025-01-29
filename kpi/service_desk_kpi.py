@@ -55,19 +55,15 @@ def calculate_support_calls(session):
 def calculate_avg_response_time(session):
     query = text("""
     SELECT 
-        AVG(CAST(DATEDIFF(SECOND, createDate, firstResponseDateTime) AS FLOAT)) AS avg_response_time_seconds
+        AVG(CAST(DATEDIFF(MINUTE, createDate, firstResponseDateTime) AS FLOAT)) AS avg_response_time_minutes
     FROM tickets
     WHERE firstResponseDateTime IS NOT NULL
     AND queueID IN :queue_ids;
-    """).bindparams(bindparam("queue_ids", expanding=True))  # ✅ Expands multiple values
+    """).bindparams(bindparam("queue_ids", expanding=True))
 
     result = session.execute(query, {"queue_ids": QUEUE_IDS}).fetchone()
 
-    if result and result[0] is not None:
-        avg_seconds = result[0]
-        avg_response_time = f"{int(avg_seconds // 3600):02}:{int((avg_seconds % 3600) // 60):02}"  # Convert to HH:MM format
-    else:
-        avg_response_time = "00:00"
+    avg_response_time = int(result[0]) if result and result[0] is not None else 0  # ✅ Store minutes as an integer
 
     kpi_insert(session, "Avg Response Time", "Service Desk", "Team", avg_response_time)
 
@@ -75,18 +71,14 @@ def calculate_avg_response_time(session):
 def calculate_avg_resolution_time(session):
     query = text("""
     SELECT 
-        AVG(CAST(DATEDIFF(SECOND, createDate, resolvedDateTime) AS FLOAT)) AS avg_resolution_time_seconds
+        AVG(CAST(DATEDIFF(MINUTE, createDate, resolvedDateTime) AS FLOAT)) AS avg_resolution_time_minutes
     FROM tickets
     WHERE resolvedDateTime IS NOT NULL
     AND queueID IN :queue_ids;
-    """).bindparams(bindparam("queue_ids", expanding=True))  # ✅ Expands multiple values
+    """).bindparams(bindparam("queue_ids", expanding=True))
 
     result = session.execute(query, {"queue_ids": QUEUE_IDS}).fetchone()
 
-    if result and result[0] is not None:
-        avg_seconds = result[0]
-        avg_resolution_time = f"{int(avg_seconds // 3600):02}:{int((avg_seconds % 3600) // 60):02}"  # Convert to HH:MM format
-    else:
-        avg_resolution_time = "00:00"
+    avg_resolution_time = int(result[0]) if result and result[0] is not None else 0  # ✅ Store minutes as an integer
 
     kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
