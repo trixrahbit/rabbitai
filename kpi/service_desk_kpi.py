@@ -59,9 +59,9 @@ def calculate_avg_response_time(session):
     FROM tickets
     WHERE firstResponseDateTime IS NOT NULL
     AND queueID IN :queue_ids;
-    """)
+    """).bindparams(queue_ids=QUEUE_IDS)  # ✅ Correct binding of multiple values
 
-    result = session.execute(query, {"queue_ids": tuple(QUEUE_IDS)}).fetchone()
+    result = session.execute(query).fetchone()
 
     if result and result[0] is not None:
         avg_seconds = result[0]
@@ -79,9 +79,9 @@ def calculate_avg_resolution_time(session):
     FROM tickets
     WHERE resolvedDateTime IS NOT NULL
     AND queueID IN :queue_ids;
-    """)
+    """).bindparams(queue_ids=QUEUE_IDS)  # ✅ Correct binding of multiple values
 
-    result = session.execute(query, {"queue_ids": tuple(QUEUE_IDS)}).fetchone()
+    result = session.execute(query).fetchone()
 
     if result and result[0] is not None:
         avg_seconds = result[0]
