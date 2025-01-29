@@ -2,6 +2,7 @@ from sqlalchemy import text
 
 from services.kpi_tasks import kpi_insert
 
+QUEUE_IDS = [8, 29683537, 29683539, 29683540, 29683555]
 
 def calculate_sla_met(session):
     query = text("""
@@ -50,30 +51,42 @@ def calculate_support_calls(session):
     result = session.execute(query).fetchone()
 
     kpi_insert(session, "# of Support Calls", "Service Desk", "Team", result)
+
 def calculate_avg_response_time(session):
     query = text("""
-    SELECT AVG(DATEDIFF(MINUTE, createDate, firstResponseDateTime)) AS avg_response_time
+    SELECT 
+        AVG(CAST(DATEDIFF(SECOND, createDate, firstResponseDateTime) AS FLOAT)) AS avg_response_time_seconds
     FROM tickets
-    WHERE firstResponseDateTime IS NOT NULL;
+    WHERE firstResponseDateTime IS NOT NULL
+    AND queueID IN :queue_ids;
     """)
-    result = session.execute(query).fetchone()
 
-    avg_response_time = result[0] if result and result[0] is not None else 0
+    result = session.execute(query, {"queue_ids": tuple(QUEUE_IDS)}).fetchone()
 
-    kpi_insert(session, "Avg Response Time", "Service Desk", "Team", avg_response_time)  # ✅ Pass scalar
+    if result and result[0] is not None:
+        avg_seconds = result[0]
+        avg_response_time = f"{int(avg_seconds // 3600):02}:{int((avg_seconds % 3600) // 60):02}"  # Convert to HH:MM format
+    else:
+        avg_response_time = "00:00"
+
+    kpi_insert(session, "Avg Response Time", "Service Desk", "Team", avg_response_time)
 
 
 def calculate_avg_resolution_time(session):
     query = text("""
-    SELECT AVG(DATEDIFF(HOUR, createDate, resolvedDateTime)) AS avg_resolution_time
+    SELECT 
+        AVG(CAST(DATEDIFF(SECOND, createDate, resolvedDateTime) AS FLOAT)) AS avg_resolution_time_seconds
     FROM tickets
-    WHERE resolvedDateTime IS NOT NULL;
+    WHERE resolvedDateTime IS NOT NULL
+    AND queueID IN :queue_ids;
     """)
-    result = session.execute(query).fetchone()
+
+    result = session.execute(query, {"queue_ids": tuple(QUEUE_IDS)}).fetchone()
 
     if result and result[0] is not None:
-        avg_resolution_time = result[0]  # ✅ Extract scalar value
+        avg_seconds = result[0]
+        avg_resolution_time = f"{int(avg_seconds // 3600):02}:{int((avg_seconds % 3600) // 60):02}"  # Convert to HH:MM format
     else:
-        avg_resolution_time = 0  # ✅ Default to 0 if no value
+        avg_resolution_time = "00:00"
 
     kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
