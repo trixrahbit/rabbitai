@@ -1,4 +1,4 @@
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 
 from services.kpi_tasks import kpi_insert
 
