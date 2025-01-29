@@ -288,6 +288,17 @@ def merge_with_tickets(revenue_df, tickets_df):
 def store_to_db(final_df):
     """Efficiently stores results in Azure SQL using SQLAlchemy."""
     session = get_secondary_db_connection()
+
+    # ✅ Ensure `ClientName` and other critical fields have default values
+    final_df.fillna({
+        "ClientName": "Unknown Client",
+        "ContractName": "Unknown Contract",
+        "ServiceName": "Unknown Service",
+        "MonthlyRevenue": 0,
+        "MonthlyCost": 0,
+        "TicketsCreated": 0
+    }, inplace=True)
+
     try:
         insert_query = text("""
             MERGE INTO dbo.ClientMonthlySummary AS target
@@ -315,6 +326,7 @@ def store_to_db(final_df):
         logger.error(f"❌ Error inserting data: {e}")
     finally:
         session.close()
+
 
 
 # ✅ Pipeline Runner (Runs Every 30 Mins)
