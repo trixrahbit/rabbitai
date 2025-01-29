@@ -494,19 +494,24 @@ async def process_contracts_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract data into the database."""
     conn = get_secondary_db_connection()
 
-    logging.info(f"🔍 Connection Type: {type(conn)}")  # ✅ Debug Connection Type
+    logging.info(f"🔍 Connection Type: {type(conn)}")
     logging.info(f"📦 Received {len(input_data)} contracts to process.")
+    if not input_data:
+        logging.warning("⚠️ No contract data received. Exiting function.")
+        conn.close()
+        return
+
+    logging.info(f"📦 First contract data sample: {input_data[:2]}")  # ✅ Log sample contracts
 
     try:
         for contract in input_data:
-            logging.info(f"🔄 Processing contract ID: {contract.get('id')}")
+            contract_id = contract.get("id")
+            logging.info(f"🔄 Processing contract ID: {contract_id}")
 
-            # Convert date fields
             start_dt = parse_date(contract.get("startDate"))
             end_dt = parse_date(contract.get("endDate"))
             last_modified_dt = parse_date(contract.get("lastModifiedDateTime")) or datetime.utcnow()
 
-            # ✅ Use named placeholders instead of `?`
             query = text("""
             MERGE INTO dbo.Contracts AS target
             USING (SELECT
@@ -545,7 +550,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
                 :internalCurrencyOverageBillingRate AS internalCurrencyOverageBillingRate,
                 :timeReportingRequiresStartAndStopTimes AS timeReportingRequiresStartAndStopTimes
             ) AS source
-            ON target.contractName = source.contractName AND target.companyID = source.companyID  -- Match based on unique fields
+            ON target.contractName = source.contractName AND target.companyID = source.companyID  
 
             WHEN MATCHED THEN
                 UPDATE SET
@@ -625,29 +630,18 @@ async def process_contracts_in_background(input_data: List[Dict]):
                 "billingPreference": contract.get("billingPreference", ""),
                 "isDefaultContract": contract.get("isDefaultContract", False),
                 "renewedContractID": contract.get("renewedContractID", None),
-                "contractPeriodType": contract.get("contractPeriodType", ""),
-                "overageBillingRate": contract.get("overageBillingRate", 0),
-                "exclusionContractID": contract.get("exclusionContractID", None),
-                "purchaseOrderNumber": contract.get("purchaseOrderNumber", ""),
-                "lastModifiedDateTime": last_modified_dt,
-                "setupFeeBillingCodeID": contract.get("setupFeeBillingCodeID", None),
-                "billToCompanyContactID": contract.get("billToCompanyContactID", None),
-                "contractExclusionSetID": contract.get("contractExclusionSetID", None),
-                "serviceLevelAgreementID": contract.get("serviceLevelAgreementID", None),
-                "internalCurrencySetupFee": contract.get("internalCurrencySetupFee", 0),
-                "organizationalLevelAssociationID": contract.get("organizationalLevelAssociationID", None),
-                "internalCurrencyOverageBillingRate": contract.get("internalCurrencyOverageBillingRate", 0),
-                "timeReportingRequiresStartAndStopTimes": contract.get("timeReportingRequiresStartAndStopTimes", False),
             }
 
-            result = conn.execute(query, values)
-            conn.commit()
-            logging.debug(f"🛠 Query Result: {result.rowcount}")
+            try:
+                result = conn.execute(query, values)
+                conn.commit()
+                logging.info(f"✅ Query executed. Affected rows: {result.rowcount}")
+            except Exception as e:
+                logging.critical(f"🔥 Error executing query: {e}", exc_info=True)
 
     finally:
         conn.close()
         logging.info("🔌 Database connection closed.")
-
 
 
 
