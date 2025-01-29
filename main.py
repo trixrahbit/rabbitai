@@ -349,7 +349,7 @@ async def handle_command(request: Request):
                             "title": "Submit Question",
                             "data": {
                                 "command": "askRabbit",
-                                "question": "${new_question}"
+                                "question": "new_question"
                             }
                         }
                     ]
