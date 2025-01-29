@@ -259,19 +259,20 @@ def calculate_monthly_revenue(contracts_df):
         current_date = start_date
         while current_date <= end_date:
             all_rows.append([
-                row['ClientID'], row['CompanyName'], row['ContractID'], row['ContractName'],
+                row['ClientID'], row['ClientName'], row['ContractID'], row['ContractName'],  # ✅ Fixed CompanyName -> ClientName
                 row['ServiceID'], row['ServiceName'], current_date.strftime("%Y-%m-01"),
                 total_revenue, total_cost
             ])
             current_date += pd.DateOffset(months=1)
 
     revenue_df = pd.DataFrame(all_rows, columns=[
-        "ClientID", "CompanyName", "ContractID", "ContractName", "ServiceID", "ServiceName",
+        "ClientID", "ClientName", "ContractID", "ContractName", "ServiceID", "ServiceName",
         "RevenueMonth", "MonthlyRevenue", "MonthlyCost"
     ])
 
     logger.info(f"💰 Monthly Revenue Calculated: {revenue_df.shape}")
     return revenue_df
+
 
 
 # ✅ Merge Revenue Data with Ticket Counts
