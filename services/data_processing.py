@@ -127,14 +127,78 @@ def count_open_tickets(tickets: List[TicketData]) -> int:
 
 # This section is for getting contracts, units, pricing, ticket counts, aggrevating and saving the results to a db on a timer so its always up to date
 
-# ✅ Fetch Data
-# ✅ Function to Fetch Contracts, Units, and Tickets
-# ✅ Fetch Data from ContractSummary and Tickets
+
+def update_contract_summary():
+    """Ensures the ContractSummary table stays up to date."""
+    session = get_secondary_db_connection()
+    try:
+        merge_query = text("""
+            MERGE INTO dbo.ContractSummary AS target
+            USING (
+                SELECT 
+                    c.id AS ContractID,
+                    c.contractName AS ContractName,
+                    c.companyID AS CompanyID,
+                    cl.companyName AS CompanyName,
+                    cs.id AS ServiceID,
+                    COALESCE(cs.internalDescription, 'Unknown Service') AS ServiceName,
+                    cu.startDate AS StartDate,
+                    cu.endDate AS EndDate,
+                    COALESCE(cu.units, 0) AS Units,
+                    COALESCE(cu.internalCurrencyPrice, 0) AS UnitPrice,
+                    COALESCE(cu.internalCurrencyPrice, 0) AS Cost,
+                    c.billingPreference AS BillingPreference,
+                    (COALESCE(cu.units, 0) * COALESCE(cu.internalCurrencyPrice, 0)) AS TotalRevenue,
+                    (COALESCE(cu.units, 0) * COALESCE(cu.internalCurrencyPrice, 0)) AS TotalCost
+                FROM dbo.Contracts c
+                JOIN dbo.Clients cl ON c.companyID = cl.id
+                JOIN dbo.Contract_Services cs ON c.id = cs.contractID
+                JOIN dbo.ContractUnits cu ON cs.id = cu.serviceID
+                WHERE cs.internalDescription IS NOT NULL
+            ) AS source
+            ON target.ContractID = source.ContractID AND target.ServiceID = source.ServiceID
+            WHEN MATCHED THEN
+                UPDATE SET 
+                    ContractName = source.ContractName,
+                    CompanyID = source.CompanyID,
+                    CompanyName = source.CompanyName,
+                    ServiceName = source.ServiceName,
+                    StartDate = source.StartDate,
+                    EndDate = source.EndDate,
+                    Units = source.Units,
+                    UnitPrice = source.UnitPrice,
+                    Cost = source.Cost,
+                    BillingPreference = source.BillingPreference,
+                    TotalRevenue = source.TotalRevenue,
+                    TotalCost = source.TotalCost,
+                    LastUpdated = GETDATE()
+            WHEN NOT MATCHED THEN
+                INSERT (
+                    ContractID, ContractName, CompanyID, CompanyName, ServiceID, ServiceName, StartDate, EndDate, Units, 
+                    UnitPrice, Cost, BillingPreference, TotalRevenue, TotalCost
+                )
+                VALUES (
+                    source.ContractID, source.ContractName, source.CompanyID, source.CompanyName, source.ServiceID, 
+                    source.ServiceName, source.StartDate, source.EndDate, source.Units, source.UnitPrice, 
+                    source.Cost, source.BillingPreference, source.TotalRevenue, source.TotalCost
+                );
+        """)
+
+        session.execute(merge_query)
+        session.commit()
+        logger.info("✅ ContractSummary table updated successfully.")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"❌ Error updating ContractSummary table: {e}")
+    finally:
+        session.close()
+
+
+# ✅ Fetch Contract Data & Ticket Counts
 def fetch_data():
     """Fetch contract summary data and ticket counts from Azure SQL."""
     conn = get_secondary_db_connection()
 
-    # ✅ Fetch Contract Summary
     contracts_query = """
     SELECT 
         ContractID, ContractName, CompanyID AS ClientID, CompanyName, ServiceID, ServiceName,
@@ -142,7 +206,6 @@ def fetch_data():
     FROM dbo.ContractSummary
     """
 
-    # ✅ Fetch Ticket Counts within Contract StartDate & EndDate
     tickets_query = """
     SELECT 
         t.companyID AS ClientID,
@@ -157,23 +220,18 @@ def fetch_data():
     GROUP BY t.companyID, cu.ContractID, YEAR(t.createDate), MONTH(t.createDate)
     """
 
-    # ✅ Load data into Pandas DataFrames
     contracts_df = pd.read_sql(contracts_query, conn)
     tickets_df = pd.read_sql(tickets_query, conn)
 
-    # ✅ Log column names and data types for debugging
     logger.info(f"🔍 Contracts Columns: {contracts_df.dtypes}")
     logger.info(f"🔍 Tickets Columns: {tickets_df.dtypes}")
 
-    # ✅ Ensure contractID consistency
-    if "ContractID" in tickets_df.columns and "ContractID" in contracts_df.columns:
-        tickets_df["ContractID"] = tickets_df["ContractID"].astype(str)
-        contracts_df["ContractID"] = contracts_df["ContractID"].astype(str)
+    # ✅ Ensure ContractID & ClientID match formats
+    contracts_df["ContractID"] = contracts_df["ContractID"].astype(str)
+    contracts_df["ClientID"] = contracts_df["ClientID"].astype(str)
 
-    # ✅ Ensure ClientID consistency
-    if "ClientID" in tickets_df.columns and "ClientID" in contracts_df.columns:
-        tickets_df["ClientID"] = tickets_df["ClientID"].astype(str)
-        contracts_df["ClientID"] = contracts_df["ClientID"].astype(str)
+    tickets_df["ContractID"] = tickets_df["ContractID"].astype(str)
+    tickets_df["ClientID"] = tickets_df["ClientID"].astype(str)
 
     conn.close()
     return contracts_df, tickets_df
@@ -184,18 +242,15 @@ def calculate_monthly_revenue(contracts_df):
     """Generate monthly revenue per client per contract using ContractSummary data."""
     all_rows = []
 
-    # ✅ Log debug information
     logger.info(f"🔍 Processing {len(contracts_df)} contracts for revenue calculation.")
 
     for _, row in contracts_df.iterrows():
         start_date = pd.to_datetime(row['StartDate'])
         end_date = pd.to_datetime(row['EndDate']) if pd.notnull(row['EndDate']) else pd.Timestamp.now()
 
-        # ✅ Use TotalRevenue & TotalCost instead of recalculating from unitPrice * units
         total_revenue = row['TotalRevenue'] if pd.notnull(row['TotalRevenue']) else 0
         total_cost = row['TotalCost'] if pd.notnull(row['TotalCost']) else 0
 
-        # ✅ Generate revenue per month for contract duration
         current_date = start_date
         while current_date <= end_date:
             all_rows.append([
@@ -203,7 +258,7 @@ def calculate_monthly_revenue(contracts_df):
                 row['ServiceID'], row['ServiceName'], current_date.strftime("%Y-%m-01"),
                 total_revenue, total_cost
             ])
-            current_date += pd.DateOffset(months=1)  # Increment by one month
+            current_date += pd.DateOffset(months=1)
 
     revenue_df = pd.DataFrame(all_rows, columns=[
         "ClientID", "CompanyName", "ContractID", "ContractName", "ServiceID", "ServiceName",
@@ -217,16 +272,10 @@ def calculate_monthly_revenue(contracts_df):
 # ✅ Merge Revenue Data with Ticket Counts
 def merge_with_tickets(revenue_df, tickets_df):
     """Merge ticket counts with revenue data based on contract start and end dates."""
-
-    # ✅ Format Tickets DataFrame
     tickets_df["RevenueMonth"] = tickets_df.apply(lambda x: f"{x['TicketYear']}-{x['TicketMonth']:02d}-01", axis=1)
     tickets_df.drop(columns=["TicketYear", "TicketMonth"], inplace=True)
 
     logger.info(f"🔍 Before Merging: RevenueDF={revenue_df.shape}, TicketsDF={tickets_df.shape}")
-
-    # ✅ Ensure columns exist before merging
-    if "ContractID" not in tickets_df.columns:
-        logger.error("❌ 'ContractID' missing in tickets_df! Possible schema issue.")
 
     final_df = revenue_df.merge(tickets_df, on=["ClientID", "ContractID", "RevenueMonth"], how="left").fillna(0)
     final_df.rename(columns={"TicketCount": "TicketsCreated"}, inplace=True)
@@ -235,7 +284,7 @@ def merge_with_tickets(revenue_df, tickets_df):
     return final_df
 
 
-# ✅ Store Data in SQL Efficiently
+# ✅ Store Data in SQL
 def store_to_db(final_df):
     """Efficiently stores results in Azure SQL using SQLAlchemy."""
     session = get_secondary_db_connection()
@@ -271,8 +320,12 @@ def store_to_db(final_df):
 # ✅ Pipeline Runner (Runs Every 30 Mins)
 def run_pipeline():
     while True:
+        logging.info("🔄 Updating Contract Summary Table...")
+        update_contract_summary()  # ✅ Ensure ContractSummary is up to date before fetching data.
+
         logging.info("🚀 Fetching Data...")
         contracts_df, tickets_df = fetch_data()
+
         if contracts_df.empty or tickets_df.empty:
             logging.warning("⚠️ Skipping iteration due to missing data.")
             time.sleep(1800)
@@ -294,3 +347,4 @@ def run_pipeline():
 def start_background_update():
     thread = Thread(target=run_pipeline, daemon=True)
     thread.start()
+
