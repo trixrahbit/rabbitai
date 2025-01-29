@@ -501,114 +501,121 @@ async def process_contracts_in_background(input_data: List[Dict]):
         for contract in input_data:
             logging.info(f"🔄 Processing contract ID: {contract.get('id')}")
 
+            # Convert date fields
             start_dt = parse_date(contract.get("startDate"))
             end_dt = parse_date(contract.get("endDate"))
             last_modified_dt = parse_date(contract.get("lastModifiedDateTime")) or datetime.utcnow()
 
-            query = text("""  -- ✅ Converted to SQLAlchemy `text` object
-MERGE INTO dbo.Contracts AS target
-USING (SELECT 
-    ? AS contractName,
-    ? AS companyID,
-    ? AS status,
-    ? AS endDate,
-    ? AS setupFee,
-    ? AS contactID,
-    ? AS startDate,
-    ? AS contactName,
-    ? AS description,
-    ? AS isCompliant,
-    ? AS contractType,
-    ? AS estimatedCost,
-    ? AS opportunityID,
-    ? AS contractNumber,
-    ? AS estimatedHours,
-    ? AS billToCompanyID,
-    ? AS contractCategory,
-    ? AS estimatedRevenue,
-    ? AS billingPreference,
-    ? AS isDefaultContract,
-    ? AS renewedContractID,
-    ? AS contractPeriodType,
-    ? AS overageBillingRate,
-    ? AS exclusionContractID,
-    ? AS purchaseOrderNumber,
-    ? AS lastModifiedDateTime,
-    ? AS setupFeeBillingCodeID,
-    ? AS billToCompanyContactID,
-    ? AS contractExclusionSetID,
-    ? AS serviceLevelAgreementID,
-    ? AS internalCurrencySetupFee,
-    ? AS organizationalLevelAssociationID,
-    ? AS internalCurrencyOverageBillingRate,
-    ? AS timeReportingRequiresStartAndStopTimes
-) AS source
-ON target.contractName = source.contractName AND target.companyID = source.companyID  -- Match based on unique fields
-WHEN MATCHED THEN
-    UPDATE SET
-        status = source.status,
-        endDate = source.endDate,
-        setupFee = source.setupFee,
-        contactID = source.contactID,
-        startDate = source.startDate,
-        contactName = source.contactName,
-        description = source.description,
-        isCompliant = source.isCompliant,
-        contractType = source.contractType,
-        estimatedCost = source.estimatedCost,
-        opportunityID = source.opportunityID,
-        contractNumber = source.contractNumber,
-        estimatedHours = source.estimatedHours,
-        billToCompanyID = source.billToCompanyID,
-        contractCategory = source.contractCategory,
-        estimatedRevenue = source.estimatedRevenue,
-        billingPreference = source.billingPreference,
-        isDefaultContract = source.isDefaultContract,
-        renewedContractID = source.renewedContractID,
-        contractPeriodType = source.contractPeriodType,
-        overageBillingRate = source.overageBillingRate,
-        exclusionContractID = source.exclusionContractID,
-        purchaseOrderNumber = source.purchaseOrderNumber,
-        lastModifiedDateTime = source.lastModifiedDateTime,
-        setupFeeBillingCodeID = source.setupFeeBillingCodeID,
-        billToCompanyContactID = source.billToCompanyContactID,
-        contractExclusionSetID = source.contractExclusionSetID,
-        serviceLevelAgreementID = source.serviceLevelAgreementID,
-        internalCurrencySetupFee = source.internalCurrencySetupFee,
-        organizationalLevelAssociationID = source.organizationalLevelAssociationID,
-        internalCurrencyOverageBillingRate = source.internalCurrencyOverageBillingRate,
-        timeReportingRequiresStartAndStopTimes = source.timeReportingRequiresStartAndStopTimes
-WHEN NOT MATCHED THEN
-    INSERT (contractName, companyID, status, endDate, setupFee, contactID, startDate, contactName, description, isCompliant,
-            contractType, estimatedCost, opportunityID, contractNumber, estimatedHours, billToCompanyID, contractCategory, 
-            estimatedRevenue, billingPreference, isDefaultContract, renewedContractID, contractPeriodType, overageBillingRate, 
-            exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID, billToCompanyContactID, 
-            contractExclusionSetID, serviceLevelAgreementID, internalCurrencySetupFee, organizationalLevelAssociationID, 
-            internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes)
-    OUTPUT INSERTED.id, INSERTED.contractName, INSERTED.companyID  -- ✅ Capture the generated ID
-    VALUES (source.contractName, source.companyID, source.status, source.endDate, source.setupFee, source.contactID, source.startDate, 
-            source.contactName, source.description, source.isCompliant, source.contractType, source.estimatedCost, source.opportunityID, 
-            source.contractNumber, source.estimatedHours, source.billToCompanyID, source.contractCategory, source.estimatedRevenue, 
-            source.billingPreference, source.isDefaultContract, source.renewedContractID, source.contractPeriodType, 
-            source.overageBillingRate, source.exclusionContractID, source.purchaseOrderNumber, source.lastModifiedDateTime, 
-            source.setupFeeBillingCodeID, source.billToCompanyContactID, source.contractExclusionSetID, source.serviceLevelAgreementID, 
-            source.internalCurrencySetupFee, source.organizationalLevelAssociationID, source.internalCurrencyOverageBillingRate, 
-            source.timeReportingRequiresStartAndStopTimes);
+            # ✅ Use named placeholders instead of `?`
+            query = text("""
+            MERGE INTO dbo.Contracts AS target
+            USING (SELECT
+                :contractName AS contractName,
+                :companyID AS companyID,
+                :status AS status,
+                :endDate AS endDate,
+                :setupFee AS setupFee,
+                :contactID AS contactID,
+                :startDate AS startDate,
+                :contactName AS contactName,
+                :description AS description,
+                :isCompliant AS isCompliant,
+                :contractType AS contractType,
+                :estimatedCost AS estimatedCost,
+                :opportunityID AS opportunityID,
+                :contractNumber AS contractNumber,
+                :estimatedHours AS estimatedHours,
+                :billToCompanyID AS billToCompanyID,
+                :contractCategory AS contractCategory,
+                :estimatedRevenue AS estimatedRevenue,
+                :billingPreference AS billingPreference,
+                :isDefaultContract AS isDefaultContract,
+                :renewedContractID AS renewedContractID,
+                :contractPeriodType AS contractPeriodType,
+                :overageBillingRate AS overageBillingRate,
+                :exclusionContractID AS exclusionContractID,
+                :purchaseOrderNumber AS purchaseOrderNumber,
+                :lastModifiedDateTime AS lastModifiedDateTime,
+                :setupFeeBillingCodeID AS setupFeeBillingCodeID,
+                :billToCompanyContactID AS billToCompanyContactID,
+                :contractExclusionSetID AS contractExclusionSetID,
+                :serviceLevelAgreementID AS serviceLevelAgreementID,
+                :internalCurrencySetupFee AS internalCurrencySetupFee,
+                :organizationalLevelAssociationID AS organizationalLevelAssociationID,
+                :internalCurrencyOverageBillingRate AS internalCurrencyOverageBillingRate,
+                :timeReportingRequiresStartAndStopTimes AS timeReportingRequiresStartAndStopTimes
+            ) AS source
+            ON target.contractName = source.contractName AND target.companyID = source.companyID  -- Match based on unique fields
 
+            WHEN MATCHED THEN
+                UPDATE SET
+                    status = source.status,
+                    endDate = source.endDate,
+                    setupFee = source.setupFee,
+                    contactID = source.contactID,
+                    startDate = source.startDate,
+                    contactName = source.contactName,
+                    description = source.description,
+                    isCompliant = source.isCompliant,
+                    contractType = source.contractType,
+                    estimatedCost = source.estimatedCost,
+                    opportunityID = source.opportunityID,
+                    contractNumber = source.contractNumber,
+                    estimatedHours = source.estimatedHours,
+                    billToCompanyID = source.billToCompanyID,
+                    contractCategory = source.contractCategory,
+                    estimatedRevenue = source.estimatedRevenue,
+                    billingPreference = source.billingPreference,
+                    isDefaultContract = source.isDefaultContract,
+                    renewedContractID = source.renewedContractID,
+                    contractPeriodType = source.contractPeriodType,
+                    overageBillingRate = source.overageBillingRate,
+                    exclusionContractID = source.exclusionContractID,
+                    purchaseOrderNumber = source.purchaseOrderNumber,
+                    lastModifiedDateTime = source.lastModifiedDateTime,
+                    setupFeeBillingCodeID = source.setupFeeBillingCodeID,
+                    billToCompanyContactID = source.billToCompanyContactID,
+                    contractExclusionSetID = source.contractExclusionSetID,
+                    serviceLevelAgreementID = source.serviceLevelAgreementID,
+                    internalCurrencySetupFee = source.internalCurrencySetupFee,
+                    organizationalLevelAssociationID = source.organizationalLevelAssociationID,
+                    internalCurrencyOverageBillingRate = source.internalCurrencyOverageBillingRate,
+                    timeReportingRequiresStartAndStopTimes = source.timeReportingRequiresStartAndStopTimes
+
+            WHEN NOT MATCHED THEN
+                INSERT (
+                    contractName, companyID, status, endDate, setupFee, contactID, startDate, contactName, description, isCompliant,
+                    contractType, estimatedCost, opportunityID, contractNumber, estimatedHours, billToCompanyID, contractCategory,
+                    estimatedRevenue, billingPreference, isDefaultContract, renewedContractID, contractPeriodType, overageBillingRate,
+                    exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID, billToCompanyContactID,
+                    contractExclusionSetID, serviceLevelAgreementID, internalCurrencySetupFee, organizationalLevelAssociationID,
+                    internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes
+                )
+                VALUES (
+                    source.contractName, source.companyID, source.status, source.endDate, source.setupFee, source.contactID, source.startDate,
+                    source.contactName, source.description, source.isCompliant, source.contractType, source.estimatedCost, source.opportunityID,
+                    source.contractNumber, source.estimatedHours, source.billToCompanyID, source.contractCategory, source.estimatedRevenue,
+                    source.billingPreference, source.isDefaultContract, source.renewedContractID, source.contractPeriodType,
+                    source.overageBillingRate, source.exclusionContractID, source.purchaseOrderNumber, source.lastModifiedDateTime,
+                    source.setupFeeBillingCodeID, source.billToCompanyContactID, source.contractExclusionSetID, source.serviceLevelAgreementID,
+                    source.internalCurrencySetupFee, source.organizationalLevelAssociationID, source.internalCurrencyOverageBillingRate,
+                    source.timeReportingRequiresStartAndStopTimes
+                );
+
+            SELECT SCOPE_IDENTITY() AS new_contract_id;
             """)
 
             values = {
-                "id": contract.get("id", 0),
+                "contractName": contract.get("contractName", ""),
+                "companyID": contract.get("companyID", 0),
                 "status": contract.get("status", ""),
                 "endDate": end_dt,
                 "setupFee": contract.get("setupFee", 0),
-                "companyID": contract.get("companyID", 0),
                 "contactID": contract.get("contactID", 0),
                 "startDate": start_dt,
                 "contactName": contract.get("contactName", ""),
                 "description": contract.get("description", ""),
                 "isCompliant": contract.get("isCompliant", False),
-                "contractName": contract.get("contractName", ""),
                 "contractType": contract.get("contractType", ""),
                 "estimatedCost": contract.get("estimatedCost", 0),
                 "opportunityID": contract.get("opportunityID", None),
@@ -632,17 +639,15 @@ WHEN NOT MATCHED THEN
                 "internalCurrencySetupFee": contract.get("internalCurrencySetupFee", 0),
                 "organizationalLevelAssociationID": contract.get("organizationalLevelAssociationID", None),
                 "internalCurrencyOverageBillingRate": contract.get("internalCurrencyOverageBillingRate", 0),
-                "timeReportingRequiresStartAndStopTimes": contract.get("timeReportingRequiresStartAndStopTimes", False)
+                "timeReportingRequiresStartAndStopTimes": contract.get("timeReportingRequiresStartAndStopTimes", False),
             }
 
             logging.info(f"📝 Executing query for Contract ID {contract.get('id')}...")
-            conn.execute(query, values)
-            conn.commit()
+            result = conn.execute(query, values)
+            new_contract_id = result.scalar()
+            logging.info(f"✅ Inserted new contract with ID: {new_contract_id}")
 
-        logging.info(f"✅ Successfully processed {len(input_data)} contracts.")
-
-    except Exception as e:
-        logging.critical(f"🔥 Critical Error: {e}", exc_info=True)
+        conn.commit()
 
     finally:
         conn.close()
