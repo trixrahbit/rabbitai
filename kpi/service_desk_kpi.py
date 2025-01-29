@@ -43,20 +43,20 @@ def calculate_support_calls(session):
 
     kpi_insert(session, "# of Support Calls", "Service Desk", "Team", result)
 def calculate_avg_response_time(session):
-    query = """
+    query = text("""
     SELECT AVG(DATEDIFF(MINUTE, created_date, first_response_date)) AS avg_response_time
     FROM tickets
     WHERE first_response_date IS NOT NULL;
-    """
+    """)
     result = session.execute(query).fetchone()
 
     kpi_insert(session, "Avg Response Time", "Service Desk", "Team", result)
 def calculate_avg_resolution_time(session):
-    query = """
+    query = text("""
     SELECT AVG(DATEDIFF(HOUR, created_date, resolution_date)) AS avg_resolution_time
     FROM tickets
     WHERE resolution_date IS NOT NULL;
-    """
+    """)
     result = session.execute(query).fetchone()
 
     kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", result)
