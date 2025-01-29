@@ -297,13 +297,6 @@ async def handle_command(request: Request):
                 response_text = " ".join(
                     [item["text"] for item in response_text if isinstance(item, dict) and "text" in item])
 
-            # Debugging logs
-            logging.debug(f"AI Response: {response_text}")
-
-            # Ensure response_text is not empty
-            if not response_text.strip():
-                response_text = "No response received from AI."
-
             # Log the command and response to the database
             try:
                 conn = get_db_connection()
@@ -319,46 +312,51 @@ async def handle_command(request: Request):
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
-            # Construct Adaptive Card to display the response
+            # Properly formatted Adaptive Card
+            body = [
+                {
+                    "type": "TextBlock",
+                    "text": "**Rabbit AI Response**",
+                    "wrap": True,
+                    "weight": "Bolder",
+                    "size": "Medium",
+                    "spacing": "Medium"
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"**Question:** {args}",
+                    "wrap": True,
+                    "weight": "Bolder",
+                    "spacing": "Small"
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"**Answer:**\n\n{response_text}",
+                    "wrap": True,
+                    "spacing": "Small"
+                },
+                {
+                    "type": "ActionSet",
+                    "spacing": "Medium",
+                    "actions": [
+                        {
+                            "type": "Action.Submit",
+                            "title": "Ask Another Question",
+                            "data": {"command": "askRabbit "}
+                        }
+                    ]
+                }
+            ]
+
+            # Final Adaptive Card
             adaptive_card = {
                 "type": "AdaptiveCard",
                 "version": "1.2",
-                "body": [
-                    {
-                        "type": "TextBlock",
-                        "text": "**Rabbit AI Response**",
-                        "wrap": True,
-                        "weight": "Bolder",
-                        "size": "Medium",
-                        "spacing": "Medium"
-                    },
-                    {
-                        "type": "TextBlock",
-                        "text": f"**Question:** {args}",
-                        "wrap": True,
-                        "weight": "Bolder",
-                        "spacing": "Small"
-                    },
-                    {
-                        "type": "TextBlock",
-                        "text": f"**Answer:**\n\n{response_text}",
-                        "wrap": True,
-                        "spacing": "Small"
-                    }
-                ],
-                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json"
+                "body": body
             }
 
-            # Debugging log
-            logging.debug(f"Adaptive Card Payload: {json.dumps(adaptive_card, indent=2)}")
-
             # Send Adaptive Card response to Teams
-            send_status = await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
-
-            if not send_status:
-                logging.error("Failed to send Adaptive Card to Teams.")
-                return JSONResponse(content={"status": "error", "message": "Failed to send response to Teams."},
-                                    status_code=500)
+            await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
 
             return JSONResponse(content={"status": "success", "response": response_text})
 
