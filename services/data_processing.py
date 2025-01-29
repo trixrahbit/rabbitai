@@ -1,22 +1,15 @@
-import logging
 import time
 from threading import Thread
-from typing import List, Dict
-from datetime import datetime, timedelta
 import httpx
 import pandas as pd
-from fastapi import HTTPException
-from config import logger, APP_SECRET, get_secondary_db_connection, secondary_engine
-from models import DeviceData, TicketData
+from config import logger, get_secondary_db_connection, secondary_engine
+from models.models import TicketData
 from datetime import datetime
 from typing import List, Dict
 import logging
-from models import DeviceData
+from models.models import DeviceData
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
-from config import engine
-
-
 
 # Set up a session factory for database interactions
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=secondary_engine)
