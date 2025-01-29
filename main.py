@@ -24,6 +24,8 @@ from services.data_processing import generate_analytics, run_pipeline, start_bac
 from services.pdf_service import generate_pdf_report
 import uuid
 import os
+
+from services.pipelines import start_kpi_background_update
 from ticket_handling.main_ticket_handler import fetch_tickets_from_webhook, assign_ticket_weights, construct_ticket_card
 from fastapi import Body
 
@@ -953,4 +955,4 @@ def update_client_revenue(background_tasks: BackgroundTasks):
 def startup_kpi_event():
     """Start automatic updates when FastAPI starts."""
     logging.info("🚀 FastAPI startup: Initializing KPI update process...")
-    start_background_update()
+    start_kpi_background_update()
