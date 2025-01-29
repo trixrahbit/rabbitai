@@ -1,9 +1,12 @@
 import logging
+import time
+from threading import Thread
 from typing import List, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 import httpx
+import pandas as pd
 from fastapi import HTTPException
-from config import logger, APP_SECRET
+from config import logger, APP_SECRET, get_secondary_db_connection
 from models import DeviceData, TicketData
 from datetime import datetime
 from typing import List, Dict
@@ -114,3 +117,147 @@ async def handle_mytickets(data: str) -> dict:
 
 def count_open_tickets(tickets: List[TicketData]) -> int:
     return sum(1 for ticket in tickets if ticket.status is not None and ticket.status != 5)
+
+
+# This section is for getting contracts, units, pricing, ticket counts, aggrevating and saving the results to a db on a timer so its always up to date
+
+# ✅ Function to Fetch Contracts, Units, and Tickets
+def fetch_data():
+    """Fetch contracts, contract services, contract units, and tickets from Azure SQL."""
+    conn = get_secondary_db_connection()
+    cursor = conn.cursor()
+
+    # ✅ Fetch Contracts & Services & Units
+    contracts_query = """
+    SELECT c.id AS ContractID, c.contractName, c.companyID AS ClientID, cl.companyName AS ClientName,
+           cs.id AS ServiceID, cs.internalDescription AS ServiceName, 
+           cu.unitPrice, cu.units, cu.startDate, cu.endDate
+    FROM dbo.Contracts c
+    JOIN dbo.Clients cl ON c.companyID = cl.id
+    JOIN dbo.Contract_Services cs ON c.id = cs.contractID
+    JOIN dbo.ContractUnits cu ON cs.id = cu.serviceID
+    WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE())  
+    """
+
+    # ✅ Fetch Ticket Counts
+    tickets_query = """
+    SELECT t.contractID, t.companyID AS ClientID, 
+           YEAR(t.createDate) AS TicketYear, MONTH(t.createDate) AS TicketMonth, COUNT(t.id) AS TicketCount
+    FROM dbo.tickets t
+    WHERE t.createDate >= DATEADD(YEAR, -2, GETDATE())  
+    GROUP BY t.contractID, t.companyID, YEAR(t.createDate), MONTH(t.createDate)
+    """
+
+    contracts_df = pd.read_sql(contracts_query, conn)
+    tickets_df = pd.read_sql(tickets_query, conn)
+
+    conn.close()
+    return contracts_df, tickets_df
+
+
+# ✅ Calculate Monthly Revenue
+def calculate_monthly_revenue(contracts_df):
+    """Generate monthly revenue per client per contract."""
+    all_rows = []
+
+    for _, row in contracts_df.iterrows():
+        start_date = pd.to_datetime(row['startDate'])
+        end_date = pd.to_datetime(row['endDate']) if pd.notnull(row['endDate']) else datetime.now()
+
+        # ✅ Generate revenue for each month within contract duration
+        current_date = start_date
+        while current_date <= end_date:
+            revenue = (row['unitPrice'] or 0) * (row['units'] or 1)
+            all_rows.append([
+                row['ClientID'], row['ClientName'], row['ContractID'], row['contractName'], row['ServiceID'],
+                row['ServiceName'], current_date.strftime("%Y-%m-01"), revenue
+            ])
+            current_date += timedelta(days=30)
+
+    revenue_df = pd.DataFrame(all_rows, columns=[
+        "ClientID", "ClientName", "ContractID", "ContractName", "ServiceID", "ServiceName", "RevenueMonth",
+        "MonthlyRevenue"
+    ])
+    return revenue_df
+
+
+# ✅ Merge with Ticket Counts
+def merge_with_tickets(revenue_df, tickets_df):
+    """Merge ticket counts with revenue data."""
+    tickets_df["RevenueMonth"] = tickets_df.apply(lambda x: f"{x['TicketYear']}-{x['TicketMonth']:02d}-01", axis=1)
+    tickets_df.drop(columns=["TicketYear", "TicketMonth"], inplace=True)
+
+    final_df = revenue_df.merge(tickets_df, on=["ClientID", "ContractID", "RevenueMonth"], how="left").fillna(0)
+    final_df.rename(columns={"TicketCount": "TicketsCreated"}, inplace=True)
+    return final_df
+
+
+# ✅ Store Data in SQL
+def store_to_db(final_df):
+    """Store results in Azure SQL."""
+    conn = get_secondary_db_connection()
+    cursor = conn.cursor()
+
+    # ✅ Create Table If Not Exists
+    cursor.execute("""
+    IF OBJECT_ID('dbo.ClientMonthlySummary', 'U') IS NULL
+    CREATE TABLE dbo.ClientMonthlySummary (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        ClientID INT NOT NULL,
+        ClientName NVARCHAR(255) NOT NULL,
+        ContractID INT NOT NULL,
+        ContractName NVARCHAR(255) NOT NULL,
+        ServiceID INT NOT NULL,
+        ServiceName NVARCHAR(255) NOT NULL,
+        RevenueMonth DATE NOT NULL,
+        MonthlyRevenue DECIMAL(18,2) NOT NULL,
+        TicketsCreated INT NOT NULL,
+        LastUpdated DATETIME DEFAULT GETDATE()
+    );
+    """)
+
+    # ✅ Insert/Update Data
+    for _, row in final_df.iterrows():
+        cursor.execute("""
+        MERGE INTO dbo.ClientMonthlySummary AS target
+        USING (SELECT ? AS ClientID, ? AS ClientName, ? AS ContractID, ? AS ContractName, 
+                      ? AS ServiceID, ? AS ServiceName, ? AS RevenueMonth, ? AS MonthlyRevenue, ? AS TicketsCreated) AS source
+        ON target.ClientID = source.ClientID AND target.ContractID = source.ContractID AND target.RevenueMonth = source.RevenueMonth
+        WHEN MATCHED THEN
+            UPDATE SET MonthlyRevenue = source.MonthlyRevenue, TicketsCreated = source.TicketsCreated, LastUpdated = GETDATE()
+        WHEN NOT MATCHED THEN 
+            INSERT (ClientID, ClientName, ContractID, ContractName, ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, TicketsCreated)
+            VALUES (source.ClientID, source.ClientName, source.ContractID, source.ContractName, source.ServiceID, source.ServiceName, source.RevenueMonth, source.MonthlyRevenue, source.TicketsCreated);
+        """, (row.ClientID, row.ClientName, row.ContractID, row.ContractName, row.ServiceID, row.ServiceName,
+              row.RevenueMonth, row.MonthlyRevenue, row.TicketsCreated))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    logger.info(f"✅ Data updated successfully at {datetime.now()}")
+
+
+# ✅ Pipeline Runner
+def run_pipeline():
+    while True:
+        logger.info("🚀 Fetching Data...")
+        contracts_df, tickets_df = fetch_data()
+
+        logger.info("💰 Calculating Monthly Revenue...")
+        revenue_df = calculate_monthly_revenue(contracts_df)
+
+        logger.info("📊 Merging with Ticket Data...")
+        final_df = merge_with_tickets(revenue_df, tickets_df)
+
+        logger.info("💾 Storing Data in Database...")
+        store_to_db(final_df)
+
+        logger.info("⏳ Sleeping for 30 minutes before next update...")
+        time.sleep(1800)  # Sleep for 30 minutes (1800 seconds)
+
+
+# ✅ Run Pipeline in Background
+def start_background_update():
+    """Run revenue update in a separate thread."""
+    thread = Thread(target=run_pipeline, daemon=True)
+    thread.start()

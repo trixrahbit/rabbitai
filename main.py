@@ -19,7 +19,7 @@ import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from services.ai_processing import generate_recommendations, handle_sendtoai
 from services.bot_actions import send_message_to_teams
-from services.data_processing import generate_analytics
+from services.data_processing import generate_analytics, run_pipeline, start_background_update
 from services.pdf_service import generate_pdf_report
 import uuid
 import os
@@ -946,3 +946,15 @@ async def process_time_entries(input_data: List[Dict] = Body(...), background_ta
 
     return {"message": "✅ Received successfully. Processing in background."}
 
+@app.get("/update-client-revenue/")
+def update_client_revenue(background_tasks: BackgroundTasks):
+    """Trigger revenue update process in background."""
+    logging.info("🔄 Manual trigger: Starting revenue update process...")
+    background_tasks.add_task(run_pipeline)
+    return {"message": "✅ Client revenue update scheduled!"}
+
+@app.on_event("startup")
+def startup_event():
+    """Start automatic updates when FastAPI starts."""
+    logging.info("🚀 FastAPI startup: Initializing revenue update process...")
+    start_background_update()
