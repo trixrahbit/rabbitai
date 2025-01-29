@@ -578,18 +578,17 @@ async def process_contracts_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract data into the database."""
     conn = get_secondary_db_connection()
     cursor = conn.cursor()
+    logging.info("🔌 Database connection established successfully.")
 
     try:
         for contract in input_data:
-            start_dt = parse_date(contract.get("startDate"))
-            end_dt = parse_date(contract.get("endDate"))
-            last_modified_dt = parse_date(contract.get("lastModifiedDateTime"))
+            logging.info(f"📌 Processing contract: {contract.get('id')} - {contract.get('contractName')}")
 
-            if last_modified_dt is None:
-                last_modified_dt = datetime.utcnow()
+            start_dt = parse_date(contract.get("startDate")) if contract.get("startDate") else None
+            end_dt = parse_date(contract.get("endDate")) if contract.get("endDate") else None
+            last_modified_dt = parse_date(contract.get("lastModifiedDateTime")) if contract.get("lastModifiedDateTime") else datetime.utcnow()
 
-            try:
-                query = """
+            query = """
 MERGE INTO dbo.Contracts AS target
 USING (SELECT 
     ? AS id,
@@ -712,61 +711,36 @@ INSERT (
     organizationalLevelAssociationID, internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes
 )
 VALUES (
-    source.id, source.status, source.endDate, source.setupFee, source.companyID, source.contactID, source.startDate, 
-    source.contactName, source.description, source.isCompliant, source.contractName, source.contractType, 
-    source.estimatedCost, source.opportunityID, source.contractNumber, source.estimatedHours, source.billToCompanyID,
-    source.contractCategory, source.estimatedRevenue, source.billingPreference, source.isDefaultContract, 
-    source.renewedContractID, source.contractPeriodType, source.overageBillingRate, source.exclusionContractID, 
-    source.purchaseOrderNumber, source.lastModifiedDateTime, source.setupFeeBillingCodeID, 
-    source.billToCompanyContactID, source.contractExclusionSetID, source.serviceLevelAgreementID, 
-    source.internalCurrencySetupFee, source.organizationalLevelAssociationID, 
-    source.internalCurrencyOverageBillingRate, source.timeReportingRequiresStartAndStopTimes
+    ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
 );
-                """
+"""
 
-                values = (
-                    contract.get("id", 0),
-                    contract.get("status", ""),
-                    end_dt,
-                    contract.get("setupFee", 0),
-                    contract.get("companyID", 0),
-                    contract.get("contactID", 0),
-                    start_dt,
-                    contract.get("contactName", ""),
-                    contract.get("description", ""),
-                    contract.get("isCompliant", False),
-                    contract.get("contractName", ""),
-                    contract.get("contractType", ""),
-                    contract.get("estimatedCost", 0),
-                    contract.get("opportunityID", None),
-                    contract.get("contractNumber", ""),
-                    contract.get("estimatedHours", 0),
-                    contract.get("billToCompanyID", 0),
-                    contract.get("contractCategory", ""),
-                    contract.get("estimatedRevenue", 0),
-                    contract.get("billingPreference", ""),
-                    contract.get("isDefaultContract", False),
-                    contract.get("renewedContractID", None),
-                    contract.get("contractPeriodType", ""),
-                    contract.get("overageBillingRate", 0),
-                    contract.get("exclusionContractID", None),
-                    contract.get("purchaseOrderNumber", ""),
-                    last_modified_dt,
-                    contract.get("setupFeeBillingCodeID", None),
-                    contract.get("billToCompanyContactID", None),
-                    contract.get("contractExclusionSetID", None),
-                    contract.get("serviceLevelAgreementID", None),
-                    contract.get("internalCurrencySetupFee", 0),
-                    contract.get("organizationalLevelAssociationID", None),
-                    contract.get("internalCurrencyOverageBillingRate", 0),
-                    contract.get("timeReportingRequiresStartAndStopTimes", False)
-                )
+            values = (
+                contract.get("id", 0),
+                contract.get("status", ""),
+                end_dt,
+                contract.get("setupFee", 0),
+                contract.get("companyID", 0),
+                contract.get("contactID", 0),
+                start_dt,
+                contract.get("contactName", ""),
+                contract.get("description", ""),
+                contract.get("isCompliant", False),
+                contract.get("contractName", ""),
+                contract.get("contractType", ""),
+                contract.get("estimatedCost", 0),
+                contract.get("opportunityID", None),
+                contract.get("contractNumber", ""),
+                contract.get("estimatedHours", 0),
+                contract.get("billToCompanyID", 0),
+                contract.get("contractCategory", ""),
+                contract.get("estimatedRevenue", 0),
+                contract.get("billingPreference", ""),
+                contract.get("isDefaultContract", False)
+            )
 
-                cursor.execute(query, values)
-
-            except pyodbc.Error as e:
-                logging.error(f"🚨 MERGE failed for Contract ID {contract.get('id')}: {e}", exc_info=True)
-                continue
+            cursor.execute(query, values)
+            logging.info(f"✅ Contract {contract.get('id')} processed successfully.")
 
         conn.commit()
         logging.info(f"✅ Successfully processed {len(input_data)} contracts.")
