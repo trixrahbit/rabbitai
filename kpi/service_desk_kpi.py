@@ -6,7 +6,7 @@ from services.kpi_tasks import kpi_insert
 def calculate_sla_met(session):
     query = text("""
     SELECT COUNT(*) AS total_tickets,
-           SUM(CASE WHEN sla_met = 1 THEN 1 ELSE 0 END) AS sla_met_count
+           SUM(CASE WHEN serviceLevelAgreementHasBeenMet = 1 THEN 1 ELSE 0 END) AS sla_met_count
     FROM tickets
     """)
     result = session.execute(query).fetchone()
