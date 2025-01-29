@@ -515,6 +515,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
             query = text("""
             MERGE INTO dbo.Contracts AS target
             USING (SELECT
+                :id AS id,
                 :contractName AS contractName,
                 :companyID AS companyID,
                 :status AS status,
@@ -554,6 +555,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
 
             WHEN MATCHED THEN
                 UPDATE SET
+                    id = source.id,
                     status = source.status,
                     endDate = source.endDate,
                     setupFee = source.setupFee,
@@ -589,7 +591,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
 
             WHEN NOT MATCHED THEN
                 INSERT (
-                    contractName, companyID, status, endDate, setupFee, contactID, startDate, contactName, description, isCompliant,
+                    id, contractName, companyID, status, endDate, setupFee, contactID, startDate, contactName, description, isCompliant,
                     contractType, estimatedCost, opportunityID, contractNumber, estimatedHours, billToCompanyID, contractCategory,
                     estimatedRevenue, billingPreference, isDefaultContract, renewedContractID, contractPeriodType, overageBillingRate,
                     exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID, billToCompanyContactID,
@@ -597,7 +599,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
                     internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes
                 )
                 VALUES (
-                    source.contractName, source.companyID, source.status, source.endDate, source.setupFee, source.contactID, source.startDate,
+                    source.id, source.contractName, source.companyID, source.status, source.endDate, source.setupFee, source.contactID, source.startDate,
                     source.contactName, source.description, source.isCompliant, source.contractType, source.estimatedCost, source.opportunityID,
                     source.contractNumber, source.estimatedHours, source.billToCompanyID, source.contractCategory, source.estimatedRevenue,
                     source.billingPreference, source.isDefaultContract, source.renewedContractID, source.contractPeriodType,
@@ -609,6 +611,7 @@ async def process_contracts_in_background(input_data: List[Dict]):
             """)
 
             values = {
+                "id": contract_id,
                 "contractName": contract.get("contractName", ""),
                 "companyID": contract.get("companyID", 0),
                 "status": contract.get("status", ""),
