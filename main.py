@@ -312,7 +312,7 @@ async def handle_command(request: Request):
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
-            # Properly formatted Adaptive Card with an input field
+            # Properly formatted Adaptive Card without input field and submit button
             body = [
                 {
                     "type": "TextBlock",
@@ -343,6 +343,7 @@ async def handle_command(request: Request):
                 "version": "1.2",
                 "body": body
             }
+
             # Send Adaptive Card response to Teams
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
 
