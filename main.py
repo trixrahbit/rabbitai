@@ -640,7 +640,8 @@ async def process_contracts_in_background(input_data: List[Dict]):
             )
 
             logging.info(f"📝 Executing query for Contract ID {contract.get('id')}")
-            conn.execute(query, values)  # ✅ Fix applied here
+            conn.execute(query, (values,))
+
 
         conn.commit()
         logging.info(f"✅ Successfully processed {len(input_data)} contracts.")
