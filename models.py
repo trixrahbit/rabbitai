@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     DB_SECONDARY_USER: str
     DB_SECONDARY_PASSWORD: str
-
+    DB_SERVER: str
+    DB_NAME: str
+    DB_SECONDARY_NAME: str
     class Config:
         env_file = ".env"
 
