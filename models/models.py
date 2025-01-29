@@ -33,14 +33,50 @@ class UserDefinedField(BaseModel):
 
 class TicketData(BaseModel):
     id: int
+    ticketNumber: str
     title: str
-    status: int  # Assuming status is represented by integers (e.g., 5 for closed, other values for open)
-    priority: int
     description: Optional[str] = None
-    createDate: str
-    completedDate: Optional[str] = None
-    userDefinedFields: Optional[List[UserDefinedField]] = None
-
+    companyID: int
+    contactID: Optional[int] = None
+    contractID: Optional[int] = None
+    assignedResourceID: Optional[int] = None
+    queueID: Optional[int] = None
+    status: int
+    priority: int
+    ticketCategory: int
+    ticketType: int
+    issueType: int
+    subIssueType: Optional[int] = None
+    source: Optional[int] = None
+    serviceLevelAgreementHasBeenMet: Optional[bool] = None
+    createDate: Optional[datetime] = None
+    dueDateTime: Optional[datetime] = None
+    firstResponseDateTime: Optional[datetime] = None
+    firstResponseDueDateTime: Optional[datetime] = None
+    resolutionPlanDateTime: Optional[datetime] = None
+    resolutionPlanDueDateTime: Optional[datetime] = None
+    resolvedDateTime: Optional[datetime] = None
+    resolvedDueDateTime: Optional[datetime] = None
+    completedDate: Optional[datetime] = None
+    lastActivityDate: Optional[datetime] = None
+    userDefinedFields: Optional[List[dict]] = None
+    @validator(
+        "createDate",
+        "dueDateTime",
+        "firstResponseDateTime",
+        "firstResponseDueDateTime",
+        "resolutionPlanDateTime",
+        "resolutionPlanDueDateTime",
+        "resolvedDateTime",
+        "resolvedDueDateTime",
+        "completedDate",
+        "lastActivityDate",
+        pre=True
+    )
+    def parse_datetime(cls, value):
+        if isinstance(value, str):
+            return datetime.fromisoformat(value.replace("Z", ""))
+        return value
 class DeviceData(BaseModel):
     Name: str = "N/A"
     device_name: str = "N/A"
