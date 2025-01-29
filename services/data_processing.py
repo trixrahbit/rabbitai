@@ -160,9 +160,16 @@ def fetch_data():
 
     conn.close()
 
-    # Debugging: Check column names
-    logging.info(f"🔍 Contracts Columns: {contracts_df.columns}")
-    logging.info(f"🔍 Tickets Columns: {tickets_df.columns}")
+    # ✅ Convert ContractID and ClientID to int to avoid merging errors
+    contracts_df["ContractID"] = contracts_df["ContractID"].astype("Int64")
+    contracts_df["ClientID"] = contracts_df["ClientID"].astype("Int64")
+
+    tickets_df["ContractID"] = tickets_df["ContractID"].astype("Int64")
+    tickets_df["ClientID"] = tickets_df["ClientID"].astype("Int64")
+
+    # Debugging: Check final column types
+    logging.info(f"🔍 Contracts Columns: {contracts_df.dtypes}")
+    logging.info(f"🔍 Tickets Columns: {tickets_df.dtypes}")
 
     return contracts_df, tickets_df
 
