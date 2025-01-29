@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import httpx
 import pandas as pd
 from fastapi import HTTPException
-from config import logger, APP_SECRET, get_secondary_db_connection
+from config import logger, APP_SECRET, get_secondary_db_connection, secondary_engine
 from models import DeviceData, TicketData
 from datetime import datetime
 from typing import List, Dict
@@ -19,7 +19,7 @@ from config import engine
 
 
 # Set up a session factory for database interactions
-SessionLocal = sessionmaker(bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=secondary_engine)
 def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
 
@@ -129,10 +129,10 @@ def count_open_tickets(tickets: List[TicketData]) -> int:
 
 # ✅ Fetch Data
 def fetch_data():
-    """Fetch contracts, contract services, contract units, and tickets from Azure SQL efficiently."""
-    session = SessionLocal()
+    """Fetch contracts, contract services, contract units, and tickets from Azure SQL."""
+    session = SessionLocal()  # ✅ Start session
     try:
-        contracts_query = text("""
+        contracts_query = """
             SELECT c.id AS ContractID, c.contractName, c.companyID AS ClientID, cl.companyName AS ClientName,
                    cs.id AS ServiceID, cs.internalDescription AS ServiceName, 
                    cu.unitPrice, cu.units, cu.startDate, cu.endDate
@@ -140,25 +140,32 @@ def fetch_data():
             JOIN dbo.Clients cl ON c.companyID = cl.id
             JOIN dbo.Contract_Services cs ON c.id = cs.contractID
             JOIN dbo.ContractUnits cu ON cs.id = cu.serviceID
-            WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE())  
-        """)
-        contracts_df = pd.read_sql(contracts_query, session.bind)
+            WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE())
+        """
 
-        tickets_query = text("""
+        tickets_query = """
             SELECT t.contractID, t.companyID AS ClientID, 
                    YEAR(t.createDate) AS TicketYear, MONTH(t.createDate) AS TicketMonth, COUNT(t.id) AS TicketCount
             FROM dbo.tickets t
             WHERE t.createDate >= DATEADD(YEAR, -2, GETDATE())  
             GROUP BY t.contractID, t.companyID, YEAR(t.createDate), MONTH(t.createDate)
-        """)
+        """
+
+        # ✅ Use SQLAlchemy session
+        contracts_df = pd.read_sql(contracts_query, session.bind)
         tickets_df = pd.read_sql(tickets_query, session.bind)
 
+        logging.info(f"📊 Contracts Fetched: {contracts_df.shape}")
+        logging.info(f"📊 Tickets Fetched: {tickets_df.shape}")
+
         return contracts_df, tickets_df
+
     except Exception as e:
-        logging.error(f"❌ Error fetching data: {e}")
-        return pd.DataFrame(), pd.DataFrame()
+        logging.error(f"❌ SQL Query Error: {e}")
+        return None, None  # ✅ Return None to prevent breaking
+
     finally:
-        session.close()
+        session.close()  # ✅ Ensure session is closed
 
 
 # ✅ Calculate Monthly Revenue
