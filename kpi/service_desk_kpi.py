@@ -1,18 +1,15 @@
+from sqlalchemy import text
+
 from services.kpi_tasks import kpi_insert
 
 
 def calculate_sla_met(session):
-    query = """
+    query = text("""
     SELECT COUNT(*) AS total_tickets,
-           SUM(CASE WHEN first_response_met = 1 THEN 1 ELSE 0 END) AS sla_first_response,
-           SUM(CASE WHEN resolution_plan_met = 1 THEN 1 ELSE 0 END) AS sla_resolution_plan,
-           SUM(CASE WHEN resolution_met = 1 THEN 1 ELSE 0 END) AS sla_resolution
+           SUM(CASE WHEN sla_met = 1 THEN 1 ELSE 0 END) AS sla_met_count
     FROM tickets
-    WHERE category = 'Service Desk';
-    """
+    """)
     result = session.execute(query).fetchone()
-
-    kpi_insert(session, "SLA Met", "Service Desk", "Team", result)
 def calculate_csat_rolling_30(session):
     query = """
     SELECT AVG(score) AS csat_score
