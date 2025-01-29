@@ -313,19 +313,19 @@ def store_to_db(final_df):
         insert_query = text("""
             MERGE INTO dbo.ClientMonthlySummary AS target
             USING (VALUES (:ClientID, :ClientName, :ContractID, :ContractName, 
-                           :ServiceID, :ServiceName, :RevenueMonth, :MonthlyRevenue, :MonthlyCost, :TicketsCreated))
+                           :ServiceID, :ServiceName, :RevenueMonth, :MonthlyRevenue, :TicketsCreated))
             AS source (ClientID, ClientName, ContractID, ContractName, 
-                       ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, MonthlyCost, TicketsCreated)
+                       ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, TicketsCreated)
             ON target.ClientID = source.ClientID AND target.ContractID = source.ContractID AND target.RevenueMonth = source.RevenueMonth
             WHEN MATCHED THEN
-                UPDATE SET MonthlyRevenue = source.MonthlyRevenue, MonthlyCost = source.MonthlyCost, 
+                UPDATE SET MonthlyRevenue = source.MonthlyRevenue, 
                            TicketsCreated = source.TicketsCreated, LastUpdated = GETDATE()
             WHEN NOT MATCHED THEN 
                 INSERT (ClientID, ClientName, ContractID, ContractName, ServiceID, ServiceName, 
-                        RevenueMonth, MonthlyRevenue, MonthlyCost, TicketsCreated)
+                        RevenueMonth, MonthlyRevenue, TicketsCreated)
                 VALUES (source.ClientID, source.ClientName, source.ContractID, source.ContractName, 
                         source.ServiceID, source.ServiceName, source.RevenueMonth, source.MonthlyRevenue, 
-                        source.MonthlyCost, source.TicketsCreated);
+                        source.TicketsCreated);
         """)
 
         session.execute(insert_query, final_df.to_dict(orient='records'))
