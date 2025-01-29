@@ -291,18 +291,18 @@ def store_to_db(final_df):
     try:
         insert_query = text("""
             MERGE INTO dbo.ClientMonthlySummary AS target
-            USING (VALUES (:ClientID, :CompanyName, :ContractID, :ContractName, 
+            USING (VALUES (:ClientID, :ClientName, :ContractID, :ContractName, 
                            :ServiceID, :ServiceName, :RevenueMonth, :MonthlyRevenue, :MonthlyCost, :TicketsCreated))
-            AS source (ClientID, CompanyName, ContractID, ContractName, 
+            AS source (ClientID, ClientName, ContractID, ContractName, 
                        ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, MonthlyCost, TicketsCreated)
             ON target.ClientID = source.ClientID AND target.ContractID = source.ContractID AND target.RevenueMonth = source.RevenueMonth
             WHEN MATCHED THEN
                 UPDATE SET MonthlyRevenue = source.MonthlyRevenue, MonthlyCost = source.MonthlyCost, 
                            TicketsCreated = source.TicketsCreated, LastUpdated = GETDATE()
             WHEN NOT MATCHED THEN 
-                INSERT (ClientID, CompanyName, ContractID, ContractName, ServiceID, ServiceName, 
+                INSERT (ClientID, ClientName, ContractID, ContractName, ServiceID, ServiceName, 
                         RevenueMonth, MonthlyRevenue, MonthlyCost, TicketsCreated)
-                VALUES (source.ClientID, source.CompanyName, source.ContractID, source.ContractName, 
+                VALUES (source.ClientID, source.ClientName, source.ContractID, source.ContractName, 
                         source.ServiceID, source.ServiceName, source.RevenueMonth, source.MonthlyRevenue, 
                         source.MonthlyCost, source.TicketsCreated);
         """)
