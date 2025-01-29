@@ -11,6 +11,7 @@ import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import ValidationError
+from sqlalchemy import text
 from starlette.responses import HTMLResponse
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection, get_secondary_db_connection
 from models import DeviceData, ProcessedContractUnit
@@ -503,44 +504,44 @@ async def process_contracts_in_background(input_data: List[Dict]):
             end_dt = parse_date(contract.get("endDate"))
             last_modified_dt = parse_date(contract.get("lastModifiedDateTime")) or datetime.utcnow()
 
-            query = """
+            query = text("""  -- ✅ Converted to SQLAlchemy `text` object
             MERGE INTO dbo.Contracts AS target
             USING (SELECT 
-                ? AS id,
-                ? AS status,
-                ? AS endDate,
-                ? AS setupFee,
-                ? AS companyID,
-                ? AS contactID,
-                ? AS startDate,
-                ? AS contactName,
-                ? AS description,
-                ? AS isCompliant,
-                ? AS contractName,
-                ? AS contractType,
-                ? AS estimatedCost,
-                ? AS opportunityID,
-                ? AS contractNumber,
-                ? AS estimatedHours,
-                ? AS billToCompanyID,
-                ? AS contractCategory,
-                ? AS estimatedRevenue,
-                ? AS billingPreference,
-                ? AS isDefaultContract,
-                ? AS renewedContractID,
-                ? AS contractPeriodType,
-                ? AS overageBillingRate,
-                ? AS exclusionContractID,
-                ? AS purchaseOrderNumber,
-                ? AS lastModifiedDateTime,
-                ? AS setupFeeBillingCodeID,
-                ? AS billToCompanyContactID,
-                ? AS contractExclusionSetID,
-                ? AS serviceLevelAgreementID,
-                ? AS internalCurrencySetupFee,
-                ? AS organizationalLevelAssociationID,
-                ? AS internalCurrencyOverageBillingRate,
-                ? AS timeReportingRequiresStartAndStopTimes
+                :id AS id,
+                :status AS status,
+                :endDate AS endDate,
+                :setupFee AS setupFee,
+                :companyID AS companyID,
+                :contactID AS contactID,
+                :startDate AS startDate,
+                :contactName AS contactName,
+                :description AS description,
+                :isCompliant AS isCompliant,
+                :contractName AS contractName,
+                :contractType AS contractType,
+                :estimatedCost AS estimatedCost,
+                :opportunityID AS opportunityID,
+                :contractNumber AS contractNumber,
+                :estimatedHours AS estimatedHours,
+                :billToCompanyID AS billToCompanyID,
+                :contractCategory AS contractCategory,
+                :estimatedRevenue AS estimatedRevenue,
+                :billingPreference AS billingPreference,
+                :isDefaultContract AS isDefaultContract,
+                :renewedContractID AS renewedContractID,
+                :contractPeriodType AS contractPeriodType,
+                :overageBillingRate AS overageBillingRate,
+                :exclusionContractID AS exclusionContractID,
+                :purchaseOrderNumber AS purchaseOrderNumber,
+                :lastModifiedDateTime AS lastModifiedDateTime,
+                :setupFeeBillingCodeID AS setupFeeBillingCodeID,
+                :billToCompanyContactID AS billToCompanyContactID,
+                :contractExclusionSetID AS contractExclusionSetID,
+                :serviceLevelAgreementID AS serviceLevelAgreementID,
+                :internalCurrencySetupFee AS internalCurrencySetupFee,
+                :organizationalLevelAssociationID AS organizationalLevelAssociationID,
+                :internalCurrencyOverageBillingRate AS internalCurrencyOverageBillingRate,
+                :timeReportingRequiresStartAndStopTimes AS timeReportingRequiresStartAndStopTimes
             ) AS source
             ON target.id = source.id
             WHEN MATCHED THEN
@@ -599,56 +600,50 @@ async def process_contracts_in_background(input_data: List[Dict]):
                 source.internalCurrencySetupFee, source.organizationalLevelAssociationID, 
                 source.internalCurrencyOverageBillingRate, source.timeReportingRequiresStartAndStopTimes
             );
-            """
+            """)
 
-            values = (
-                contract.get("id", 0),
-                contract.get("status", ""),
-                end_dt,
-                contract.get("setupFee", 0),
-                contract.get("companyID", 0),
-                contract.get("contactID", 0),
-                start_dt,
-                contract.get("contactName", ""),
-                contract.get("description", ""),
-                contract.get("isCompliant", False),
-                contract.get("contractName", ""),
-                contract.get("contractType", ""),
-                contract.get("estimatedCost", 0),
-                contract.get("opportunityID", None),
-                contract.get("contractNumber", ""),
-                contract.get("estimatedHours", 0),
-                contract.get("billToCompanyID", 0),
-                contract.get("contractCategory", ""),
-                contract.get("estimatedRevenue", 0),
-                contract.get("billingPreference", ""),
-                contract.get("isDefaultContract", False),
-                contract.get("renewedContractID", None),
-                contract.get("contractPeriodType", ""),
-                contract.get("overageBillingRate", 0),
-                contract.get("exclusionContractID", None),
-                contract.get("purchaseOrderNumber", ""),
-                last_modified_dt,
-                contract.get("setupFeeBillingCodeID", None),
-                contract.get("billToCompanyContactID", None),
-                contract.get("contractExclusionSetID", None),
-                contract.get("serviceLevelAgreementID", None),
-                contract.get("internalCurrencySetupFee", 0),
-                contract.get("organizationalLevelAssociationID", None),
-                contract.get("internalCurrencyOverageBillingRate", 0),
-                contract.get("timeReportingRequiresStartAndStopTimes", False)
-            )
+            values = {
+                "id": contract.get("id", 0),
+                "status": contract.get("status", ""),
+                "endDate": end_dt,
+                "setupFee": contract.get("setupFee", 0),
+                "companyID": contract.get("companyID", 0),
+                "contactID": contract.get("contactID", 0),
+                "startDate": start_dt,
+                "contactName": contract.get("contactName", ""),
+                "description": contract.get("description", ""),
+                "isCompliant": contract.get("isCompliant", False),
+                "contractName": contract.get("contractName", ""),
+                "contractType": contract.get("contractType", ""),
+                "estimatedCost": contract.get("estimatedCost", 0),
+                "opportunityID": contract.get("opportunityID", None),
+                "contractNumber": contract.get("contractNumber", ""),
+                "estimatedHours": contract.get("estimatedHours", 0),
+                "billToCompanyID": contract.get("billToCompanyID", 0),
+                "contractCategory": contract.get("contractCategory", ""),
+                "estimatedRevenue": contract.get("estimatedRevenue", 0),
+                "billingPreference": contract.get("billingPreference", ""),
+                "isDefaultContract": contract.get("isDefaultContract", False),
+                "renewedContractID": contract.get("renewedContractID", None),
+                "contractPeriodType": contract.get("contractPeriodType", ""),
+                "overageBillingRate": contract.get("overageBillingRate", 0),
+                "exclusionContractID": contract.get("exclusionContractID", None),
+                "purchaseOrderNumber": contract.get("purchaseOrderNumber", ""),
+                "lastModifiedDateTime": last_modified_dt,
+                "setupFeeBillingCodeID": contract.get("setupFeeBillingCodeID", None),
+                "billToCompanyContactID": contract.get("billToCompanyContactID", None),
+                "contractExclusionSetID": contract.get("contractExclusionSetID", None),
+                "serviceLevelAgreementID": contract.get("serviceLevelAgreementID", None),
+                "internalCurrencySetupFee": contract.get("internalCurrencySetupFee", 0),
+                "organizationalLevelAssociationID": contract.get("organizationalLevelAssociationID", None),
+                "internalCurrencyOverageBillingRate": contract.get("internalCurrencyOverageBillingRate", 0),
+                "timeReportingRequiresStartAndStopTimes": contract.get("timeReportingRequiresStartAndStopTimes", False)
+            }
 
-            logging.info(f"📝 Executing query for Contract ID {contract.get('id')}")
-            conn.execute(query, (values,))
+            conn.execute(query, values)  # ✅ Fixed: Use SQLAlchemy `text` object
+            conn.commit()
 
-
-        conn.commit()
         logging.info(f"✅ Successfully processed {len(input_data)} contracts.")
-
-    except Exception as e:
-        conn.rollback()
-        logging.critical(f"🔥 Critical Error during contracts processing: {e}", exc_info=True)
 
     finally:
         conn.close()
