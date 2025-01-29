@@ -40,10 +40,17 @@ def kpi_insert(session, kpi_name, category, type_, value):
     if kpi_id is None:
         raise ValueError(f"❌ Failed to create KPI '{kpi_name}' in database!")
 
+    # ✅ Convert tuple to scalar
+    if isinstance(value, tuple):
+        value = value[0] if value else 0
+
     insert_value_query = text("""
         INSERT INTO kpi_values (kpi_id, value, date_recorded)
         VALUES (:kpi_id, :value, GETDATE())
     """)
+
+    session.execute(insert_value_query, {"kpi_id": kpi_id, "value": value})
+    session.commit()
 
     session.execute(insert_value_query, {"kpi_id": kpi_id, "value": value})
     session.commit()
