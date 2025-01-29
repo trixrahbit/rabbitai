@@ -46,7 +46,7 @@ def calculate_avg_response_time(session):
     query = text("""
     SELECT AVG(DATEDIFF(MINUTE, created_date, firstResponseDateTime)) AS avg_response_time
     FROM tickets
-    WHERE first_response_date IS NOT NULL;
+    WHERE firstResponseDateTime IS NOT NULL;
     """)
     result = session.execute(query).fetchone()
 
@@ -55,7 +55,7 @@ def calculate_avg_resolution_time(session):
     query = text("""
     SELECT AVG(DATEDIFF(HOUR, created_date, resolvedDateTime)) AS avg_resolution_time
     FROM tickets
-    WHERE resolution_date IS NOT NULL;
+    WHERE resolvedDateTime IS NOT NULL;
     """)
     result = session.execute(query).fetchone()
 
