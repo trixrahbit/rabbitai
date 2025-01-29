@@ -133,15 +133,11 @@ def fetch_data():
     """Fetch contracts, contract services, contract units, and tickets from Azure SQL."""
     conn = get_secondary_db_connection()
 
-    contracts_query = """
-    SELECT c.id AS ContractID, c.contractName, c.companyID AS ClientID, cl.companyName AS ClientName,
-           cs.id AS ServiceID, cs.internalDescription AS ServiceName, 
-           cu.unitPrice, cu.units, cu.startDate, cu.endDate
-    FROM dbo.Contracts c
-    JOIN dbo.Clients cl ON c.companyID = cl.id
-    JOIN dbo.Contract_Services cs ON c.id = cs.contractID
-    JOIN dbo.ContractUnits cu ON cs.id = cu.serviceID
-    WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE())  
+    contracts_query ="""
+    SELECT 
+        ContractID, ContractName, CompanyID, CompanyName, ServiceID, ServiceName,
+        StartDate, EndDate, Units, UnitPrice, Cost, BillingPreference, TotalRevenue, TotalCost
+    FROM dbo.ContractSummary
     """
 
     tickets_query = """
