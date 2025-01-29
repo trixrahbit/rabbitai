@@ -485,6 +485,197 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
             logging.error(f"🚨 Invalid date format: {date_str}, setting to default")
             return datetime.utcnow()  # Default to current timestamp instead of None
 
+
+
+
+
+async def process_contracts_in_background(input_data: List[Dict]):
+    """Background task to insert/merge contract data into the database."""
+    conn = get_secondary_db_connection()
+
+    # ✅ Log connection type to verify it's a DBAPI connection
+    logging.info(f"🔍 Connection Type: {type(conn)}")
+
+    try:
+        cursor = conn.cursor()  # 🚨 Where the error happens
+
+        logging.info("✅ Cursor successfully created.")
+
+        for contract in input_data:
+            logging.info(f"🔄 Processing contract ID: {contract.get('id')}")
+
+            start_dt = parse_date(contract.get("startDate"))
+            end_dt = parse_date(contract.get("endDate"))
+            last_modified_dt = parse_date(contract.get("lastModifiedDateTime")) or datetime.utcnow()
+
+            query = """
+            MERGE INTO dbo.Contracts AS target
+            USING (SELECT 
+                ? AS id,
+                ? AS status,
+                ? AS endDate,
+                ? AS setupFee,
+                ? AS companyID,
+                ? AS contactID,
+                ? AS startDate,
+                ? AS contactName,
+                ? AS description,
+                ? AS isCompliant,
+                ? AS contractName,
+                ? AS contractType,
+                ? AS estimatedCost,
+                ? AS opportunityID,
+                ? AS contractNumber,
+                ? AS estimatedHours,
+                ? AS billToCompanyID,
+                ? AS contractCategory,
+                ? AS estimatedRevenue,
+                ? AS billingPreference,
+                ? AS isDefaultContract,
+                ? AS renewedContractID,
+                ? AS contractPeriodType,
+                ? AS overageBillingRate,
+                ? AS exclusionContractID,
+                ? AS purchaseOrderNumber,
+                ? AS lastModifiedDateTime,
+                ? AS setupFeeBillingCodeID,
+                ? AS billToCompanyContactID,
+                ? AS contractExclusionSetID,
+                ? AS serviceLevelAgreementID,
+                ? AS internalCurrencySetupFee,
+                ? AS organizationalLevelAssociationID,
+                ? AS internalCurrencyOverageBillingRate,
+                ? AS timeReportingRequiresStartAndStopTimes
+            ) AS source
+            ON target.id = source.id
+            WHEN MATCHED THEN
+                UPDATE SET
+                    status = source.status,
+                    endDate = source.endDate,
+                    setupFee = source.setupFee,
+                    companyID = source.companyID,
+                    contactID = source.contactID,
+                    startDate = source.startDate,
+                    contactName = source.contactName,
+                    description = source.description,
+                    isCompliant = source.isCompliant,
+                    contractName = source.contractName,
+                    contractType = source.contractType,
+                    estimatedCost = source.estimatedCost,
+                    opportunityID = source.opportunityID,
+                    contractNumber = source.contractNumber,
+                    estimatedHours = source.estimatedHours,
+                    billToCompanyID = source.billToCompanyID,
+                    contractCategory = source.contractCategory,
+                    estimatedRevenue = source.estimatedRevenue,
+                    billingPreference = source.billingPreference,
+                    isDefaultContract = source.isDefaultContract,
+                    renewedContractID = source.renewedContractID,
+                    contractPeriodType = source.contractPeriodType,
+                    overageBillingRate = source.overageBillingRate,
+                    exclusionContractID = source.exclusionContractID,
+                    purchaseOrderNumber = source.purchaseOrderNumber,
+                    lastModifiedDateTime = source.lastModifiedDateTime,
+                    setupFeeBillingCodeID = source.setupFeeBillingCodeID,
+                    billToCompanyContactID = source.billToCompanyContactID,
+                    contractExclusionSetID = source.contractExclusionSetID,
+                    serviceLevelAgreementID = source.serviceLevelAgreementID,
+                    internalCurrencySetupFee = source.internalCurrencySetupFee,
+                    organizationalLevelAssociationID = source.organizationalLevelAssociationID,
+                    internalCurrencyOverageBillingRate = source.internalCurrencyOverageBillingRate,
+                    timeReportingRequiresStartAndStopTimes = source.timeReportingRequiresStartAndStopTimes
+            WHEN NOT MATCHED THEN 
+            INSERT (
+                id, status, endDate, setupFee, companyID, contactID, startDate, contactName, description, isCompliant,
+                contractName, contractType, estimatedCost, opportunityID, contractNumber, estimatedHours, billToCompanyID,
+                contractCategory, estimatedRevenue, billingPreference, isDefaultContract, renewedContractID, contractPeriodType,
+                overageBillingRate, exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID,
+                billToCompanyContactID, contractExclusionSetID, serviceLevelAgreementID, internalCurrencySetupFee,
+                organizationalLevelAssociationID, internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes
+            )
+            VALUES (
+                source.id, source.status, source.endDate, source.setupFee, source.companyID, source.contactID, source.startDate, 
+                source.contactName, source.description, source.isCompliant, source.contractName, source.contractType, 
+                source.estimatedCost, source.opportunityID, source.contractNumber, source.estimatedHours, source.billToCompanyID,
+                source.contractCategory, source.estimatedRevenue, source.billingPreference, source.isDefaultContract, 
+                source.renewedContractID, source.contractPeriodType, source.overageBillingRate, source.exclusionContractID, 
+                source.purchaseOrderNumber, source.lastModifiedDateTime, source.setupFeeBillingCodeID, 
+                source.billToCompanyContactID, source.contractExclusionSetID, source.serviceLevelAgreementID, 
+                source.internalCurrencySetupFee, source.organizationalLevelAssociationID, 
+                source.internalCurrencyOverageBillingRate, source.timeReportingRequiresStartAndStopTimes
+            );
+            """
+
+            values = (
+                contract.get("id", 0),
+                contract.get("status", ""),
+                end_dt,
+                contract.get("setupFee", 0),
+                contract.get("companyID", 0),
+                contract.get("contactID", 0),
+                start_dt,
+                contract.get("contactName", ""),
+                contract.get("description", ""),
+                contract.get("isCompliant", False),
+                contract.get("contractName", ""),
+                contract.get("contractType", ""),
+                contract.get("estimatedCost", 0),
+                contract.get("opportunityID", None),
+                contract.get("contractNumber", ""),
+                contract.get("estimatedHours", 0),
+                contract.get("billToCompanyID", 0),
+                contract.get("contractCategory", ""),
+                contract.get("estimatedRevenue", 0),
+                contract.get("billingPreference", ""),
+                contract.get("isDefaultContract", False),
+                contract.get("renewedContractID", None),
+                contract.get("contractPeriodType", ""),
+                contract.get("overageBillingRate", 0),
+                contract.get("exclusionContractID", None),
+                contract.get("purchaseOrderNumber", ""),
+                last_modified_dt,
+                contract.get("setupFeeBillingCodeID", None),
+                contract.get("billToCompanyContactID", None),
+                contract.get("contractExclusionSetID", None),
+                contract.get("serviceLevelAgreementID", None),
+                contract.get("internalCurrencySetupFee", 0),
+                contract.get("organizationalLevelAssociationID", None),
+                contract.get("internalCurrencyOverageBillingRate", 0),
+                contract.get("timeReportingRequiresStartAndStopTimes", False)
+            )
+
+            logging.info(f"📝 Executing query for Contract ID {contract.get('id')}")
+            cursor.execute(query, values)
+
+        conn.commit()
+        logging.info(f"✅ Successfully processed {len(input_data)} contracts.")
+
+    except Exception as e:
+        conn.rollback()
+        logging.critical(f"🔥 Critical Error during contracts processing: {e}", exc_info=True)
+
+    finally:
+        cursor.close()
+        conn.close()
+        logging.info("🔌 Database connection closed.")
+
+
+
+@app.post("/process_contracts/")
+async def process_contracts(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
+    """
+    Accepts contract data, immediately responds with 200 OK, and processes database updates asynchronously.
+    """
+    logging.info("🔄 Received contract data, starting background processing...")
+
+    # ✅ Send the task to background and immediately return success response
+    background_tasks.add_task(process_contracts_in_background, input_data)
+
+    return {"message": "✅ Received successfully. Processing in background."}
+
+
+
+
 async def process_units_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract units into the database."""
     logging.info(f"🚀 Starting background processing for {len(input_data)} contract units...")
@@ -574,120 +765,6 @@ async def process_contract_units(input_data: List[Dict] = Body(...), background_
 
     return {"message": "✅ Received successfully. Processing in background."}
 
-
-async def process_contracts_in_background(input_data: List[Dict]):
-    """Background task to insert/merge contract data into the database."""
-    logging.info("🚀 process_contracts_in_background started.")  # Log Start
-
-    conn = None
-    cursor = None
-
-    try:
-        conn = get_secondary_db_connection()
-        logging.info("✅ Background Task: Database connection established successfully.")  # Log DB Connection
-        cursor = conn.cursor()
-
-        for contract in input_data:
-            logging.info(f"📌 Processing contract ID: {contract.get('id')} - {contract.get('contractName')}")
-
-            start_dt = parse_date(contract.get("startDate")) if contract.get("startDate") else None
-            end_dt = parse_date(contract.get("endDate")) if contract.get("endDate") else None
-            last_modified_dt = parse_date(contract.get("lastModifiedDateTime")) if contract.get(
-                "lastModifiedDateTime") else datetime.utcnow()
-
-            logging.info(f"🔍 Parsed Dates - Start: {start_dt}, End: {end_dt}, Last Modified: {last_modified_dt}")
-
-            query = """
-MERGE INTO dbo.Contracts AS target
-USING (SELECT 
-    ? AS id,
-    ? AS status,
-    ? AS endDate,
-    ? AS setupFee,
-    ? AS companyID,
-    ? AS contactID,
-    ? AS startDate,
-    ? AS contactName,
-    ? AS description,
-    ? AS isCompliant,
-    ? AS contractName,
-    ? AS contractType
-) AS source
-ON target.id = source.id
-
-WHEN MATCHED THEN UPDATE SET
-    status = source.status,
-    endDate = source.endDate,
-    setupFee = source.setupFee,
-    companyID = source.companyID,
-    contactID = source.contactID,
-    startDate = source.startDate,
-    contactName = source.contactName,
-    description = source.description,
-    isCompliant = source.isCompliant,
-    contractName = source.contractName,
-    contractType = source.contractType
-
-WHEN NOT MATCHED THEN 
-INSERT (
-    id, status, endDate, setupFee, companyID, contactID, startDate, contactName, description, isCompliant, contractName, contractType
-)
-VALUES (
-    ?,?,?,?,?,?,?,?,?,?,?,?
-);
-            """
-
-            values = (
-                contract.get("id", 0),
-                contract.get("status", ""),
-                end_dt,
-                contract.get("setupFee", 0),
-                contract.get("companyID", 0),
-                contract.get("contactID", 0),
-                start_dt,
-                contract.get("contactName", ""),
-                contract.get("description", ""),
-                contract.get("isCompliant", False),
-                contract.get("contractName", ""),
-                contract.get("contractType", "")
-            )
-
-            logging.debug(f"📝 SQL Query:\n{query}")  # Log the query
-            logging.debug(f"📝 SQL Values:\n{values}")  # Log values being inserted
-
-            try:
-                cursor.execute(query, values)
-                logging.info(f"✅ Contract ID {contract.get('id')} processed successfully.")  # Log Success
-            except Exception as e:
-                logging.error(f"🚨 SQL Execution Failed for Contract ID {contract.get('id')}: {e}", exc_info=True)
-
-        conn.commit()
-        logging.info(f"✅ Successfully processed {len(input_data)} contracts.")
-
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        logging.critical(f"🔥 Critical Error during contracts processing: {e}", exc_info=True)
-
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-        logging.info("🔌 Database connection closed.")  # Log DB Closure
-
-
-@app.post("/process_contracts/")
-async def process_contracts(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
-    """
-    Accepts contract data, immediately responds with 200 OK, and processes database updates asynchronously.
-    """
-    logging.info("🔄 Received contract data, starting background processing...")
-
-    # ✅ Send the task to background and immediately return success response
-    background_tasks.add_task(process_contracts_in_background, input_data)
-
-    return {"message": "✅ Received successfully. Processing in background."}
 
 async def process_timeentries_in_background(input_data: List[Dict]):
     """Background task to insert/merge time entry data into the database."""
