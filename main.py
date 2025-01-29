@@ -601,8 +601,6 @@ async def process_contracts_in_background(input_data: List[Dict]):
                     source.internalCurrencySetupFee, source.organizationalLevelAssociationID, source.internalCurrencyOverageBillingRate,
                     source.timeReportingRequiresStartAndStopTimes
                 );
-
-            SELECT SCOPE_IDENTITY() AS new_contract_id;
             """)
 
             values = {
@@ -642,12 +640,9 @@ async def process_contracts_in_background(input_data: List[Dict]):
                 "timeReportingRequiresStartAndStopTimes": contract.get("timeReportingRequiresStartAndStopTimes", False),
             }
 
-            logging.info(f"📝 Executing query for Contract ID {contract.get('id')}...")
             result = conn.execute(query, values)
-            new_contract_id = result.scalar()
-            logging.info(f"✅ Inserted new contract with ID: {new_contract_id}")
-
-        conn.commit()
+            conn.commit()
+            logging.debug(f"🛠 Query Result: {result.rowcount}")
 
     finally:
         conn.close()
