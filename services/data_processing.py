@@ -128,44 +128,53 @@ def count_open_tickets(tickets: List[TicketData]) -> int:
 # This section is for getting contracts, units, pricing, ticket counts, aggrevating and saving the results to a db on a timer so its always up to date
 
 # ✅ Fetch Data
+# ✅ Function to Fetch Contracts, Units, and Tickets
 def fetch_data():
     """Fetch contracts, contract services, contract units, and tickets from Azure SQL."""
-    session = SessionLocal()  # ✅ Start session
-    try:
-        contracts_query = """
-            SELECT c.id AS ContractID, c.contractName, c.companyID AS ClientID, cl.companyName AS ClientName,
-                   cs.id AS ServiceID, cs.internalDescription AS ServiceName, 
-                   cu.unitPrice, cu.units, cu.startDate, cu.endDate
-            FROM dbo.Contracts c
-            JOIN dbo.Clients cl ON c.companyID = cl.id
-            JOIN dbo.Contract_Services cs ON c.id = cs.contractID
-            JOIN dbo.ContractUnits cu ON cs.id = cu.serviceID
-            WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE())
-        """
+    conn = get_secondary_db_connection()
 
-        tickets_query = """
-            SELECT t.contractID, t.companyID AS ClientID, 
-                   YEAR(t.createDate) AS TicketYear, MONTH(t.createDate) AS TicketMonth, COUNT(t.id) AS TicketCount
-            FROM dbo.tickets t
-            WHERE t.createDate >= DATEADD(YEAR, -2, GETDATE())  
-            GROUP BY t.contractID, t.companyID, YEAR(t.createDate), MONTH(t.createDate)
-        """
+    contracts_query = """
+    SELECT c.id AS ContractID, c.contractName, c.companyID AS ClientID, cl.companyName AS ClientName,
+           cs.id AS ServiceID, cs.internalDescription AS ServiceName, 
+           cu.unitPrice, cu.units, cu.startDate, cu.endDate
+    FROM dbo.Contracts c
+    JOIN dbo.Clients cl ON c.companyID = cl.id
+    JOIN dbo.Contract_Services cs ON c.id = cs.contractID
+    JOIN dbo.ContractUnits cu ON cs.id = cu.serviceID
+    WHERE cu.startDate >= DATEADD(YEAR, -2, GETDATE())  
+    """
 
-        # ✅ Use SQLAlchemy session
-        contracts_df = pd.read_sql(contracts_query, session.bind)
-        tickets_df = pd.read_sql(tickets_query, session.bind)
+    tickets_query = """
+    SELECT t.contractID AS ContractID, t.companyID AS ClientID, 
+           YEAR(t.createDate) AS TicketYear, MONTH(t.createDate) AS TicketMonth, COUNT(t.id) AS TicketCount
+    FROM dbo.tickets t
+    WHERE t.createDate >= DATEADD(YEAR, -2, GETDATE())  
+    GROUP BY t.contractID, t.companyID, YEAR(t.createDate), MONTH(t.createDate)
+    """
 
-        logging.info(f"📊 Contracts Fetched: {contracts_df.shape}")
-        logging.info(f"📊 Tickets Fetched: {tickets_df.shape}")
+    # ✅ Load data into Pandas DataFrames
+    contracts_df = pd.read_sql(contracts_query, conn)
+    tickets_df = pd.read_sql(tickets_query, conn)
 
-        return contracts_df, tickets_df
+    # ✅ Log column names and data types for debugging
+    logging.info(f"🔍 Contracts Columns: {contracts_df.dtypes}")
+    logging.info(f"🔍 Tickets Columns: {tickets_df.dtypes}")
 
-    except Exception as e:
-        logging.error(f"❌ SQL Query Error: {e}")
-        return None, None  # ✅ Return None to prevent breaking
+    # ✅ Ensure contractID is correctly named
+    if "contractID" in tickets_df.columns:
+        tickets_df.rename(columns={"contractID": "ContractID"}, inplace=True)
 
-    finally:
-        session.close()  # ✅ Ensure session is closed
+    # ✅ Ensure data types match for merging
+    if "ContractID" in tickets_df.columns and "ContractID" in contracts_df.columns:
+        tickets_df["ContractID"] = tickets_df["ContractID"].astype(str)
+        contracts_df["ContractID"] = contracts_df["ContractID"].astype(str)
+
+    if "ClientID" in tickets_df.columns and "ClientID" in contracts_df.columns:
+        tickets_df["ClientID"] = tickets_df["ClientID"].astype(str)
+        contracts_df["ClientID"] = contracts_df["ClientID"].astype(str)
+
+    conn.close()
+    return contracts_df, tickets_df
 
 
 # ✅ Calculate Monthly Revenue
