@@ -50,7 +50,11 @@ def calculate_avg_response_time(session):
     """)
     result = session.execute(query).fetchone()
 
-    kpi_insert(session, "Avg Response Time", "Service Desk", "Team", result)
+    avg_response_time = result[0] if result and result[0] is not None else 0
+
+    kpi_insert(session, "Avg Response Time", "Service Desk", "Team", avg_response_time)  # ✅ Pass scalar
+
+
 def calculate_avg_resolution_time(session):
     query = text("""
     SELECT AVG(DATEDIFF(HOUR, createDate, resolvedDateTime)) AS avg_resolution_time
