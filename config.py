@@ -18,6 +18,9 @@ DB_USER = settings.DB_USER
 DB_PASSWORD = settings.DB_PASSWORD
 DB_SECONDARY_USER = settings.DB_SECONDARY_USER
 DB_SECONDARY_PASSWORD = settings.DB_SECONDARY_PASSWORD
+DB_SERVER = settings.DB_SERVER
+DB_NAME = settings.DB_NAME
+DB_SECONDARY_NAME = settings.DB_SECONDARY_NAME
 
 OPENID_CONFIG_URL = "https://login.botframework.com/v1/.well-known/openidconfiguration"
 # Connection Strings for SQLAlchemy
