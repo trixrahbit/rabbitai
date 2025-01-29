@@ -678,79 +678,101 @@ async def process_contracts(input_data: List[Dict] = Body(...), background_tasks
 
 async def process_units_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract units into the database."""
-    logging.info(f"🚀 Starting background processing for {len(input_data)} contract units...")
-
     conn = get_secondary_db_connection()
-    cursor = conn.cursor()
+
+    logging.info(f"🔍 Connection Type: {type(conn)}")
+    logging.info(f"📦 Received {len(input_data)} contract units to process.")
+    if not input_data:
+        logging.warning("⚠️ No contract unit data received. Exiting function.")
+        conn.close()
+        return
+
+    logging.info(f"📦 First contract unit data sample: {input_data[:2]}")  # ✅ Log sample units
 
     try:
-        for service in input_data:
-            start_dt = parse_date(service.get("startDate"))
-            end_dt = parse_date(service.get("endDate"))
-            approve_dt = parse_date(service.get("approveAndPostDate"))
+        for unit in input_data:
+            unit_id = unit.get("id")
+            contract_id = unit.get("contractID")
+            service_id = unit.get("serviceID")
 
-            # ✅ Fixing field mappings from JSON
-            unit_cost = service.get("cost", None)  # Correct mapping
-            unit_price = service.get("price", None)  # Correct mapping
-            units = service.get("units", None)  # Ensure it is included
+            logging.info(f"🔄 Processing Contract Unit ID: {unit_id}")
+
+            start_dt = parse_date(unit.get("startDate"))
+            end_dt = parse_date(unit.get("endDate"))
+            approve_dt = parse_date(unit.get("approveAndPostDate"))
+
+            query = text("""
+            MERGE INTO dbo.ContractUnits AS target
+            USING (SELECT
+                :id AS id,
+                :contractID AS contractID,
+                :serviceID AS serviceID,
+                :startDate AS startDate,
+                :endDate AS endDate,
+                :approveAndPostDate AS approveAndPostDate,
+                :unitCost AS unitCost,
+                :unitPrice AS unitPrice,
+                :internalCurrencyPrice AS internalCurrencyPrice,
+                :organizationalLevelAssociationID AS organizationalLevelAssociationID,
+                :invoiceDescription AS invoiceDescription,
+                :units AS units
+            ) AS source
+            ON target.id = source.id  
+
+            WHEN MATCHED THEN
+                UPDATE SET
+                    contractID = source.contractID,
+                    serviceID = source.serviceID,
+                    startDate = source.startDate,
+                    endDate = source.endDate,
+                    approveAndPostDate = source.approveAndPostDate,
+                    unitCost = source.unitCost,
+                    unitPrice = source.unitPrice,
+                    internalCurrencyPrice = source.internalCurrencyPrice,
+                    organizationalLevelAssociationID = source.organizationalLevelAssociationID,
+                    invoiceDescription = source.invoiceDescription,
+                    units = source.units
+
+            WHEN NOT MATCHED THEN
+                INSERT (
+                    id, contractID, serviceID, startDate, endDate, approveAndPostDate, 
+                    unitCost, unitPrice, internalCurrencyPrice, organizationalLevelAssociationID, 
+                    invoiceDescription, units
+                )
+                VALUES (
+                    source.id, source.contractID, source.serviceID, source.startDate, 
+                    source.endDate, source.approveAndPostDate, source.unitCost, source.unitPrice, 
+                    source.internalCurrencyPrice, source.organizationalLevelAssociationID, 
+                    source.invoiceDescription, source.units
+                );
+            """)
+
+            values = {
+                "id": unit_id,
+                "contractID": contract_id,
+                "serviceID": service_id,
+                "startDate": start_dt,
+                "endDate": end_dt,
+                "approveAndPostDate": approve_dt,
+                "unitCost": unit.get("unitCost", 0),
+                "unitPrice": unit.get("unitPrice", 0),
+                "internalCurrencyPrice": unit.get("internalCurrencyPrice", 0),
+                "organizationalLevelAssociationID": unit.get("organizationalLevelAssociationID", None),
+                "invoiceDescription": unit.get("invoiceDescription", ""),
+                "units": unit.get("units", 0),
+            }
 
             try:
-                cursor.execute("""
-                    MERGE INTO dbo.ContractUnits AS target
-                    USING (SELECT ? AS id, ? AS contractID, ? AS serviceID, ? AS startDate, ? AS endDate, 
-                                  ? AS approveAndPostDate, ? AS unitCost, ? AS unitPrice, ? AS internalCurrencyPrice, 
-                                  ? AS organizationalLevelAssociationID, ? AS invoiceDescription, ? AS units) AS source
-                    ON target.id = source.id
-                    WHEN MATCHED THEN
-                        UPDATE SET 
-                            contractID = source.contractID,
-                            serviceID = source.serviceID,
-                            startDate = source.startDate,
-                            endDate = source.endDate,
-                            approveAndPostDate = source.approveAndPostDate,
-                            unitCost = source.unitCost,
-                            unitPrice = source.unitPrice,
-                            internalCurrencyPrice = source.internalCurrencyPrice,
-                            organizationalLevelAssociationID = source.organizationalLevelAssociationID,
-                            invoiceDescription = source.invoiceDescription,
-                            units = source.units
-                    WHEN NOT MATCHED THEN
-                        INSERT (id, contractID, serviceID, startDate, endDate, approveAndPostDate, 
-                                unitCost, unitPrice, internalCurrencyPrice, organizationalLevelAssociationID, 
-                                invoiceDescription, units)
-                        VALUES (source.id, source.contractID, source.serviceID, source.startDate, 
-                                source.endDate, source.approveAndPostDate, source.unitCost, source.unitPrice, 
-                                source.internalCurrencyPrice, source.organizationalLevelAssociationID, 
-                                source.invoiceDescription, source.units);
-                """,
-                service.get("id"),
-                service.get("contractID"),
-                service.get("serviceID"),
-                start_dt,
-                end_dt,
-                approve_dt,
-                unit_cost,  # Fixed mapping
-                unit_price,  # Fixed mapping
-                service.get("internalCurrencyPrice"),
-                service.get("organizationalLevelAssociationID"),
-                service.get("invoiceDescription"),
-                units)  # Fixed missing field
-
-            except pyodbc.Error as e:
-                logging.error(f"🚨 MERGE failed for Contract Unit ID {service.get('id')}: {e}", exc_info=True)
-                continue  # Log error but continue processing
-
-        conn.commit()
-        logging.info(f"✅ Successfully processed {len(input_data)} contract units.")
-
-    except Exception as e:
-        conn.rollback()
-        logging.critical(f"🔥 Critical Error during contract units processing: {e}", exc_info=True)
+                result = conn.execute(query, values)
+                conn.commit()
+                logging.info(f"✅ Query executed. Affected rows: {result.rowcount}")
+            except Exception as e:
+                logging.critical(f"🔥 Error executing query for Contract Unit ID {unit_id}: {e}", exc_info=True)
 
     finally:
-        cursor.close()
         conn.close()
         logging.info("🔌 Database connection closed.")
+
 
 
 @app.post("/process_contract_units/")
