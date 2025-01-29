@@ -334,17 +334,6 @@ async def handle_command(request: Request):
                     "text": f"**Answer:**\n\n{response_text}",
                     "wrap": True,
                     "spacing": "Small"
-                },
-                {
-                    "type": "ActionSet",
-                    "spacing": "Medium",
-                    "actions": [
-                        {
-                            "type": "Action.Submit",
-                            "title": "Ask Another Question",
-                            "data": {"command": "askRabbit "}
-                        }
-                    ]
                 }
             ]
 
