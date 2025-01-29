@@ -129,23 +129,32 @@ def count_open_tickets(tickets: List[TicketData]) -> int:
 
 # ✅ Fetch Data
 # ✅ Function to Fetch Contracts, Units, and Tickets
+# ✅ Fetch Data from ContractSummary and Tickets
 def fetch_data():
-    """Fetch contracts, contract services, contract units, and tickets from Azure SQL."""
+    """Fetch contract summary data and ticket counts from Azure SQL."""
     conn = get_secondary_db_connection()
 
-    contracts_query ="""
+    # ✅ Fetch Contract Summary
+    contracts_query = """
     SELECT 
-        ContractID, ContractName, CompanyID, CompanyName, ServiceID, ServiceName,
+        ContractID, ContractName, CompanyID AS ClientID, CompanyName, ServiceID, ServiceName,
         StartDate, EndDate, Units, UnitPrice, Cost, BillingPreference, TotalRevenue, TotalCost
     FROM dbo.ContractSummary
     """
 
+    # ✅ Fetch Ticket Counts within Contract StartDate & EndDate
     tickets_query = """
-    SELECT t.contractID AS ContractID, t.companyID AS ClientID, 
-           YEAR(t.createDate) AS TicketYear, MONTH(t.createDate) AS TicketMonth, COUNT(t.id) AS TicketCount
+    SELECT 
+        t.companyID AS ClientID,
+        cu.ContractID,
+        YEAR(t.createDate) AS TicketYear, 
+        MONTH(t.createDate) AS TicketMonth, 
+        COUNT(t.id) AS TicketCount
     FROM dbo.tickets t
-    WHERE t.createDate >= DATEADD(YEAR, -2, GETDATE())  
-    GROUP BY t.contractID, t.companyID, YEAR(t.createDate), MONTH(t.createDate)
+    JOIN dbo.ContractSummary cu 
+        ON t.companyID = cu.CompanyID 
+        AND t.createDate BETWEEN cu.StartDate AND cu.EndDate
+    GROUP BY t.companyID, cu.ContractID, YEAR(t.createDate), MONTH(t.createDate)
     """
 
     # ✅ Load data into Pandas DataFrames
@@ -153,18 +162,15 @@ def fetch_data():
     tickets_df = pd.read_sql(tickets_query, conn)
 
     # ✅ Log column names and data types for debugging
-    logging.info(f"🔍 Contracts Columns: {contracts_df.dtypes}")
-    logging.info(f"🔍 Tickets Columns: {tickets_df.dtypes}")
+    logger.info(f"🔍 Contracts Columns: {contracts_df.dtypes}")
+    logger.info(f"🔍 Tickets Columns: {tickets_df.dtypes}")
 
-    # ✅ Ensure contractID is correctly named
-    if "contractID" in tickets_df.columns:
-        tickets_df.rename(columns={"contractID": "ContractID"}, inplace=True)
-
-    # ✅ Ensure data types match for merging
+    # ✅ Ensure contractID consistency
     if "ContractID" in tickets_df.columns and "ContractID" in contracts_df.columns:
         tickets_df["ContractID"] = tickets_df["ContractID"].astype(str)
         contracts_df["ContractID"] = contracts_df["ContractID"].astype(str)
 
+    # ✅ Ensure ClientID consistency
     if "ClientID" in tickets_df.columns and "ClientID" in contracts_df.columns:
         tickets_df["ClientID"] = tickets_df["ClientID"].astype(str)
         contracts_df["ClientID"] = contracts_df["ClientID"].astype(str)
@@ -173,40 +179,46 @@ def fetch_data():
     return contracts_df, tickets_df
 
 
-# ✅ Calculate Monthly Revenue
+# ✅ Calculate Monthly Revenue Using ContractSummary
 def calculate_monthly_revenue(contracts_df):
-    """Generate monthly revenue per client per contract."""
+    """Generate monthly revenue per client per contract using ContractSummary data."""
     all_rows = []
 
+    # ✅ Log debug information
+    logger.info(f"🔍 Processing {len(contracts_df)} contracts for revenue calculation.")
+
     for _, row in contracts_df.iterrows():
-        start_date = pd.to_datetime(row['startDate'])
-        end_date = pd.to_datetime(row['endDate']) if pd.notnull(row['endDate']) else datetime.now()
+        start_date = pd.to_datetime(row['StartDate'])
+        end_date = pd.to_datetime(row['EndDate']) if pd.notnull(row['EndDate']) else pd.Timestamp.now()
 
-        # ✅ Ensure values are numeric
-        unit_price = row['unitPrice'] if pd.notnull(row['unitPrice']) else 0
-        units = row['units'] if pd.notnull(row['units']) else 1
+        # ✅ Use TotalRevenue & TotalCost instead of recalculating from unitPrice * units
+        total_revenue = row['TotalRevenue'] if pd.notnull(row['TotalRevenue']) else 0
+        total_cost = row['TotalCost'] if pd.notnull(row['TotalCost']) else 0
 
-        # ✅ Generate revenue for each month within contract duration
+        # ✅ Generate revenue per month for contract duration
         current_date = start_date
         while current_date <= end_date:
-            revenue = unit_price * units
             all_rows.append([
-                row['ClientID'], row['ClientName'], row['ContractID'], row['contractName'], row['ServiceID'],
-                row['ServiceName'], current_date.strftime("%Y-%m-01"), revenue
+                row['ClientID'], row['CompanyName'], row['ContractID'], row['ContractName'],
+                row['ServiceID'], row['ServiceName'], current_date.strftime("%Y-%m-01"),
+                total_revenue, total_cost
             ])
-            current_date += timedelta(days=30)
+            current_date += pd.DateOffset(months=1)  # Increment by one month
 
     revenue_df = pd.DataFrame(all_rows, columns=[
-        "ClientID", "ClientName", "ContractID", "ContractName", "ServiceID", "ServiceName", "RevenueMonth",
-        "MonthlyRevenue"
+        "ClientID", "CompanyName", "ContractID", "ContractName", "ServiceID", "ServiceName",
+        "RevenueMonth", "MonthlyRevenue", "MonthlyCost"
     ])
 
     logger.info(f"💰 Monthly Revenue Calculated: {revenue_df.shape}")
     return revenue_df
 
-# ✅ Merge with Ticket Counts
+
+# ✅ Merge Revenue Data with Ticket Counts
 def merge_with_tickets(revenue_df, tickets_df):
-    """Merge ticket counts with revenue data."""
+    """Merge ticket counts with revenue data based on contract start and end dates."""
+
+    # ✅ Format Tickets DataFrame
     tickets_df["RevenueMonth"] = tickets_df.apply(lambda x: f"{x['TicketYear']}-{x['TicketMonth']:02d}-01", axis=1)
     tickets_df.drop(columns=["TicketYear", "TicketMonth"], inplace=True)
 
@@ -222,31 +234,36 @@ def merge_with_tickets(revenue_df, tickets_df):
     logger.info(f"✅ Merged Data Shape: {final_df.shape}")
     return final_df
 
+
 # ✅ Store Data in SQL Efficiently
-# ✅ Store Data in SQL
 def store_to_db(final_df):
-    """Efficiently stores results in Azure SQL."""
-    session = SessionLocal()
+    """Efficiently stores results in Azure SQL using SQLAlchemy."""
+    session = get_secondary_db_connection()
     try:
         insert_query = text("""
             MERGE INTO dbo.ClientMonthlySummary AS target
-            USING (VALUES (:ClientID, :ClientName, :ContractID, :ContractName, 
-                           :ServiceID, :ServiceName, :RevenueMonth, :MonthlyRevenue, :TicketsCreated))
-            AS source (ClientID, ClientName, ContractID, ContractName, 
-                       ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, TicketsCreated)
+            USING (VALUES (:ClientID, :CompanyName, :ContractID, :ContractName, 
+                           :ServiceID, :ServiceName, :RevenueMonth, :MonthlyRevenue, :MonthlyCost, :TicketsCreated))
+            AS source (ClientID, CompanyName, ContractID, ContractName, 
+                       ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, MonthlyCost, TicketsCreated)
             ON target.ClientID = source.ClientID AND target.ContractID = source.ContractID AND target.RevenueMonth = source.RevenueMonth
             WHEN MATCHED THEN
-                UPDATE SET MonthlyRevenue = source.MonthlyRevenue, TicketsCreated = source.TicketsCreated, LastUpdated = GETDATE()
+                UPDATE SET MonthlyRevenue = source.MonthlyRevenue, MonthlyCost = source.MonthlyCost, 
+                           TicketsCreated = source.TicketsCreated, LastUpdated = GETDATE()
             WHEN NOT MATCHED THEN 
-                INSERT (ClientID, ClientName, ContractID, ContractName, ServiceID, ServiceName, RevenueMonth, MonthlyRevenue, TicketsCreated)
-                VALUES (source.ClientID, source.ClientName, source.ContractID, source.ContractName, source.ServiceID, source.ServiceName, source.RevenueMonth, source.MonthlyRevenue, source.TicketsCreated);
+                INSERT (ClientID, CompanyName, ContractID, ContractName, ServiceID, ServiceName, 
+                        RevenueMonth, MonthlyRevenue, MonthlyCost, TicketsCreated)
+                VALUES (source.ClientID, source.CompanyName, source.ContractID, source.ContractName, 
+                        source.ServiceID, source.ServiceName, source.RevenueMonth, source.MonthlyRevenue, 
+                        source.MonthlyCost, source.TicketsCreated);
         """)
+
         session.execute(insert_query, final_df.to_dict(orient='records'))
         session.commit()
-        logging.info("✅ Data updated successfully.")
+        logger.info("✅ Data updated successfully.")
     except Exception as e:
         session.rollback()
-        logging.error(f"❌ Error inserting data: {e}")
+        logger.error(f"❌ Error inserting data: {e}")
     finally:
         session.close()
 
