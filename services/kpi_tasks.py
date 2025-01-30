@@ -84,7 +84,7 @@ def calculate_utilization():
             FROM dbo.TimeEntries t  -- ✅ Explicit schema reference
             LEFT JOIN dbo.resources r ON t.resourceID = r.id  -- ✅ Ensure correct schema
             WHERE t.dateWorked BETWEEN :start_date AND :end_date
-            GROUP BY r.email, t.assignedResource, t.resourceID
+            GROUP BY r.email, t.creatorUserID, t.resourceID
         """)
 
         result = session.execute(query, {
