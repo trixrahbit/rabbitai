@@ -1,8 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-
 from sqlalchemy import text
-
 from config import engine, get_secondary_db_connection
 
 
