@@ -811,18 +811,18 @@ async def process_timeentries_in_background(input_data: List[Dict]):
                     time_entry.contractID,
                     time_entry.contractServiceBundleID,
                     time_entry.contractServiceID,
-                    parse_date(time_entry.createDateTime),
+                    parse_datetime(time_entry.createDateTime),
                     time_entry.creatorUserID,
-                    parse_date(time_entry.dateWorked),
-                    parse_date(time_entry.endDateTime),
+                    parse_datetime(time_entry.dateWorked),
+                    parse_datetime(time_entry.endDateTime),
                     time_entry.hoursToBill,
                     time_entry.hoursWorked,
                     time_entry.internalNotes,
                     time_entry.isNonBillable,
-                    parse_date(time_entry.lastModifiedDateTime),
+                    parse_datetime(time_entry.lastModifiedDateTime),
                     time_entry.resourceID,
                     time_entry.roleID,
-                    parse_date(time_entry.startDateTime),
+                    parse_datetime(time_entry.startDateTime),
                     time_entry.summaryNotes,
                     time_entry.taskID,
                     time_entry.ticketID,
@@ -834,6 +834,9 @@ async def process_timeentries_in_background(input_data: List[Dict]):
 
                 processed_count += 1
                 logging.info(f"✅ Successfully inserted Time Entry ID: {time_entry.id}")
+
+                if processed_count % 100 == 0:
+                    logging.info(f"🔄 Processed {processed_count}/{len(input_data)} entries...")
 
             except Exception as e:
                 failed_count += 1
@@ -850,6 +853,17 @@ async def process_timeentries_in_background(input_data: List[Dict]):
         cursor.close()
         conn.close()
         logging.info("🔌 Database connection closed.")
+
+def parse_datetime(date_str):
+    """Converts a date string into a proper datetime format or returns None."""
+    if not date_str:
+        return None
+    try:
+        return datetime.fromisoformat(date_str.rstrip("Z"))  # Handles 'Z' at the end
+    except ValueError:
+        logging.error(f"🚨 Invalid datetime format: {date_str}. Returning None.")
+        return None
+
 
 
 
