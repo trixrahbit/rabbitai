@@ -78,7 +78,7 @@ def calculate_utilization():
                 t.assignedResource AS resource_name,
                 t.resourceID,
                 SUM(t.hoursWorked) AS total_hours
-            FROM TimeEntries t
+            FROM dbo.TimeEntries t
             LEFT JOIN resources r ON t.resourceID = r.id  -- ✅ Get email
             WHERE t.dateWorked BETWEEN '{start_date}' AND '{end_date}'
             GROUP BY r.email, t.assignedResource, t.resourceID
