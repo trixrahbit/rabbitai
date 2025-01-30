@@ -790,12 +790,21 @@ async def process_timeentries_in_background(input_data: List[Dict]):
 
     logging.info(f"📦 First time entry sample: {input_data[:2]}")  # ✅ Log sample data
 
+    successful_entries = 0
+    failed_entries = 0
+
     try:
         for entry in input_data:
             entry_id = entry.get("id")
+            contract_id = entry.get("contractID", None)  # ✅ Ensure contractID is always handled
+            if contract_id is None:
+                logging.warning(f"⚠️ Skipping Time Entry ID {entry_id}: Missing contractID.")
+                failed_entries += 1
+                continue  # Skip this entry
+
             logging.info(f"🔄 Processing Time Entry ID: {entry_id}")
 
-            # ✅ Convert date fields
+            # ✅ Convert date fields safely
             create_dt = parse_date(entry.get("createDateTime"))
             date_worked = parse_date(entry.get("dateWorked"))
             end_dt = parse_date(entry.get("endDateTime"))
@@ -867,7 +876,7 @@ async def process_timeentries_in_background(input_data: List[Dict]):
 
             values = {
                 "id": entry_id,
-                "contractID": entry.get("contractID"),
+                "contractID": contract_id,  # ✅ Guaranteed to have a value
                 "contractServiceBundleID": entry.get("contractServiceBundleID"),
                 "contractServiceID": entry.get("contractServiceID"),
                 "createDateTime": create_dt,
@@ -892,10 +901,12 @@ async def process_timeentries_in_background(input_data: List[Dict]):
                 result = conn.execute(query, values)
                 conn.commit()
                 logging.info(f"✅ Query executed for Time Entry ID {entry_id}. Affected rows: {result.rowcount}")
+                successful_entries += 1
             except Exception as e:
                 logging.error(f"❌ Error executing query for Time Entry ID {entry_id}: {e}", exc_info=True)
+                failed_entries += 1
 
-        logging.info(f"🎯 Completed processing {len(input_data)} time entries.")
+        logging.info(f"🎯 Completed processing {successful_entries} time entries. Skipped {failed_entries} due to missing contractID.")
 
     except Exception as e:
         logging.critical(f"🔥 Critical error during time entry processing: {e}", exc_info=True)
