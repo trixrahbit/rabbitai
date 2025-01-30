@@ -784,17 +784,27 @@ async def process_contract_units(input_data: List[Dict] = Body(...), background_
 async def process_timeentries_in_background(input_data: List[Dict]):
     logging.info(f"🔄 Starting background processing of {len(input_data)} time entries...")
 
-    conn = get_secondary_db_connection()
-    cursor = conn.cursor()
+    # ✅ Confirm database connection
+    try:
+        conn = get_secondary_db_connection()
+        cursor = conn.cursor()
+        logging.info("✅ Database connection established successfully.")
+    except Exception as e:
+        logging.critical(f"🚨 Database connection failed: {e}", exc_info=True)
+        return  # Stop execution if DB is broken
+
     processed_count = 0
     failed_count = 0
 
     try:
         for i, entry in enumerate(input_data):
-            try:
-                logging.info(f"📌 [{i+1}/{len(input_data)}] Processing Time Entry ID: {entry.get('id')}")
+            logging.info(f"📌 [{i+1}/{len(input_data)}] Processing Time Entry ID: {entry.get('id')}")
 
-                # Parse and validate time entry
+            # ✅ See if it ever gets here
+            if i == 0:
+                logging.info(f"🔍 First entry: {entry}")
+
+            try:
                 time_entry = TimeEntries(**entry)  # ✅ Auto-parses datetime fields
 
                 query = """
@@ -863,9 +873,6 @@ def parse_datetime(date_str):
     except ValueError:
         logging.error(f"🚨 Invalid datetime format: {date_str}. Returning None.")
         return None
-
-
-
 
 @app.post("/process_time_entries/")
 async def process_time_entries(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
