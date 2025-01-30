@@ -17,15 +17,7 @@ def calculate_sla_met(session):
     kpi_insert(session, "SLA Met", "Service Desk", "Team", sla_met_count)
 
 
-def calculate_csat_rolling_30(session):
-    query = """
-    SELECT AVG(score) AS csat_score
-    FROM csat_responses
-    WHERE response_date >= DATEADD(DAY, -30, GETDATE());
-    """
-    result = session.execute(query).fetchone()
 
-    kpi_insert(session, "CSAT Rolling 30", "Service Desk", "Team", result)
 def calculate_ticket_aging(session):
     query = text("""  -- ✅ Wrap query in text()
         SELECT COUNT(*) AS aging_tickets
@@ -40,17 +32,6 @@ def calculate_ticket_aging(session):
 
     kpi_insert(session, "Ticket Aging Over 5", "Service Desk", "Team", aging_tickets)
 
-
-def calculate_support_calls(session):
-    query = """
-    SELECT COUNT(*) AS total_calls
-    FROM call_logs
-    WHERE direction = 'Inbound'
-    AND category = 'Support';
-    """
-    result = session.execute(query).fetchone()
-
-    kpi_insert(session, "# of Support Calls", "Service Desk", "Team", result)
 
 def calculate_avg_response_time(session):
     query = text("""
@@ -82,3 +63,25 @@ def calculate_avg_resolution_time(session):
     avg_resolution_time = int(result[0]) if result and result[0] is not None else 0  # ✅ Store minutes as an integer
 
     kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
+
+
+def calculate_support_calls(session):
+    query = """
+    SELECT COUNT(*) AS total_calls
+    FROM call_logs
+    WHERE direction = 'Inbound'
+    AND category = 'Support';
+    """
+    result = session.execute(query).fetchone()
+
+    kpi_insert(session, "# of Support Calls", "Service Desk", "Team", result)
+
+def calculate_csat_rolling_30(session):
+    query = """
+    SELECT AVG(score) AS csat_score
+    FROM csat_responses
+    WHERE response_date >= DATEADD(DAY, -30, GETDATE());
+    """
+    result = session.execute(query).fetchone()
+
+    kpi_insert(session, "CSAT Rolling 30", "Service Desk", "Team", result)

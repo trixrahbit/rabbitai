@@ -206,26 +206,33 @@ class TimeEntries(BaseModel):
     contractID: int
     contractServiceBundleID: Optional[int] = None
     contractServiceID: Optional[int] = None
-    createDateTime: str
+    createDateTime: Optional[datetime] = None
     creatorUserID: int
-    dateWorked: str
-    endDateTime: Optional[str] = None
+    dateWorked: Optional[datetime] = None
+    endDateTime: Optional[datetime] = None
     hoursToBill: float
     hoursWorked: float
     internalNotes: Optional[str] = None
     isNonBillable: bool
-    lastModifiedDateTime: str
+    lastModifiedDateTime: Optional[datetime] = None
     resourceID: int
     roleID: int
-    startDateTime: str
+    startDateTime: Optional[datetime] = None
     summaryNotes: Optional[str] = None
     taskID: Optional[int] = None
     ticketID: Optional[int] = None
     timeEntryType: int
-    userDefinedFields: Optional[List[UserDefinedField]] = None
+    userDefinedFields: Optional[List]
 
     @validator("createDateTime", "dateWorked", "endDateTime", "lastModifiedDateTime", "startDateTime", pre=True)
-    def parse_dates(cls, v):
-        if isinstance(v, str):
-            return datetime.fromisoformat(v.replace("Z", ""))
-        return v
+    def parse_datetime(cls, value):
+        """Converts string timestamps into datetime objects"""
+        if isinstance(value, str):
+            try:
+                return datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")  # Handles fractional seconds
+            except ValueError:
+                try:
+                    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")  # Handles 'Z' format without milliseconds
+                except ValueError:
+                    return None  # Return None if parsing fails
+        return value

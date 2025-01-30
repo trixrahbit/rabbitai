@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from starlette.responses import HTMLResponse
 from config import APP_SECRET, OPENID_CONFIG_URL, APP_ID, get_db_connection, get_secondary_db_connection
-from models.models import DeviceData, ProcessedContractUnit
+from models.models import DeviceData, ProcessedContractUnit, TimeEntries
 from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -488,10 +488,6 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
             logging.error(f"🚨 Invalid date format: {date_str}, setting to default")
             return datetime.utcnow()  # Default to current timestamp instead of None
 
-
-
-
-
 async def process_contracts_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract data into the database."""
     conn = get_secondary_db_connection()
@@ -662,7 +658,6 @@ async def process_contracts_in_background(input_data: List[Dict]):
         logging.info("🔌 Database connection closed.")
 
 
-
 @app.post("/process_contracts/")
 async def process_contracts(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
     """
@@ -674,9 +669,6 @@ async def process_contracts(input_data: List[Dict] = Body(...), background_tasks
     background_tasks.add_task(process_contracts_in_background, input_data)
 
     return {"message": "✅ Received successfully. Processing in background."}
-
-
-
 
 async def process_units_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract units into the database."""
@@ -776,7 +768,6 @@ async def process_units_in_background(input_data: List[Dict]):
         logging.info("🔌 Database connection closed.")
 
 
-
 @app.post("/process_contract_units/")
 async def process_contract_units(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
     """
@@ -791,145 +782,73 @@ async def process_contract_units(input_data: List[Dict] = Body(...), background_
 
 
 async def process_timeentries_in_background(input_data: List[Dict]):
-    """Background task to insert/merge time entry data into the database."""
+    logging.info("🔄 Starting background processing of time entries...")
+
     conn = get_secondary_db_connection()
     cursor = conn.cursor()
+    processed_count = 0
+    failed_count = 0
 
     try:
         for entry in input_data:
-            # Ensure contractID exists
-            cursor.execute("SELECT 1 FROM dbo.Contracts WHERE id = ?", entry.get("contractID"))
-            if not cursor.fetchone():
-                logging.warning(f"🚨 Skipping Time Entry ID {entry.get('id')}: contractID {entry.get('contractID')} does not exist.")
-                continue  # Skip this entry
-
-            # Ensure ticketID exists (if not None)
-            ticket_id = entry.get("ticketID")
-            if ticket_id is not None:
-                cursor.execute("SELECT 1 FROM dbo.Tickets WHERE id = ?", ticket_id)
-                if not cursor.fetchone():
-                    logging.warning(f"🚨 Skipping Time Entry ID {entry.get('id')}: ticketID {ticket_id} does not exist.")
-                    continue  # Skip this entry
-
-            # Convert dates
-            create_dt = parse_date(entry.get("createDateTime"))
-            date_worked = parse_date(entry.get("dateWorked"))
-            end_dt = parse_date(entry.get("endDateTime"))
-            last_modified_dt = parse_date(entry.get("lastModifiedDateTime"))
-            start_dt = parse_date(entry.get("startDateTime"))
-
-            if last_modified_dt is None:
-                last_modified_dt = datetime.utcnow()
-
             try:
+                logging.info(f"📌 Processing Time Entry ID: {entry.get('id')}")
+
+                # Parse and validate time entry
+                time_entry = TimeEntries(**entry)  # ✅ Auto-parses datetime fields
+
                 query = """
-MERGE INTO dbo.TimeEntries AS target
-USING (SELECT 
-    ? AS id, ? AS contractID, ? AS contractServiceBundleID, ? AS contractServiceID,
-    ? AS createDateTime, ? AS creatorUserID, ? AS dateWorked, ? AS endDateTime,
-    ? AS hoursToBill, ? AS hoursWorked, ? AS internalNotes, ? AS isNonBillable,
-    ? AS lastModifiedDateTime, ? AS resourceID, ? AS roleID, ? AS startDateTime,
-    ? AS summaryNotes, ? AS taskID, ? AS ticketID, ? AS timeEntryType
-) AS source
-ON target.id = source.id
-
-WHEN MATCHED AND (
-    target.contractID <> source.contractID OR
-    target.contractServiceBundleID <> source.contractServiceBundleID OR
-    target.contractServiceID <> source.contractServiceID OR
-    target.createDateTime <> source.createDateTime OR
-    target.creatorUserID <> source.creatorUserID OR
-    target.dateWorked <> source.dateWorked OR
-    target.endDateTime <> source.endDateTime OR
-    target.hoursToBill <> source.hoursToBill OR
-    target.hoursWorked <> source.hoursWorked OR
-    CAST(target.internalNotes AS NVARCHAR(MAX)) <> CAST(source.internalNotes AS NVARCHAR(MAX)) OR
-    target.isNonBillable <> source.isNonBillable OR
-    target.lastModifiedDateTime <> source.lastModifiedDateTime OR
-    target.resourceID <> source.resourceID OR
-    target.roleID <> source.roleID OR
-    target.startDateTime <> source.startDateTime OR
-    CAST(target.summaryNotes AS NVARCHAR(MAX)) <> CAST(source.summaryNotes AS NVARCHAR(MAX)) OR
-    target.taskID <> source.taskID OR
-    target.ticketID <> source.ticketID OR
-    target.timeEntryType <> source.timeEntryType
-)
-
-THEN UPDATE SET
-    contractID = source.contractID,
-    contractServiceBundleID = source.contractServiceBundleID,
-    contractServiceID = source.contractServiceID,
-    createDateTime = source.createDateTime,
-    creatorUserID = source.creatorUserID,
-    dateWorked = source.dateWorked,
-    endDateTime = source.endDateTime,
-    hoursToBill = source.hoursToBill,
-    hoursWorked = source.hoursWorked,
-    internalNotes = source.internalNotes,
-    isNonBillable = source.isNonBillable,
-    lastModifiedDateTime = source.lastModifiedDateTime,
-    resourceID = source.resourceID,
-    roleID = source.roleID,
-    startDateTime = source.startDateTime,
-    summaryNotes = source.summaryNotes,
-    taskID = source.taskID,
-    ticketID = source.ticketID,
-    timeEntryType = source.timeEntryType
-
-WHEN NOT MATCHED THEN 
-INSERT (
-    id, contractID, contractServiceBundleID, contractServiceID, createDateTime, creatorUserID, dateWorked, endDateTime,
-    hoursToBill, hoursWorked, internalNotes, isNonBillable, lastModifiedDateTime, resourceID, roleID, startDateTime, 
-    summaryNotes, taskID, ticketID, timeEntryType
-)
-VALUES (
-    source.id, source.contractID, source.contractServiceBundleID, source.contractServiceID, source.createDateTime,
-    source.creatorUserID, source.dateWorked, source.endDateTime, source.hoursToBill, source.hoursWorked,
-    source.internalNotes, source.isNonBillable, source.lastModifiedDateTime, source.resourceID, source.roleID,
-    source.startDateTime, source.summaryNotes, source.taskID, source.ticketID, source.timeEntryType
-);
+                INSERT INTO dbo.TimeEntries (
+                    id, contractID, contractServiceBundleID, contractServiceID, createDateTime, 
+                    creatorUserID, dateWorked, endDateTime, hoursToBill, hoursWorked, internalNotes, 
+                    isNonBillable, lastModifiedDateTime, resourceID, roleID, startDateTime, summaryNotes, 
+                    taskID, ticketID, timeEntryType
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
 
                 values = (
-                    entry.get("id", 0),
-                    entry.get("contractID", 0),
-                    entry.get("contractServiceBundleID", None),
-                    entry.get("contractServiceID", None),
-                    create_dt,
-                    entry.get("creatorUserID", 0),
-                    date_worked,
-                    end_dt,
-                    entry.get("hoursToBill", 0.0),
-                    entry.get("hoursWorked", 0.0),
-                    entry.get("internalNotes", ""),
-                    entry.get("isNonBillable", False),
-                    last_modified_dt,
-                    entry.get("resourceID", 0),
-                    entry.get("roleID", 0),
-                    start_dt,
-                    entry.get("summaryNotes", ""),
-                    entry.get("taskID", None),
-                    entry.get("ticketID", 0),
-                    entry.get("timeEntryType", 0)
+                    time_entry.id,
+                    time_entry.contractID,
+                    time_entry.contractServiceBundleID,
+                    time_entry.contractServiceID,
+                    parse_date(time_entry.createDateTime),
+                    time_entry.creatorUserID,
+                    parse_date(time_entry.dateWorked),
+                    parse_date(time_entry.endDateTime),
+                    time_entry.hoursToBill,
+                    time_entry.hoursWorked,
+                    time_entry.internalNotes,
+                    time_entry.isNonBillable,
+                    parse_date(time_entry.lastModifiedDateTime),
+                    time_entry.resourceID,
+                    time_entry.roleID,
+                    parse_date(time_entry.startDateTime),
+                    time_entry.summaryNotes,
+                    time_entry.taskID,
+                    time_entry.ticketID,
+                    time_entry.timeEntryType
                 )
 
                 cursor.execute(query, values)
+                processed_count += 1
+                logging.info(f"✅ Successfully inserted Time Entry ID: {time_entry.id}")
 
-            except pyodbc.Error as e:
-                logging.error(f"🚨 MERGE failed for Time Entry ID {entry.get('id')}: {e}", exc_info=True)
-                continue
+            except Exception as e:
+                failed_count += 1
+                logging.error(f"❌ Error processing Time Entry ID {entry.get('id')}: {e}", exc_info=True)
 
         conn.commit()
-        logging.info(f"✅ Successfully processed {len(input_data)} time entries.")
+        logging.info(f"🎯 Completed processing. ✅ Success: {processed_count}, ❌ Failed: {failed_count}")
 
     except Exception as e:
         conn.rollback()
-        logging.critical(f"🔥 Critical Error during time entries processing: {e}", exc_info=True)
+        logging.critical(f"🔥 Critical error during time entry processing: {e}", exc_info=True)
 
     finally:
         cursor.close()
         conn.close()
         logging.info("🔌 Database connection closed.")
+
 
 
 @app.post("/process_time_entries/")
