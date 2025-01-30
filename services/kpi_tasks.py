@@ -1,6 +1,9 @@
 import logging
+from datetime import datetime, timedelta
 
 from sqlalchemy import text
+
+from config import engine
 
 
 def kpi_insert(session, kpi_name, category, type_, value):
@@ -54,6 +57,65 @@ def kpi_insert(session, kpi_name, category, type_, value):
 
     session.execute(insert_value_query, {"kpi_id": kpi_id, "value": value})
     session.commit()
+
+
+def get_start_end_of_week():
+    """Get start (Sunday) and end (Saturday) of the current week."""
+    today = datetime.today()
+    start_of_week = today - timedelta(days=today.weekday() + 1)  # Sunday
+    end_of_week = start_of_week + timedelta(days=6)  # Saturday
+    return start_of_week.date(), end_of_week.date()
+
+
+def calculate_utilization():
+    """Calculate total hours worked per resource per week and update database."""
+    start_date, end_date = get_start_end_of_week()
+
+    with engine.connect() as conn:
+        query = text(f"""
+            SELECT 
+                r.email AS emailAddress,
+                t.assignedResource AS resource_name,
+                t.resourceID,
+                SUM(t.hoursWorked) AS total_hours
+            FROM v_Time_Entries t
+            LEFT JOIN resources r ON t.resourceID = r.id  -- ✅ Get email
+            WHERE t.dateWorked BETWEEN '{start_date}' AND '{end_date}'
+            GROUP BY r.email, t.assignedResource, t.resourceID
+        """)
+        result = conn.execute(query).fetchall()
+
+        if not result:
+            print("No time entries found for this week.")
+            return
+
+        for row in result:
+            email, resource_name, resource_id, total_hours = row
+            utilization_percentage = (total_hours / 40) * 100  # Based on 40-hour workweek
+
+            upsert_query = text("""
+                MERGE INTO ResourceUtilization AS target
+                USING (SELECT :resourceID AS resourceID, :weekStartDate AS weekStartDate) AS source
+                ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
+                WHEN MATCHED THEN
+                    UPDATE SET totalHoursWorked = :totalHours, utilizationPercentage = :utilization, emailAddress = :email, assignedResource = :resourceName
+                WHEN NOT MATCHED THEN
+                    INSERT (resourceID, assignedResource, emailAddress, weekStartDate, weekEndDate, totalHoursWorked, utilizationPercentage)
+                    VALUES (:resourceID, :resourceName, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
+            """)
+
+            conn.execute(upsert_query, {
+                "resourceID": resource_id,
+                "resourceName": resource_name,
+                "email": email,
+                "weekStartDate": start_date,
+                "weekEndDate": end_date,
+                "totalHours": total_hours,
+                "utilization": utilization_percentage
+            })
+
+        conn.commit()
+        print("✅ Weekly Utilization Data Updated with Emails!")
 
 
 
