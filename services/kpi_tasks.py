@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
-from config import engine
+from config import engine, get_secondary_db_connection
 
 
 def kpi_insert(session, kpi_name, category, type_, value):
@@ -70,45 +70,50 @@ def get_start_end_of_week():
 def calculate_utilization():
     """Calculate total hours worked per resource per week and update database."""
     start_date, end_date = get_start_end_of_week()
+    session = get_secondary_db_connection()  # Use session from SQLAlchemy
 
-    with engine.connect() as conn:
+    try:
         logging.info(f"🔍 Fetching time entries for {start_date} - {end_date}")
 
-        query = text(f"""
+        query = text("""
             SELECT 
-                r.email AS emailAddress,
+                COALESCE(r.email, '') AS emailAddress,  -- Prevent NULL values
                 t.assignedResource AS resource_name,
                 t.resourceID,
-                SUM(t.hoursWorked) AS total_hours
-            FROM TimeEntries t
-            LEFT JOIN resources r ON t.resourceID = r.id  -- ✅ Get email from resource table
-            WHERE t.dateWorked BETWEEN '{start_date}' AND '{end_date}'
+                COALESCE(SUM(t.hoursWorked), 0) AS total_hours  -- Handle NULL case
+            FROM dbo.TimeEntries t  -- ✅ Explicit schema reference
+            LEFT JOIN dbo.resources r ON t.resourceID = r.id  -- ✅ Ensure correct schema
+            WHERE t.dateWorked BETWEEN :start_date AND :end_date
             GROUP BY r.email, t.assignedResource, t.resourceID
         """)
 
-        try:
-            result = conn.execute(query).fetchall()
+        result = session.execute(query, {
+            "start_date": start_date,
+            "end_date": end_date
+        }).fetchall()
 
-            if not result:
-                logging.warning("⚠️ No time entries found for this week.")
-                return
+        if not result:
+            logging.warning("⚠️ No time entries found for this week.")
+            return
 
+        with session.begin():  # Use session.begin() for transaction safety
             for row in result:
                 email, resource_name, resource_id, total_hours = row
                 utilization_percentage = (total_hours / 40) * 100  # Based on 40-hour workweek
 
                 upsert_query = text("""
-                    MERGE INTO ResourceUtilization AS target
+                    MERGE INTO dbo.ResourceUtilization AS target
                     USING (SELECT :resourceID AS resourceID, :weekStartDate AS weekStartDate) AS source
                     ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
                     WHEN MATCHED THEN
-                        UPDATE SET totalHoursWorked = :totalHours, utilizationPercentage = :utilization, emailAddress = :email, assignedResource = :resourceName
+                        UPDATE SET totalHoursWorked = :totalHours, utilizationPercentage = :utilization, 
+                                   emailAddress = :email, assignedResource = :resourceName
                     WHEN NOT MATCHED THEN
                         INSERT (resourceID, assignedResource, emailAddress, weekStartDate, weekEndDate, totalHoursWorked, utilizationPercentage)
                         VALUES (:resourceID, :resourceName, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
                 """)
 
-                conn.execute(upsert_query, {
+                session.execute(upsert_query, {
                     "resourceID": resource_id,
                     "resourceName": resource_name,
                     "email": email,
@@ -118,11 +123,13 @@ def calculate_utilization():
                     "utilization": utilization_percentage
                 })
 
-            conn.commit()
-            logging.info("✅ Weekly Utilization Data Updated Successfully!")
+        logging.info("✅ Weekly Utilization Data Updated Successfully!")
 
-        except Exception as e:
-            logging.critical(f"🔥 Error calculating utilization: {e}", exc_info=True)
+    except Exception as e:
+        logging.critical(f"🔥 Error calculating utilization: {e}", exc_info=True)
+
+    finally:
+        session.close()  # Ensure session is closed
 
 
 
