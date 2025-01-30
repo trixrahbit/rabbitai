@@ -77,14 +77,13 @@ def calculate_utilization():
 
         query = text("""
             SELECT 
-                COALESCE(r.email, '') AS emailAddress,  -- Prevent NULL values
-                t.assignedResource AS resource_name,
-                t.resourceID,
-                COALESCE(SUM(t.hoursWorked), 0) AS total_hours  -- Handle NULL case
+                COALESCE(r.email, '') AS emailAddress,  -- Get email from `resources`
+                t.creatorUserID AS user_id,
+                COALESCE(SUM(t.hoursWorked), 0) AS total_hours  -- Sum hours per user
             FROM dbo.TimeEntries t  -- ✅ Explicit schema reference
-            LEFT JOIN dbo.resources r ON t.resourceID = r.id  -- ✅ Ensure correct schema
+            LEFT JOIN dbo.resources r ON t.creatorUserID = r.id  -- ✅ Match `creatorUserID`
             WHERE t.dateWorked BETWEEN :start_date AND :end_date
-            GROUP BY r.email, t.creatorUserID, t.resourceID
+            GROUP BY r.email, t.creatorUserID
         """)
 
         result = session.execute(query, {
@@ -98,24 +97,22 @@ def calculate_utilization():
 
         with session.begin():  # Use session.begin() for transaction safety
             for row in result:
-                email, resource_name, resource_id, total_hours = row
+                email, user_id, total_hours = row
                 utilization_percentage = (total_hours / 40) * 100  # Based on 40-hour workweek
 
                 upsert_query = text("""
                     MERGE INTO dbo.ResourceUtilization AS target
-                    USING (SELECT :resourceID AS resourceID, :weekStartDate AS weekStartDate) AS source
+                    USING (SELECT :user_id AS resourceID, :weekStartDate AS weekStartDate) AS source
                     ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
                     WHEN MATCHED THEN
-                        UPDATE SET totalHoursWorked = :totalHours, utilizationPercentage = :utilization, 
-                                   emailAddress = :email, assignedResource = :resourceName
+                        UPDATE SET totalHoursWorked = :totalHours, utilizationPercentage = :utilization, emailAddress = :email
                     WHEN NOT MATCHED THEN
-                        INSERT (resourceID, assignedResource, emailAddress, weekStartDate, weekEndDate, totalHoursWorked, utilizationPercentage)
-                        VALUES (:resourceID, :resourceName, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
+                        INSERT (resourceID, emailAddress, weekStartDate, weekEndDate, totalHoursWorked, utilizationPercentage)
+                        VALUES (:user_id, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
                 """)
 
                 session.execute(upsert_query, {
-                    "resourceID": resource_id,
-                    "resourceName": resource_name,
+                    "user_id": user_id,
                     "email": email,
                     "weekStartDate": start_date,
                     "weekEndDate": end_date,
