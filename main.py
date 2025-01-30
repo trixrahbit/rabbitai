@@ -796,13 +796,13 @@ async def process_timeentries_in_background(input_data: List[Dict]):
     try:
         for entry in input_data:
             entry_id = entry.get("id")
-            contract_id = entry.get("contractID", None)  # ✅ Ensure contractID is always handled
-            if contract_id is None:
-                logging.warning(f"⚠️ Skipping Time Entry ID {entry_id}: Missing contractID.")
-                failed_entries += 1
-                continue  # Skip this entry
+            contract_id = entry.get("contractID", None)
 
-            logging.info(f"🔄 Processing Time Entry ID: {entry_id}")
+            # ✅ Ensure contractID is NEVER NULL (set to 0 if missing)
+            if contract_id is None:
+                contract_id = 0  # 👈 Use 0 as fallback for missing contractID
+
+            logging.info(f"🔄 Processing Time Entry ID: {entry_id} with contractID: {contract_id}")
 
             # ✅ Convert date fields safely
             create_dt = parse_date(entry.get("createDateTime"))
@@ -876,7 +876,7 @@ async def process_timeentries_in_background(input_data: List[Dict]):
 
             values = {
                 "id": entry_id,
-                "contractID": contract_id,  # ✅ Guaranteed to have a value
+                "contractID": contract_id,  # ✅ Guaranteed to have a value (0 if missing)
                 "contractServiceBundleID": entry.get("contractServiceBundleID"),
                 "contractServiceID": entry.get("contractServiceID"),
                 "createDateTime": create_dt,
@@ -906,7 +906,7 @@ async def process_timeentries_in_background(input_data: List[Dict]):
                 logging.error(f"❌ Error executing query for Time Entry ID {entry_id}: {e}", exc_info=True)
                 failed_entries += 1
 
-        logging.info(f"🎯 Completed processing {successful_entries} time entries. Skipped {failed_entries} due to missing contractID.")
+        logging.info(f"🎯 Completed processing {successful_entries} time entries. {failed_entries} entries had issues.")
 
     except Exception as e:
         logging.critical(f"🔥 Critical error during time entry processing: {e}", exc_info=True)
