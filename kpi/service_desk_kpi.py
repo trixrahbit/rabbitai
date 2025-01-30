@@ -147,10 +147,6 @@ def calculate_response_resolution_time():
         session.close()  # ✅ Ensure connection is closed
 
 
-
-
-
-
 def calculate_support_calls(session):
     query = """
     SELECT COUNT(*) AS total_calls
