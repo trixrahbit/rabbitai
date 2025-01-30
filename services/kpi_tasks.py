@@ -95,34 +95,36 @@ def calculate_utilization():
             logging.warning("⚠️ No time entries found for this week.")
             return
 
-        with session.begin():  # Use session.begin() for transaction safety
-            for row in result:
-                email, user_id, total_hours = row
-                utilization_percentage = (total_hours / 40) * 100  # Based on 40-hour workweek
+        # ✅ No explicit `session.begin()` required, just execute queries
+        for row in result:
+            email, user_id, total_hours = row
+            utilization_percentage = (total_hours / 40) * 100  # Based on 40-hour workweek
 
-                upsert_query = text("""
-                    MERGE INTO dbo.ResourceUtilization AS target
-                    USING (SELECT :user_id AS resourceID, :weekStartDate AS weekStartDate) AS source
-                    ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
-                    WHEN MATCHED THEN
-                        UPDATE SET totalHoursWorked = :totalHours, utilizationPercentage = :utilization, emailAddress = :email
-                    WHEN NOT MATCHED THEN
-                        INSERT (resourceID, emailAddress, weekStartDate, weekEndDate, totalHoursWorked, utilizationPercentage)
-                        VALUES (:user_id, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
-                """)
+            upsert_query = text("""
+                MERGE INTO dbo.ResourceUtilization AS target
+                USING (SELECT :user_id AS resourceID, :weekStartDate AS weekStartDate) AS source
+                ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
+                WHEN MATCHED THEN
+                    UPDATE SET totalHoursWorked = :totalHours, utilizationPercentage = :utilization, emailAddress = :email
+                WHEN NOT MATCHED THEN
+                    INSERT (resourceID, emailAddress, weekStartDate, weekEndDate, totalHoursWorked, utilizationPercentage)
+                    VALUES (:user_id, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
+            """)
 
-                session.execute(upsert_query, {
-                    "user_id": user_id,
-                    "email": email,
-                    "weekStartDate": start_date,
-                    "weekEndDate": end_date,
-                    "totalHours": total_hours,
-                    "utilization": utilization_percentage
-                })
+            session.execute(upsert_query, {
+                "user_id": user_id,
+                "email": email,
+                "weekStartDate": start_date,
+                "weekEndDate": end_date,
+                "totalHours": total_hours,
+                "utilization": utilization_percentage
+            })
 
+        session.commit()  # ✅ Explicit commit AFTER all inserts/updates
         logging.info("✅ Weekly Utilization Data Updated Successfully!")
 
     except Exception as e:
+        session.rollback()  # ✅ Rollback on error
         logging.critical(f"🔥 Error calculating utilization: {e}", exc_info=True)
 
     finally:
