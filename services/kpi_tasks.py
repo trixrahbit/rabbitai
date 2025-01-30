@@ -72,50 +72,57 @@ def calculate_utilization():
     start_date, end_date = get_start_end_of_week()
 
     with engine.connect() as conn:
+        logging.info(f"🔍 Fetching time entries for {start_date} - {end_date}")
+
         query = text(f"""
             SELECT 
                 r.email AS emailAddress,
                 t.assignedResource AS resource_name,
                 t.resourceID,
                 SUM(t.hoursWorked) AS total_hours
-            FROM dbo.TimeEntries t
-            LEFT JOIN resources r ON t.resourceID = r.id  -- ✅ Get email
+            FROM TimeEntries t
+            LEFT JOIN resources r ON t.resourceID = r.id  -- ✅ Get email from resource table
             WHERE t.dateWorked BETWEEN '{start_date}' AND '{end_date}'
             GROUP BY r.email, t.assignedResource, t.resourceID
         """)
-        result = conn.execute(query).fetchall()
 
-        if not result:
-            print("No time entries found for this week.")
-            return
+        try:
+            result = conn.execute(query).fetchall()
 
-        for row in result:
-            email, resource_name, resource_id, total_hours = row
-            utilization_percentage = (total_hours / 40) * 100  # Based on 40-hour workweek
+            if not result:
+                logging.warning("⚠️ No time entries found for this week.")
+                return
 
-            upsert_query = text("""
-                MERGE INTO ResourceUtilization AS target
-                USING (SELECT :resourceID AS resourceID, :weekStartDate AS weekStartDate) AS source
-                ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
-                WHEN MATCHED THEN
-                    UPDATE SET totalHoursWorked = :totalHours, utilizationPercentage = :utilization, emailAddress = :email, assignedResource = :resourceName
-                WHEN NOT MATCHED THEN
-                    INSERT (resourceID, assignedResource, emailAddress, weekStartDate, weekEndDate, totalHoursWorked, utilizationPercentage)
-                    VALUES (:resourceID, :resourceName, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
-            """)
+            for row in result:
+                email, resource_name, resource_id, total_hours = row
+                utilization_percentage = (total_hours / 40) * 100  # Based on 40-hour workweek
 
-            conn.execute(upsert_query, {
-                "resourceID": resource_id,
-                "resourceName": resource_name,
-                "email": email,
-                "weekStartDate": start_date,
-                "weekEndDate": end_date,
-                "totalHours": total_hours,
-                "utilization": utilization_percentage
-            })
+                upsert_query = text("""
+                    MERGE INTO ResourceUtilization AS target
+                    USING (SELECT :resourceID AS resourceID, :weekStartDate AS weekStartDate) AS source
+                    ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
+                    WHEN MATCHED THEN
+                        UPDATE SET totalHoursWorked = :totalHours, utilizationPercentage = :utilization, emailAddress = :email, assignedResource = :resourceName
+                    WHEN NOT MATCHED THEN
+                        INSERT (resourceID, assignedResource, emailAddress, weekStartDate, weekEndDate, totalHoursWorked, utilizationPercentage)
+                        VALUES (:resourceID, :resourceName, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
+                """)
 
-        conn.commit()
-        print("✅ Weekly Utilization Data Updated with Emails!")
+                conn.execute(upsert_query, {
+                    "resourceID": resource_id,
+                    "resourceName": resource_name,
+                    "email": email,
+                    "weekStartDate": start_date,
+                    "weekEndDate": end_date,
+                    "totalHours": total_hours,
+                    "utilization": utilization_percentage
+                })
+
+            conn.commit()
+            logging.info("✅ Weekly Utilization Data Updated Successfully!")
+
+        except Exception as e:
+            logging.critical(f"🔥 Error calculating utilization: {e}", exc_info=True)
 
 
 
