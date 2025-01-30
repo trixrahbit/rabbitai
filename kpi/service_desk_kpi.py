@@ -78,12 +78,12 @@ def calculate_response_resolution_time():
         query = text("""
             SELECT 
                 COALESCE(r.email, '') AS emailAddress,
-                t.assignedResourceID AS user_id,
+                COALESCE(t.assignedResourceID, 0) AS user_id,
                 COALESCE(SUM(DATEDIFF(MINUTE, t.createDate, t.firstResponseDateTime)), 0) AS total_response_time,
                 COALESCE(SUM(DATEDIFF(MINUTE, t.createDate, t.resolvedDateTime)), 0) AS total_resolution_time,
                 COUNT(t.id) AS ticket_count
-            FROM dbo.Tickets t  -- ✅ Explicit schema reference
-            LEFT JOIN dbo.resources r ON t.assignedResourceID = r.id  -- ✅ Get email using `resources`
+            FROM dbo.Tickets t
+            LEFT JOIN dbo.resources r ON t.assignedResourceID = r.id  
             WHERE t.createDate BETWEEN :start_date AND :end_date
             GROUP BY r.email, t.assignedResourceID
         """)
@@ -100,6 +100,11 @@ def calculate_response_resolution_time():
         # ✅ Process each resource's response & resolution time
         for row in result:
             email, user_id, total_response_time, total_resolution_time, ticket_count = row
+
+            # ✅ Ensure `resourceID` is never NULL
+            if user_id is None:
+                logging.warning(f"⚠️ Skipping entry due to missing resource ID. Email: {email}")
+                continue
 
             avg_response_time = total_response_time / ticket_count if ticket_count > 0 else 0
             avg_resolution_time = total_resolution_time / ticket_count if ticket_count > 0 else 0
