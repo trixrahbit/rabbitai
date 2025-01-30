@@ -782,7 +782,7 @@ async def process_contract_units(input_data: List[Dict] = Body(...), background_
 
 
 async def process_timeentries_in_background(input_data: List[Dict]):
-    logging.info("🔄 Starting background processing of time entries...")
+    logging.info(f"🔄 Starting background processing of {len(input_data)} time entries...")
 
     conn = get_secondary_db_connection()
     cursor = conn.cursor()
@@ -790,9 +790,9 @@ async def process_timeentries_in_background(input_data: List[Dict]):
     failed_count = 0
 
     try:
-        for entry in input_data:
+        for i, entry in enumerate(input_data):
             try:
-                logging.info(f"📌 Processing Time Entry ID: {entry.get('id')}")
+                logging.info(f"📌 [{i+1}/{len(input_data)}] Processing Time Entry ID: {entry.get('id')}")
 
                 # Parse and validate time entry
                 time_entry = TimeEntries(**entry)  # ✅ Auto-parses datetime fields
@@ -829,7 +829,9 @@ async def process_timeentries_in_background(input_data: List[Dict]):
                     time_entry.timeEntryType
                 )
 
+                logging.info(f"📥 Executing SQL Query for Time Entry ID: {time_entry.id}")
                 cursor.execute(query, values)
+
                 processed_count += 1
                 logging.info(f"✅ Successfully inserted Time Entry ID: {time_entry.id}")
 
