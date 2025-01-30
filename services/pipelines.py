@@ -7,7 +7,8 @@ from config import SECONDARY_DATABASE_URL
 from kpi.field_team_kpi import calculate_endpoints_patched, calculate_uptime_rolling_30, \
     calculate_reactive_tickets_per_endpoint
 from kpi.service_desk_kpi import calculate_sla_met, calculate_csat_rolling_30, calculate_ticket_aging, \
-    calculate_support_calls, calculate_avg_response_time, calculate_avg_resolution_time
+    calculate_support_calls, calculate_avg_response_time, calculate_avg_resolution_time, \
+    calculate_response_resolution_time
 from services.kpi_tasks import calculate_utilization
 
 engine = create_engine(SECONDARY_DATABASE_URL)
@@ -17,6 +18,7 @@ def run_kpi_pipeline():
     session = Session()
     try:
         calculate_utilization()
+        calculate_response_resolution_time()
         calculate_sla_met(session)
         # calculate_csat_rolling_30(session)
         calculate_ticket_aging(session)

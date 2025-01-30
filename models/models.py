@@ -236,3 +236,16 @@ class TimeEntries(BaseModel):
                 except ValueError:
                     return None  # Return None if parsing fails
         return value
+
+class ResourceResponseResolution(BaseModel):
+    id: Optional[int] = None
+    resourceID: int
+    emailAddress: Optional[str] = None
+    assignedResource: str
+    weekStartDate: str
+    weekEndDate: str
+    totalResponseTime: float
+    totalResolutionTime: float
+    avgResponseTime: float
+    avgResolutionTime: float
+    ticketCount: int
