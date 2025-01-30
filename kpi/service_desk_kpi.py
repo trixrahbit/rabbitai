@@ -68,22 +68,22 @@ def calculate_avg_resolution_time(session):
     kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
 
 def calculate_response_resolution_time():
-    """Calculate response and resolution times per resource per week and update database."""
+    """Calculates response & resolution times per resource per week and updates the database."""
     start_date, end_date = get_start_end_of_week()
-    session = get_secondary_db_connection()  # Get SQLAlchemy session
+    session = get_secondary_db_connection()
 
     try:
         logging.info(f"🔍 Fetching ticket data for {start_date} - {end_date}")
 
         query = text("""
             SELECT 
-                r.email AS emailAddress,
-                t.assignedResourceID,
-                COUNT(t.id) AS ticketCount,
-                SUM(DATEDIFF(SECOND, t.createDate, t.firstResponseDateTime)) / 3600.0 AS totalResponseTime,  -- Convert seconds to hours
-                SUM(DATEDIFF(SECOND, t.createDate, t.resolvedDateTime)) / 3600.0 AS totalResolutionTime  -- Convert seconds to hours
-            FROM dbo.Tickets t
-            LEFT JOIN dbo.resources r ON t.assignedResourceID = r.id
+                COALESCE(r.email, '') AS emailAddress,
+                t.assignedResourceID AS user_id,
+                COALESCE(SUM(DATEDIFF(MINUTE, t.createDate, t.firstResponseDateTime)), 0) AS total_response_time,
+                COALESCE(SUM(DATEDIFF(MINUTE, t.createDate, t.resolvedDateTime)), 0) AS total_resolution_time,
+                COUNT(t.id) AS ticket_count
+            FROM dbo.Tickets t  -- ✅ Explicit schema reference
+            LEFT JOIN dbo.resources r ON t.assignedResourceID = r.id  -- ✅ Get email using `resources`
             WHERE t.createDate BETWEEN :start_date AND :end_date
             GROUP BY r.email, t.assignedResourceID
         """)
@@ -94,49 +94,52 @@ def calculate_response_resolution_time():
         }).fetchall()
 
         if not result:
-            logging.warning("⚠️ No tickets found for this week.")
+            logging.warning("⚠️ No ticket data found for this week.")
             return
 
-        with session.begin():  # Use transaction
-            for row in result:
-                email, resource_id, ticket_count, total_response_time, total_resolution_time = row
-                avg_response_time = total_response_time / ticket_count if ticket_count else 0
-                avg_resolution_time = total_resolution_time / ticket_count if ticket_count else 0
+        # ✅ Process each resource's response & resolution time
+        for row in result:
+            email, user_id, total_response_time, total_resolution_time, ticket_count = row
 
-                upsert_query = text("""
-                    MERGE INTO dbo.ResourceResponseResolution AS target
-                    USING (SELECT :resourceID AS resourceID, :weekStartDate AS weekStartDate) AS source
-                    ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
-                    WHEN MATCHED THEN
-                        UPDATE SET totalResponseTime = :totalResponseTime, totalResolutionTime = :totalResolutionTime,
-                                   avgResponseTime = :avgResponseTime, avgResolutionTime = :avgResolutionTime,
-                                   ticketCount = :ticketCount, emailAddress = :email
-                    WHEN NOT MATCHED THEN
-                        INSERT (resourceID, emailAddress, weekStartDate, weekEndDate, totalResponseTime, totalResolutionTime, 
-                                avgResponseTime, avgResolutionTime, ticketCount)
-                        VALUES (:resourceID, :email, :weekStartDate, :weekEndDate, :totalResponseTime, :totalResolutionTime,
-                                :avgResponseTime, :avgResolutionTime, :ticketCount);
-                """)
+            avg_response_time = total_response_time / ticket_count if ticket_count > 0 else 0
+            avg_resolution_time = total_resolution_time / ticket_count if ticket_count > 0 else 0
 
-                session.execute(upsert_query, {
-                    "resourceID": resource_id,
-                    "email": email,
-                    "weekStartDate": start_date,
-                    "weekEndDate": end_date,
-                    "totalResponseTime": total_response_time,
-                    "totalResolutionTime": total_resolution_time,
-                    "avgResponseTime": avg_response_time,
-                    "avgResolutionTime": avg_resolution_time,
-                    "ticketCount": ticket_count
-                })
+            upsert_query = text("""
+                MERGE INTO dbo.ResourceResponseResolution AS target
+                USING (SELECT :user_id AS resourceID, :weekStartDate AS weekStartDate) AS source
+                ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
+                WHEN MATCHED THEN
+                    UPDATE SET totalResponseTime = :totalResponse, totalResolutionTime = :totalResolution, 
+                               avgResponseTime = :avgResponse, avgResolutionTime = :avgResolution,
+                               ticketCount = :ticketCount, emailAddress = :email
+                WHEN NOT MATCHED THEN
+                    INSERT (resourceID, emailAddress, weekStartDate, weekEndDate, 
+                            totalResponseTime, totalResolutionTime, avgResponseTime, avgResolutionTime, ticketCount)
+                    VALUES (:user_id, :email, :weekStartDate, :weekEndDate, 
+                            :totalResponse, :totalResolution, :avgResponse, :avgResolution, :ticketCount);
+            """)
 
-        logging.info("✅ Weekly Response & Resolution Time Data Updated Successfully!")
+            session.execute(upsert_query, {
+                "user_id": user_id,
+                "email": email,
+                "weekStartDate": start_date,
+                "weekEndDate": end_date,
+                "totalResponse": total_response_time,
+                "totalResolution": total_resolution_time,
+                "avgResponse": avg_response_time,
+                "avgResolution": avg_resolution_time,
+                "ticketCount": ticket_count
+            })
+
+        session.commit()  # ✅ Ensure data is committed
+        logging.info("✅ Response & Resolution Times Updated Successfully!")
 
     except Exception as e:
+        session.rollback()  # ✅ Ensure rollback on failure
         logging.critical(f"🔥 Error calculating response & resolution time: {e}", exc_info=True)
 
     finally:
-        session.close()  # Close session
+        session.close()  # ✅ Ensure connection is closed
 
 
 
