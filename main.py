@@ -25,7 +25,7 @@ from services.pdf_service import generate_pdf_report
 import uuid
 import os
 
-from services.pipelines import start_kpi_background_update
+from services.pipelines import start_kpi_background_update, Session
 from ticket_handling.main_ticket_handler import fetch_tickets_from_webhook, assign_ticket_weights, construct_ticket_card
 from fastapi import Body
 
@@ -782,85 +782,132 @@ async def process_contract_units(input_data: List[Dict] = Body(...), background_
 
 
 async def process_timeentries_in_background(input_data: List[Dict]):
-    logging.info(f"🔄 Starting background processing of {len(input_data)} time entries...")
+    """Background task to insert/merge time entry data into the database."""
+    conn = get_secondary_db_connection()
 
-    # ✅ Confirm database connection
+    logging.info(f"🔍 Connection Type: {type(conn)}")
+    logging.info(f"📦 Received {len(input_data)} time entries to process.")
+
+    if not input_data:
+        logging.warning("⚠️ No time entry data received. Exiting function.")
+        conn.close()
+        return
+
+    logging.info(f"📦 First time entry sample: {input_data[:2]}")  # ✅ Log sample data
+
     try:
-        conn = get_secondary_db_connection()
-        cursor = conn.cursor()
-        logging.info("✅ Database connection established successfully.")
+        with Session(conn) as session:
+            for entry in input_data:
+                entry_id = entry.get("id")
+
+                logging.info(f"🔄 Processing Time Entry ID: {entry_id}")
+
+                # ✅ Convert date fields
+                create_dt = parse_date(entry.get("createDateTime"))
+                date_worked = parse_date(entry.get("dateWorked"))
+                end_dt = parse_date(entry.get("endDateTime"))
+                last_modified_dt = parse_date(entry.get("lastModifiedDateTime")) or datetime.utcnow()
+                start_dt = parse_date(entry.get("startDateTime"))
+
+                query = text("""
+                MERGE INTO dbo.TimeEntries AS target
+                USING (SELECT
+                    :id AS id,
+                    :contractID AS contractID,
+                    :contractServiceBundleID AS contractServiceBundleID,
+                    :contractServiceID AS contractServiceID,
+                    :createDateTime AS createDateTime,
+                    :creatorUserID AS creatorUserID,
+                    :dateWorked AS dateWorked,
+                    :endDateTime AS endDateTime,
+                    :hoursToBill AS hoursToBill,
+                    :hoursWorked AS hoursWorked,
+                    :internalNotes AS internalNotes,
+                    :isNonBillable AS isNonBillable,
+                    :lastModifiedDateTime AS lastModifiedDateTime,
+                    :resourceID AS resourceID,
+                    :roleID AS roleID,
+                    :startDateTime AS startDateTime,
+                    :summaryNotes AS summaryNotes,
+                    :taskID AS taskID,
+                    :ticketID AS ticketID,
+                    :timeEntryType AS timeEntryType
+                ) AS source
+                ON target.id = source.id  
+
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        contractID = source.contractID,
+                        contractServiceBundleID = source.contractServiceBundleID,
+                        contractServiceID = source.contractServiceID,
+                        createDateTime = source.createDateTime,
+                        creatorUserID = source.creatorUserID,
+                        dateWorked = source.dateWorked,
+                        endDateTime = source.endDateTime,
+                        hoursToBill = source.hoursToBill,
+                        hoursWorked = source.hoursWorked,
+                        internalNotes = source.internalNotes,
+                        isNonBillable = source.isNonBillable,
+                        lastModifiedDateTime = source.lastModifiedDateTime,
+                        resourceID = source.resourceID,
+                        roleID = source.roleID,
+                        startDateTime = source.startDateTime,
+                        summaryNotes = source.summaryNotes,
+                        taskID = source.taskID,
+                        ticketID = source.ticketID,
+                        timeEntryType = source.timeEntryType
+
+                WHEN NOT MATCHED THEN
+                    INSERT (
+                        id, contractID, contractServiceBundleID, contractServiceID, createDateTime,
+                        creatorUserID, dateWorked, endDateTime, hoursToBill, hoursWorked,
+                        internalNotes, isNonBillable, lastModifiedDateTime, resourceID, roleID,
+                        startDateTime, summaryNotes, taskID, ticketID, timeEntryType
+                    )
+                    VALUES (
+                        source.id, source.contractID, source.contractServiceBundleID, source.contractServiceID, source.createDateTime,
+                        source.creatorUserID, source.dateWorked, source.endDateTime, source.hoursToBill, source.hoursWorked,
+                        source.internalNotes, source.isNonBillable, source.lastModifiedDateTime, source.resourceID, source.roleID,
+                        source.startDateTime, source.summaryNotes, source.taskID, source.ticketID, source.timeEntryType
+                    );
+                """)
+
+                values = {
+                    "id": entry_id,
+                    "contractID": entry.get("contractID"),
+                    "contractServiceBundleID": entry.get("contractServiceBundleID"),
+                    "contractServiceID": entry.get("contractServiceID"),
+                    "createDateTime": create_dt,
+                    "creatorUserID": entry.get("creatorUserID"),
+                    "dateWorked": date_worked,
+                    "endDateTime": end_dt,
+                    "hoursToBill": entry.get("hoursToBill"),
+                    "hoursWorked": entry.get("hoursWorked"),
+                    "internalNotes": entry.get("internalNotes"),
+                    "isNonBillable": entry.get("isNonBillable"),
+                    "lastModifiedDateTime": last_modified_dt,
+                    "resourceID": entry.get("resourceID"),
+                    "roleID": entry.get("roleID"),
+                    "startDateTime": start_dt,
+                    "summaryNotes": entry.get("summaryNotes"),
+                    "taskID": entry.get("taskID"),
+                    "ticketID": entry.get("ticketID"),
+                    "timeEntryType": entry.get("timeEntryType"),
+                }
+
+                try:
+                    result = session.execute(query, values)
+                    logging.info(f"✅ Query executed for Time Entry ID {entry_id}. Affected rows: {result.rowcount}")
+                except Exception as e:
+                    logging.error(f"❌ Error executing query for Time Entry ID {entry_id}: {e}", exc_info=True)
+
+            session.commit()
+            logging.info(f"🎯 Completed processing {len(input_data)} time entries.")
+
     except Exception as e:
-        logging.critical(f"🚨 Database connection failed: {e}", exc_info=True)
-        return  # Stop execution if DB is broken
-
-    processed_count = 0
-    failed_count = 0
-
-    try:
-        for i, entry in enumerate(input_data):
-            logging.info(f"📌 [{i+1}/{len(input_data)}] Processing Time Entry ID: {entry.get('id')}")
-
-            # ✅ See if it ever gets here
-            if i == 0:
-                logging.info(f"🔍 First entry: {entry}")
-
-            try:
-                time_entry = TimeEntries(**entry)  # ✅ Auto-parses datetime fields
-
-                query = """
-                INSERT INTO dbo.TimeEntries (
-                    id, contractID, contractServiceBundleID, contractServiceID, createDateTime, 
-                    creatorUserID, dateWorked, endDateTime, hoursToBill, hoursWorked, internalNotes, 
-                    isNonBillable, lastModifiedDateTime, resourceID, roleID, startDateTime, summaryNotes, 
-                    taskID, ticketID, timeEntryType
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """
-
-                values = (
-                    time_entry.id,
-                    time_entry.contractID,
-                    time_entry.contractServiceBundleID,
-                    time_entry.contractServiceID,
-                    parse_datetime(time_entry.createDateTime),
-                    time_entry.creatorUserID,
-                    parse_datetime(time_entry.dateWorked),
-                    parse_datetime(time_entry.endDateTime),
-                    time_entry.hoursToBill,
-                    time_entry.hoursWorked,
-                    time_entry.internalNotes,
-                    time_entry.isNonBillable,
-                    parse_datetime(time_entry.lastModifiedDateTime),
-                    time_entry.resourceID,
-                    time_entry.roleID,
-                    parse_datetime(time_entry.startDateTime),
-                    time_entry.summaryNotes,
-                    time_entry.taskID,
-                    time_entry.ticketID,
-                    time_entry.timeEntryType
-                )
-
-                logging.info(f"📥 Executing SQL Query for Time Entry ID: {time_entry.id}")
-                cursor.execute(query, values)
-
-                processed_count += 1
-                logging.info(f"✅ Successfully inserted Time Entry ID: {time_entry.id}")
-
-                if processed_count % 100 == 0:
-                    logging.info(f"🔄 Processed {processed_count}/{len(input_data)} entries...")
-
-            except Exception as e:
-                failed_count += 1
-                logging.error(f"❌ Error processing Time Entry ID {entry.get('id')}: {e}", exc_info=True)
-
-        conn.commit()
-        logging.info(f"🎯 Completed processing. ✅ Success: {processed_count}, ❌ Failed: {failed_count}")
-
-    except Exception as e:
-        conn.rollback()
         logging.critical(f"🔥 Critical error during time entry processing: {e}", exc_info=True)
 
     finally:
-        cursor.close()
         conn.close()
         logging.info("🔌 Database connection closed.")
 
