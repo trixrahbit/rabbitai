@@ -1,7 +1,6 @@
 import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from contextlib import asynccontextmanager
 
 from models.models import Settings
 
@@ -60,7 +59,7 @@ async def get_db_connection() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session  # Allows proper cleanup after use
 
-@asynccontextmanager
+
 # Function to get an async session for the secondary database
 async def get_secondary_db_connection():
     """Provides an async database session."""
