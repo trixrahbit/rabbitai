@@ -16,38 +16,30 @@ from services.kpi_tasks import calculate_utilization
 engine = create_engine(SECONDARY_DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
+
 async def run_kpi_pipeline():
     """Continuously runs KPI calculations every 30 minutes."""
     while True:
         logging.info("🚀 Running KPI calculations...")
-        session = await get_secondary_db_connection()  # ✅ Get a new session per cycle
 
-        try:
-            await calculate_utilization()
-            await calculate_response_resolution_time()
-            await calculate_sla_met(session)
-            # calculate_csat_rolling_30(session)
-            await calculate_ticket_aging(session)
-            # calculate_support_calls(session)
-            await calculate_avg_response_time(session)
-            await calculate_avg_resolution_time(session)
-            # calculate_endpoints_patched(session)
-            # calculate_uptime_rolling_30(session)
-            # calculate_reactive_tickets_per_endpoint(session)
+        async with get_secondary_db_connection() as session:  # ✅ Correct async session handling
+            try:
+                await calculate_utilization()
+                await calculate_response_resolution_time()
+                await calculate_sla_met(session)
+                await calculate_ticket_aging(session)
+                await calculate_avg_response_time(session)
+                await calculate_avg_resolution_time(session)
 
-            logging.info("✅ KPI calculations completed successfully!")
+                logging.info("✅ KPI calculations completed successfully!")
 
-        except Exception as e:
-            logging.critical(f"🔥 KPI pipeline error: {e}", exc_info=True)
-
-        finally:
-            session.close()  # ✅ Always close session after each run
+            except Exception as e:
+                logging.critical(f"🔥 KPI pipeline error: {e}", exc_info=True)
 
         logging.info("⏳ Sleeping for 30 minutes before next update...")
-        time.sleep(1800)  # ✅ Sleep before restarting the loop
-
+        await asyncio.sleep(1800)  # ✅ Correct async sleep
 
 async def start_kpi_background_update():
     loop = asyncio.get_running_loop()
-    thread = Thread(target=lambda: asyncio.run(run_kpi_pipeline()), daemon=True)
-    thread.start()
+    loop.create_task(run_kpi_pipeline())  # ✅ Run as background task
+
