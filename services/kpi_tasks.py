@@ -67,7 +67,7 @@ async def get_start_end_of_week():
 
 async def calculate_utilization():
     """Calculate total hours worked per resource per week and update database."""
-    start_date, end_date = get_start_end_of_week()
+    start_date, end_date = await get_start_end_of_week()
     session = await get_secondary_db_connection()  # Use session from SQLAlchemy
 
     try:
