@@ -2,7 +2,7 @@ import time
 from threading import Thread
 import httpx
 import pandas as pd
-from config import logger, get_secondary_db_connection, secondary_engine
+from config import logger, get_secondary_db_connection, secondary_async_engine
 from models.models import TicketData
 from datetime import datetime
 from typing import List, Dict
@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 
 # Set up a session factory for database interactions
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=secondary_engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=secondary_async_engine)
 async def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
 
