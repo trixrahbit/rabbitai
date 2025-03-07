@@ -167,9 +167,9 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
         priority_map = {
             1: ("Critical", "attention"),  # Red
             2: ("High", "warning"),  # Yellow
-            3: ("Medium", "default"),  # Default color
-            4: ("Low", "default"),  # Default color
-            5: ("Very Low", "default")  # Default color
+            3: ("Medium", "default"),
+            4: ("Low", "default"),
+            5: ("Very Low", "default")
         }
         return priority_map.get(priority, ("Unknown", "default"))
 
@@ -197,6 +197,7 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
         return status_map.get(status_id, f"Status ID {status_id}")
 
     async def format_timeline(rawticket):
+        """Format the timeline of SLAs"""
         timeline = []
         cst_tz = ZoneInfo('America/Chicago')
         sla_results = rawticket.get("sla_results", [])
@@ -204,16 +205,14 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
         for sla in sla_results:
             sla_name = sla["sla_name"]
             sla_met = sla["sla_met"]
-            due_date_formatted = sla["due_date_formatted"]  # Display string
-            met_date_formatted = sla["met_date_formatted"]  # Display string
-            due_date = sla.get("due_date")  # Datetime object
-            met_date = sla.get("met_date")  # Datetime object
+            due_date_formatted = sla["due_date_formatted"]
+            met_date_formatted = sla["met_date_formatted"]
+            due_date = sla.get("due_date")
+            met_date = sla.get("met_date")
 
             # Debug log for SLA
-            logging.debug(
-                f"Formatting SLA - {sla_name}: sla_met={sla_met}, due_date={due_date_formatted}, met_date={met_date_formatted}")
+            logging.debug(f"Formatting SLA - {sla_name}: sla_met={sla_met}, due_date={due_date_formatted}, met_date={met_date_formatted}")
 
-            # Determine SLA status and color
             now = datetime.now(cst_tz)
 
             if sla_met:
@@ -229,7 +228,6 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
                 sla_status_text = "Not Met"
                 sla_status_color = "attention"  # Red
 
-            # Time status
             time_left_seconds = sla["time_left_seconds"]
             if time_left_seconds is not None:
                 if time_left_seconds >= 0:
@@ -239,7 +237,6 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
             else:
                 time_status = "N/A"
 
-            # Append to timeline
             timeline.append({
                 "type": "Container",
                 "spacing": "Small",
@@ -263,18 +260,19 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
                 ]
             })
 
-        return timeline
+        return timeline  # ✅ Returns an iterable list
 
-    # Since we're only displaying one ticket, we take the first one
+    # Since we're only displaying one ticket, take the first one
     ticket = tickets[0]
     priority_text, priority_color = await get_priority_info(ticket.get("priority"))
     status_text = await get_status_text(ticket.get("status"))
 
-    # Truncate description if it's too long
     description = ticket.get("description", "")
-    max_description_length = 200  # Adjust as needed
+    max_description_length = 200
     if len(description) > max_description_length:
         description = description[:max_description_length] + "..."
+
+    timeline_items = await format_timeline(ticket)  # ✅ FIX: Await the async function
 
     body = [
         {
@@ -315,19 +313,13 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
         },
         {
             "type": "TextBlock",
-            "text": f"**Created Date: {await format_date(ticket['createDate'])}",
-            "wrap": True,
-            "spacing": "Small"
-        },
-        {
-            "type": "TextBlock",
             "text": "**SLA Information:**",
             "wrap": True,
             "weight": "Bolder",
             "spacing": "Medium",
             "size": "Medium"
         },
-        *format_timeline(ticket),
+        *timeline_items,  # ✅ FIX: `timeline_items` is now an iterable, not a coroutine
         {
             "type": "ActionSet",
             "spacing": "Medium",
@@ -342,11 +334,11 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
         }
     ]
 
-    # Final adaptive card
     adaptive_card = {
         "type": "AdaptiveCard",
         "version": "1.2",
         "body": body
     }
 
-    return adaptive_card
+    return adaptive_card  # ✅ Now it correctly returns a JSON object
+
