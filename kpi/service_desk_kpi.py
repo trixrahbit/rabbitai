@@ -13,11 +13,14 @@ async def calculate_sla_met(session):
            SUM(CASE WHEN serviceLevelAgreementHasBeenMet = 1 THEN 1 ELSE 0 END) AS sla_met_count
     FROM tickets
     """)
-    result = session.execute(query).fetchone()
 
-    sla_met_count = result[1] if result and result[1] is not None else 0  # ✅ Extract second value
+    result = await session.execute(query)  # ✅ Await the coroutine
+    row = await result.fetchone()  # ✅ Fetch data asynchronously
+
+    sla_met_count = row[1] if row and row[1] is not None else 0  # ✅ Extract second value
 
     await kpi_insert(session, "SLA Met", "Service Desk", "Team", sla_met_count)
+
 
 
 
