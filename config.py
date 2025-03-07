@@ -60,10 +60,10 @@ async def get_db_connection() -> AsyncSession:
         yield session  # Allows proper cleanup after use
 
 # Function to get an async session for the secondary database
-async def get_secondary_db_connection() -> AsyncSession:
-    """Returns an async database session for the secondary database."""
-    async with SecondaryAsyncSessionLocal() as session:
-        yield session  # Allows proper cleanup after use
+async def get_secondary_db_connection():
+    """Provides an async database session."""
+    async with AsyncSessionFactory() as session:
+        yield session
 
 # Logging configuration
 logging.basicConfig(level=logging.DEBUG)
