@@ -70,81 +70,79 @@ async def calculate_avg_resolution_time(session):
 async def calculate_response_resolution_time():
     """Calculates response & resolution times per resource per week and updates the database."""
     start_date, end_date = await get_start_end_of_week()
-    session = await get_secondary_db_connection()
 
-    try:
-        logging.info(f"🔍 Fetching ticket data for {start_date} - {end_date}")
+    async for session in get_secondary_db_connection():  # ✅ Correct async handling
+        try:
+            logging.info(f"🔍 Fetching ticket data for {start_date} - {end_date}")
 
-        query = text("""
-            SELECT 
-                COALESCE(r.email, '') AS emailAddress,
-                COALESCE(t.assignedResourceID, 0) AS user_id,
-                COALESCE(SUM(DATEDIFF(MINUTE, t.createDate, t.firstResponseDateTime)), 0) AS total_response_time,
-                COALESCE(SUM(DATEDIFF(MINUTE, t.createDate, t.resolvedDateTime)), 0) AS total_resolution_time,
-                COUNT(t.id) AS ticket_count
-            FROM dbo.Tickets t
-            LEFT JOIN dbo.resources r ON t.assignedResourceID = r.id  
-            WHERE t.createDate BETWEEN :start_date AND :end_date
-            GROUP BY r.email, t.assignedResourceID
-        """)
-
-        result = session.execute(query, {
-            "start_date": start_date,
-            "end_date": end_date
-        }).fetchall()
-
-        if not result:
-            logging.warning("⚠️ No ticket data found for this week.")
-            return
-
-        # ✅ Process each resource's response & resolution time
-        for row in result:
-            email, user_id, total_response_time, total_resolution_time, ticket_count = row
-
-            # ✅ Ensure `resourceID` is never NULL
-            if user_id is None:
-                logging.warning(f"⚠️ Skipping entry due to missing resource ID. Email: {email}")
-                continue
-
-            avg_response_time = total_response_time / ticket_count if ticket_count > 0 else 0
-            avg_resolution_time = total_resolution_time / ticket_count if ticket_count > 0 else 0
-
-            upsert_query = text("""
-                MERGE INTO dbo.ResourceResponseResolution AS target
-                USING (SELECT :user_id AS resourceID, :weekStartDate AS weekStartDate) AS source
-                ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
-                WHEN MATCHED THEN
-                    UPDATE SET totalResponseTime = :totalResponse, totalResolutionTime = :totalResolution, 
-                               avgResponseTime = :avgResponse, avgResolutionTime = :avgResolution,
-                               ticketCount = :ticketCount, emailAddress = :email
-                WHEN NOT MATCHED THEN
-                    INSERT (resourceID, emailAddress, weekStartDate, weekEndDate, 
-                            totalResponseTime, totalResolutionTime, avgResponseTime, avgResolutionTime, ticketCount)
-                    VALUES (:user_id, :email, :weekStartDate, :weekEndDate, 
-                            :totalResponse, :totalResolution, :avgResponse, :avgResolution, :ticketCount);
+            query = text("""
+                SELECT 
+                    COALESCE(r.email, '') AS emailAddress,
+                    COALESCE(t.assignedResourceID, 0) AS user_id,
+                    COALESCE(SUM(DATEDIFF(MINUTE, t.createDate, t.firstResponseDateTime)), 0) AS total_response_time,
+                    COALESCE(SUM(DATEDIFF(MINUTE, t.createDate, t.resolvedDateTime)), 0) AS total_resolution_time,
+                    COUNT(t.id) AS ticket_count
+                FROM dbo.Tickets t
+                LEFT JOIN dbo.resources r ON t.assignedResourceID = r.id  
+                WHERE t.createDate BETWEEN :start_date AND :end_date
+                GROUP BY r.email, t.assignedResourceID
             """)
 
-            session.execute(upsert_query, {
-                "user_id": user_id,
-                "email": email,
-                "weekStartDate": start_date,
-                "weekEndDate": end_date,
-                "totalResponse": total_response_time,
-                "totalResolution": total_resolution_time,
-                "avgResponse": avg_response_time,
-                "avgResolution": avg_resolution_time,
-                "ticketCount": ticket_count
+            result = await session.execute(query, {
+                "start_date": start_date,
+                "end_date": end_date
             })
 
-        session.commit()  # ✅ Ensure data is committed
-        logging.info("✅ Response & Resolution Times Updated Successfully!")
+            rows = await result.fetchall()  # ✅ Fix for async execution
 
-    except Exception as e:
-        session.rollback()  # ✅ Ensure rollback on failure
-        logging.critical(f"🔥 Error calculating response & resolution time: {e}", exc_info=True)
+            if not rows:
+                logging.warning("⚠️ No ticket data found for this week.")
+                return
 
-    finally:
-        session.close()  # ✅ Ensure connection is closed
+            for row in rows:
+                email, user_id, total_response_time, total_resolution_time, ticket_count = row
+
+                if user_id is None:
+                    logging.warning(f"⚠️ Skipping entry due to missing resource ID. Email: {email}")
+                    continue
+
+                avg_response_time = total_response_time / ticket_count if ticket_count > 0 else 0
+                avg_resolution_time = total_resolution_time / ticket_count if ticket_count > 0 else 0
+
+                upsert_query = text("""
+                    MERGE INTO dbo.ResourceResponseResolution AS target
+                    USING (SELECT :user_id AS resourceID, :weekStartDate AS weekStartDate) AS source
+                    ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
+                    WHEN MATCHED THEN
+                        UPDATE SET totalResponseTime = :totalResponse, totalResolutionTime = :totalResolution, 
+                                   avgResponseTime = :avgResponse, avgResolutionTime = :avgResolution,
+                                   ticketCount = :ticketCount, emailAddress = :email
+                    WHEN NOT MATCHED THEN
+                        INSERT (resourceID, emailAddress, weekStartDate, weekEndDate, 
+                                totalResponseTime, totalResolutionTime, avgResponseTime, avgResolutionTime, ticketCount)
+                        VALUES (:user_id, :email, :weekStartDate, :weekEndDate, 
+                                :totalResponse, :totalResolution, :avgResponse, :avgResolution, :ticketCount);
+                """)
+
+                await session.execute(upsert_query, {
+                    "user_id": user_id,
+                    "email": email,
+                    "weekStartDate": start_date,
+                    "weekEndDate": end_date,
+                    "totalResponse": total_response_time,
+                    "totalResolution": total_resolution_time,
+                    "avgResponse": avg_response_time,
+                    "avgResolution": avg_resolution_time,
+                    "ticketCount": ticket_count
+                })
+
+            await session.commit()  # ✅ Ensure data is committed
+            logging.info("✅ Response & Resolution Times Updated Successfully!")
+
+        except Exception as e:
+            await session.rollback()  # ✅ Ensure rollback on failure
+            logging.critical(f"🔥 Error calculating response & resolution time: {e}", exc_info=True)
+
 
 
 async def calculate_support_calls(session):
