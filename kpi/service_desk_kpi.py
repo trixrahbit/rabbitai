@@ -31,7 +31,7 @@ async def calculate_ticket_aging():
             AND status NOT IN (7, 69, 5, 41)
         """)
         result = await session.execute(query)
-        row = result.fetchone()  # ✅ Removed `await`
+        row = result.fetchone()
         aging_tickets = row[0] if row and row[0] is not None else 0
 
         logging.info(f"✅ Ticket Aging Over 5: {aging_tickets}")
@@ -46,7 +46,8 @@ async def calculate_avg_response_time(session):
     AND queueID IN :queue_ids;
     """).bindparams(bindparam("queue_ids", expanding=True))
 
-    result = session.execute(query, {"queue_ids": QUEUE_IDS}).fetchone()
+    result = await session.execute(query, {"queue_ids": QUEUE_IDS})
+    row = result.fetchone()
 
     avg_response_time = int(result[0]) if result and result[0] is not None else 0  # ✅ Store minutes as an integer
 
@@ -62,8 +63,8 @@ async def calculate_avg_resolution_time(session):
     AND queueID IN :queue_ids;
     """).bindparams(bindparam("queue_ids", expanding=True))
 
-    result = session.execute(query, {"queue_ids": QUEUE_IDS}).fetchone()
-
+    result = await session.execute(query, {"queue_ids": QUEUE_IDS})
+    row = result.fetchone()
     avg_resolution_time = int(result[0]) if result and result[0] is not None else 0  # ✅ Store minutes as an integer
 
     await kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
