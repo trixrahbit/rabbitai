@@ -54,8 +54,8 @@ SecondaryAsyncSessionLocal = sessionmaker(
     secondary_async_engine, expire_on_commit=False, class_=AsyncSession
 )
 
-# Function to get an async session for the primary database
-async def get_db_connection() -> AsyncSession:
+@asynccontextmanager
+async def get_db_connection():
     """Returns an async database session for the primary database."""
     async with AsyncSessionLocal() as session:
         yield session  # Allows proper cleanup after use
