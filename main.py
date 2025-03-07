@@ -342,23 +342,23 @@ async def handle_command(request: Request):
 
             ticket_details = [{"ticket_id": t["id"], "title": t["title"], "points": t["weight"]} for t in top_tickets]
 
-            try:
-                async for conn in get_db_connection():
-                    async with conn.begin():
-                        await conn.execute(
-                            text(
-                                "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
-                                "VALUES (:aadObjectId, :command, :command_data, :result_data)"
-                            ),
-                            {
-                                "aadObjectId": aad_object_id,
-                                "command": "getnextticket",
-                                "command_data": json.dumps({"command": "getnextticket"}),
-                                "result_data": json.dumps({"tickets": ticket_details}),
-                            },
-                        )
-            except Exception as e:
-                logging.error(f"Failed to log 'getnextticket' command to database: {e}")
+            # try:
+            #     async for conn in get_db_connection():
+            #         async with conn.begin():
+            #             await conn.execute(
+            #                 text(
+            #                     "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
+            #                     "VALUES (:aadObjectId, :command, :command_data, :result_data)"
+            #                 ),
+            #                 {
+            #                     "aadObjectId": aad_object_id,
+            #                     "command": "getnextticket",
+            #                     "command_data": json.dumps({"command": "getnextticket"}),
+            #                     "result_data": json.dumps({"tickets": ticket_details}),
+            #                 },
+            #             )
+            # except Exception as e:
+            #     logging.error(f"Failed to log 'getnextticket' command to database: {e}")
 
             adaptive_card = await construct_ticket_card(top_tickets)
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
