@@ -86,7 +86,7 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
         return sla_met, time_diff_seconds, due_date_formatted, met_date_formatted
 
-    async def calculate_weight(ticket):
+    async def calculate_weight(rawticket):
         weight = 0
 
         # Priority Weighting
@@ -97,7 +97,7 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             4: 2,  # Low
             5: 1   # Very Low
         }
-        priority = ticket.get("priority")
+        priority = rawticket.get("priority")
         if priority in priority_weights:
             weight += priority_weights[priority]
 
@@ -122,7 +122,7 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             74: -20,  # scheduled onsite
             38: -400  # Waiting on Hold
         }
-        status = ticket.get("status")
+        status = rawticket.get("status")
         if status in status_weights:
             weight += status_weights[status]
         else:
@@ -137,8 +137,8 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
         sla_results = []
         for met_field, due_field, sla_name in sla_fields:
-            met_date_str = ticket.get(met_field)
-            due_date_str = ticket.get(due_field)
+            met_date_str = rawticket.get(met_field)
+            due_date_str = rawticket.get(due_field)
             logging.debug(f"SLA Field - {sla_name}: met_date={met_date_str}, due_date={due_date_str}")
 
             sla_met, time_diff_seconds, due_date_formatted, met_date_formatted = check_sla(met_date_str, due_date_str)
@@ -161,10 +161,10 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             if not sla_met:
                 weight += 100  # Penalize for unmet SLA
 
-        ticket["sla_results"] = sla_results
+        rawticket["sla_results"] = sla_results
 
         # Age of Ticket Weighting
-        create_date_str = ticket.get("createDate")
+        create_date_str = rawticket.get("createDate")
         if create_date_str:
             try:
                 create_date = datetime.fromisoformat(create_date_str.replace("Z", "+00:00"))
@@ -173,7 +173,7 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
                 now_utc = datetime.now(timezone.utc)
                 days_since_creation = (now_utc - create_date).days
                 weight += days_since_creation * 10
-                logger.debug(f"Ticket ID {ticket.get('id')} age: {days_since_creation} days")
+                logger.debug(f"Ticket ID {rawticket.get('id')} age: {days_since_creation} days")
             except ValueError:
                 logger.error(f"Invalid createDate: {create_date_str}")
 
@@ -231,10 +231,10 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
         }
         return status_map.get(status_id, f"Status ID {status_id}")
 
-    async def format_timeline(ticket):
+    async def format_timeline(rawticket):
         timeline = []
         cst_tz = ZoneInfo('America/Chicago')
-        sla_results = ticket.get("sla_results", [])
+        sla_results = rawticket.get("sla_results", [])
 
         for sla in sla_results:
             sla_name = sla["sla_name"]
@@ -302,8 +302,8 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
 
     # Since we're only displaying one ticket, we take the first one
     ticket = tickets[0]
-    priority_text, priority_color = get_priority_info(ticket.get("priority"))
-    status_text = get_status_text(ticket.get("status"))
+    priority_text, priority_color = await get_priority_info(ticket.get("priority"))
+    status_text = await get_status_text(ticket.get("status"))
 
     # Truncate description if it's too long
     description = ticket.get("description", "")
