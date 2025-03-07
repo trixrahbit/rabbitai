@@ -14,12 +14,13 @@ async def calculate_sla_met(session):
     FROM tickets
     """)
 
-    result = await session.execute(query)  # ✅ Await the coroutine
-    row = await result.fetchone()  # ✅ Fetch data asynchronously
+    result = await session.execute(query)
+    row = result.fetchone()  # ✅ No `await` needed
 
     sla_met_count = row[1] if row and row[1] is not None else 0  # ✅ Extract second value
 
     await kpi_insert(session, "SLA Met", "Service Desk", "Team", sla_met_count)
+
 
 
 
