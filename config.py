@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.orm import sessionmaker
 
 from models.models import Settings
 
@@ -24,62 +24,48 @@ DB_NAME = settings.DB_NAME
 DB_SECONDARY_NAME = settings.DB_SECONDARY_NAME
 
 OPENID_CONFIG_URL = "https://login.botframework.com/v1/.well-known/openidconfiguration"
+
 # Connection Strings for SQLAlchemy
 PRIMARY_DATABASE_URL = (
-    f"mssql+aioodbc://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_SERVER}/{settings.DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+    f"mssql+aioodbc://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_SERVER}/{settings.DB_NAME}"
+    "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
 )
 SECONDARY_DATABASE_URL = (
-    f"mssql+aioodbc://{settings.DB_SECONDARY_USER}:{settings.DB_SECONDARY_PASSWORD}@{settings.DB_SERVER}/{settings.DB_SECONDARY_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+    f"mssql+aioodbc://{settings.DB_SECONDARY_USER}:{settings.DB_SECONDARY_PASSWORD}@{settings.DB_SERVER}/{settings.DB_SECONDARY_NAME}"
+    "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
 )
 
-
-# Create Async Engine
+# Create Async Engines
 async_engine = create_async_engine(
     PRIMARY_DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
-    pool_timeout=30,
     echo=False
 )
-
 secondary_async_engine = create_async_engine(
     SECONDARY_DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
-    pool_timeout=30,
     echo=False
 )
 
-# Function to get a database connection
-async def get_db_connection():
-    """Returns a new connection to the primary database."""
-    try:
-        conn = async_engine.connect()
-        logging.debug("✅ Database connection established successfully.")
-        return conn
-    except Exception as e:
-        logging.error(f"❌ Database connection failed: {e}")
-        raise
+# Create async session makers
+AsyncSessionLocal = sessionmaker(
+    async_engine, expire_on_commit=False, class_=AsyncSession
+)
+SecondaryAsyncSessionLocal = sessionmaker(
+    secondary_async_engine, expire_on_commit=False, class_=AsyncSession
+)
 
-# Function to get a secondary database connection
-async def get_secondary_db_connection():
-    """Returns a new connection to the secondary database."""
-    try:
-        conn = secondary_async_engine.connect()
-        logging.debug("✅ Secondary database connection established successfully.")
-        return conn
-    except Exception as e:
-        logging.error(f"❌ Secondary database connection failed: {e}")
+# Function to get an async session for the primary database
+async def get_db_connection() -> AsyncSession:
+    """Returns an async database session for the primary database."""
+    async with AsyncSessionLocal() as session:
+        yield session  # Allows proper cleanup after use
 
-# Ensure connections are closed properly
-async def close_db_connection(conn):
-    """Closes the given database connection."""
-    try:
-        conn.close()
-        logging.debug("🔌 Database connection closed.")
-    except Exception as e:
-        logging.error(f"⚠️ Error closing connection: {e}")
+# Function to get an async session for the secondary database
+async def get_secondary_db_connection() -> AsyncSession:
+    """Returns an async database session for the secondary database."""
+    async with SecondaryAsyncSessionLocal() as session:
+        yield session  # Allows proper cleanup after use
 
 # Logging configuration
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+

@@ -22,22 +22,26 @@ async def run_kpi_pipeline():
     while True:
         logging.info("🚀 Running KPI calculations...")
 
-        async with get_secondary_db_connection() as session:  # ✅ Correct async session handling
-            try:
-                await calculate_utilization()
-                await calculate_response_resolution_time()
-                await calculate_sla_met(session)
-                await calculate_ticket_aging(session)
-                await calculate_avg_response_time(session)
-                await calculate_avg_resolution_time(session)
+        session = await get_secondary_db_connection()  # ✅ Correct async handling
+        try:
+            await calculate_utilization()
+            await calculate_response_resolution_time()
+            await calculate_sla_met(session)
+            await calculate_ticket_aging(session)
+            await calculate_avg_response_time(session)
+            await calculate_avg_resolution_time(session)
 
-                logging.info("✅ KPI calculations completed successfully!")
+            logging.info("✅ KPI calculations completed successfully!")
 
-            except Exception as e:
-                logging.critical(f"🔥 KPI pipeline error: {e}", exc_info=True)
+        except Exception as e:
+            logging.critical(f"🔥 KPI pipeline error: {e}", exc_info=True)
+
+        finally:
+            await session.close()  # ✅ Ensure session is properly closed
 
         logging.info("⏳ Sleeping for 30 minutes before next update...")
         await asyncio.sleep(1800)  # ✅ Correct async sleep
+
 
 async def start_kpi_background_update():
     loop = asyncio.get_running_loop()
