@@ -278,38 +278,35 @@ async def download_report(filename: str):
 async def handle_command(request: Request):
     auth_header = request.headers.get("Authorization")
     await validate_teams_token(auth_header)
+
     try:
-        # Parse the incoming payload
         payload = await request.json()
         logging.debug(f"Received payload: {json.dumps(payload, indent=2)}")
 
-        command_text = payload.get("text", "").strip().lower()  # Normalize command to lowercase
+        command_text = payload.get("text", "").strip().lower()
         aad_object_id = payload.get("from", {}).get("aadObjectId")
         service_url = payload.get("serviceUrl")
         conversation_id = payload.get("conversation", {}).get("id")
 
-        # Ensure all required fields are present
         if not command_text or not aad_object_id or not service_url or not conversation_id:
             raise ValueError("Missing required fields")
 
-        # Process `askRabbit` command
+        # Handle `askRabbit` command
         if command_text.startswith("askrabbit"):
             args = command_text[len("askrabbit"):].strip()
             result = await handle_sendtoai(args)
 
-            # Extract response as a string
             response_text = result.get("response", "No response received.")
-            if isinstance(response_text, list):  # Ensure it's not a list of dicts
+            if isinstance(response_text, list):
                 response_text = " ".join(
                     [item["text"] for item in response_text if isinstance(item, dict) and "text" in item]
                 )
 
-            # Log the command and response to the database
             try:
-             async with get_db_connection() as conn:
-                 async with conn.begin():  # ✅ No need for `transaction`
-                     await conn.execute(
-                             text(
+                async for conn in get_db_connection():  # ✅ Use async for
+                    async with conn.begin():
+                        await conn.execute(
+                            text(
                                 "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
                                 "VALUES (:aadObjectId, :command, :command_data, :result_data)"
                             ),
@@ -319,38 +316,35 @@ async def handle_command(request: Request):
                                 "command_data": json.dumps({"message": args}),
                                 "result_data": json.dumps({"response": response_text}),
                             },
-                         )
+                        )
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
-            # Properly formatted Adaptive Card
-            body = [
-                {"type": "TextBlock", "text": "**Rabbit AI Response**", "wrap": True, "weight": "Bolder", "size": "Medium"},
-                {"type": "TextBlock", "text": f"**Question:** {args}", "wrap": True, "weight": "Bolder"},
-                {"type": "TextBlock", "text": f"**Answer:**\n\n{response_text}", "wrap": True}
-            ]
+            adaptive_card = {
+                "type": "AdaptiveCard",
+                "version": "1.2",
+                "body": [
+                    {"type": "TextBlock", "text": "**Rabbit AI Response**", "wrap": True, "weight": "Bolder",
+                     "size": "Medium"},
+                    {"type": "TextBlock", "text": f"**Question:** {args}", "wrap": True, "weight": "Bolder"},
+                    {"type": "TextBlock", "text": f"**Answer:**\n\n{response_text}", "wrap": True}
+                ]
+            }
 
-            # Final Adaptive Card
-            adaptive_card = {"type": "AdaptiveCard", "version": "1.2", "body": body}
-
-            # Send Adaptive Card response to Teams
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
-
             return JSONResponse(content={"status": "success", "response": response_text})
 
-        # Process `getnextticket` command
+        # Handle `getnextticket` command
         if command_text.startswith("getnextticket"):
-            tickets = await fetch_tickets_from_webhook(aad_object_id)
-            top_tickets = await assign_ticket_weights(tickets)
+            tickets = await fetch_tickets_from_webhook(aad_object_id)  # ✅ Ensure `await`
+            top_tickets = await assign_ticket_weights(tickets)  # ✅ Ensure `await`
 
-            # Prepare ticket details for logging
             ticket_details = [{"ticket_id": t["id"], "title": t["title"], "points": t["weight"]} for t in top_tickets]
 
-            # Log the command and result to the database
             try:
-                async with get_db_connection() as conn:
-                    async with conn.begin():  # No need to assign `transaction`
-                        await conn.execute(  # Use conn.execute() instead of transaction.execute()
+                async for conn in get_db_connection():  # ✅ Use async for
+                    async with conn.begin():
+                        await conn.execute(
                             text(
                                 "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
                                 "VALUES (:aadObjectId, :command, :command_data, :result_data)"
@@ -362,25 +356,22 @@ async def handle_command(request: Request):
                                 "result_data": json.dumps({"tickets": ticket_details}),
                             },
                         )
-
             except Exception as e:
                 logging.error(f"Failed to log 'getnextticket' command to database: {e}")
 
-            # Construct Adaptive Card for Teams
             adaptive_card = await construct_ticket_card(top_tickets)
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
 
             return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
 
-        # Process `mytickets` command
+        # Handle `mytickets` command
         if command_text.startswith("mytickets"):
             try:
-                tickets = await fetch_tickets_from_webhook(aad_object_id)
+                tickets = await fetch_tickets_from_webhook(aad_object_id)  # ✅ Ensure `await`
 
                 if not tickets:
                     return JSONResponse(content={"status": "success", "message": "No tickets assigned to you."})
 
-                # Construct Adaptive Card to display a list of tickets
                 ticket_cards = []
                 for ticket in tickets:
                     ticket_id = ticket.get("id", "Unknown")
@@ -392,18 +383,20 @@ async def handle_command(request: Request):
                     ticket_cards.append({
                         "type": "Container",
                         "items": [
-                            {"type": "TextBlock", "text": f"**Ticket ID:** {ticket_id}", "wrap": True, "weight": "Bolder"},
+                            {"type": "TextBlock", "text": f"**Ticket ID:** {ticket_id}", "wrap": True,
+                             "weight": "Bolder"},
                             {"type": "TextBlock", "text": f"**Title:** {title}", "wrap": True},
                             {"type": "TextBlock", "text": f"**Description:** {description}", "wrap": True},
                             {"type": "TextBlock", "text": f"**Status:** {status}", "wrap": True},
-                            {"type": "ActionSet", "actions": [{"type": "Action.OpenUrl", "title": "View Ticket", "url": ticket_url}]}
+                            {"type": "ActionSet",
+                             "actions": [{"type": "Action.OpenUrl", "title": "View Ticket", "url": ticket_url}]}
                         ]
                     })
 
-                # Combine tickets into a single Adaptive Card
-                adaptive_card = {"type": "AdaptiveCard", "version": "1.2", "body": [{"type": "TextBlock", "text": "**My Tickets**", "wrap": True, "weight": "Bolder", "size": "Large"}] + ticket_cards}
-
-                # Send Adaptive Card to Teams
+                adaptive_card = {"type": "AdaptiveCard", "version": "1.2", "body": [{"type": "TextBlock",
+                                                                                     "text": "**My Tickets**",
+                                                                                     "wrap": True, "weight": "Bolder",
+                                                                                     "size": "Large"}] + ticket_cards}
                 await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
 
                 return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
@@ -415,7 +408,6 @@ async def handle_command(request: Request):
     except Exception as e:
         logging.error(f"Error processing command: {e}")
         raise HTTPException(status_code=500, detail="Failed to process command.")
-
 
 
 async def parse_date(date_str: Optional[str]) -> Optional[datetime]:
