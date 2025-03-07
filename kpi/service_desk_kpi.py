@@ -65,7 +65,7 @@ async def calculate_avg_resolution_time(session):
 
     result = await session.execute(query, {"queue_ids": QUEUE_IDS})
     row = result.fetchone()
-    avg_resolution_time = int(result[0]) if result and result[0] is not None else 0  # ✅ Store minutes as an integer
+    avg_resolution_time = int(row[0]) if row and row[0] is not None else 0
 
     await kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
 
