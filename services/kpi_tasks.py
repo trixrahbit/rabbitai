@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from sqlalchemy import text
-from config import engine, get_secondary_db_connection
+from config import secondary_async_engine, get_secondary_db_connection
 
 
 async def kpi_insert(session, kpi_name, category, type_, value):
