@@ -3,7 +3,7 @@ import requests
 import base64
 from config import settings
 
-def get_access_token():
+async def get_access_token():
     app = ConfidentialClientApplication(
         client_id=settings.CLIENT_ID,
         authority=f"https://login.microsoftonline.com/{settings.TENANT_ID}",
@@ -12,7 +12,7 @@ def get_access_token():
     result = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
     return result.get("access_token")
 
-def send_email_with_pdf(to_address: str, pdf_path: str):
+async def send_email_with_pdf(to_address: str, pdf_path: str):
     access_token = get_access_token()
 
     with open(pdf_path, "rb") as f:

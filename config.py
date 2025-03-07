@@ -52,7 +52,7 @@ secondary_engine = create_engine(
 )
 
 # Function to get a database connection
-def get_db_connection():
+async def get_db_connection():
     """Returns a new database connection using SQLAlchemy engine."""
     try:
         conn = engine.connect()
@@ -63,7 +63,7 @@ def get_db_connection():
         raise
 
 # Function to get a secondary database connection
-def get_secondary_db_connection():
+async def get_secondary_db_connection():
     """Returns a new connection to the secondary database."""
     try:
         conn = secondary_engine.connect()
@@ -74,7 +74,7 @@ def get_secondary_db_connection():
         raise
 
 # Ensure connections are closed properly
-def close_db_connection(conn):
+async def close_db_connection(conn):
     """Closes the given database connection."""
     try:
         conn.close()

@@ -73,7 +73,7 @@ class TicketData(BaseModel):
         "lastActivityDate",
         pre=True
     )
-    def parse_datetime(cls, value):
+    async def parse_datetime(cls, value):
         if isinstance(value, str):
             return datetime.fromisoformat(value.replace("Z", ""))
         return value
@@ -115,13 +115,13 @@ class DeviceData(BaseModel):
 
     @validator("Datto_RMM", "Huntress", "Workstation_AD", "Server_AD", "ImmyBot", "Auvik", "CyberCNS", "ITGlue",
                "Inactive_Computer", pre=True)
-    def parse_yes_no(cls, v):
+    async def parse_yes_no(cls, v):
         if isinstance(v, str):
             return v.lower() == "yes"
         return v
 
     @validator("rebootRequired", pre=True)
-    def parse_reboot_required(cls, v):
+    async def parse_reboot_required(cls, v):
         if v == "N/A":
             return None
         return bool(v) if isinstance(v, bool) else None
@@ -196,7 +196,7 @@ class Contract(BaseModel):
     timeReportingRequiresStartAndStopTimes: int
 
     @validator("startDate", "endDate", "lastModifiedDateTime", pre=True)
-    def parse_dates(cls, v):
+    async def parse_dates(cls, v):
         if isinstance(v, str):
             return datetime.fromisoformat(v.replace("Z", ""))
         return v
@@ -225,7 +225,7 @@ class TimeEntries(BaseModel):
     userDefinedFields: Optional[List]
 
     @validator("createDateTime", "dateWorked", "endDateTime", "lastModifiedDateTime", "startDateTime", pre=True)
-    def parse_datetime(cls, value):
+    async def parse_datetime(cls, value):
         """Converts string timestamps into datetime objects"""
         if isinstance(value, str):
             try:

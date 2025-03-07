@@ -11,7 +11,7 @@ openai.api_key = os.getenv("AZURE_OPENAI_API_KEY")
 openai.api_type = "azure"
 openai.api_version = "2023-05-15"  # Use your current Azure API version
 
-def query_openai(prompt: str, max_tokens: int = 100, temperature: float = 0.7):
+async def query_openai(prompt: str, max_tokens: int = 100, temperature: float = 0.7):
     """
     Sends a prompt to the Azure-hosted OpenAI API and returns the response.
 

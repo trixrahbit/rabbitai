@@ -1,7 +1,7 @@
 from services.kpi_tasks import kpi_insert
 
 
-def calculate_endpoints_patched(session):
+async def calculate_endpoints_patched(session):
     query = """
     SELECT COUNT(*) AS patched_endpoints
     FROM endpoints
@@ -10,7 +10,7 @@ def calculate_endpoints_patched(session):
     result = session.execute(query).fetchone()
 
     kpi_insert(session, "Endpoints Patched", "Field Team", "Team", result)
-def calculate_uptime_rolling_30(session):
+async def calculate_uptime_rolling_30(session):
     query = """
     SELECT AVG(uptime_percentage) AS avg_uptime
     FROM system_uptime
@@ -19,7 +19,7 @@ def calculate_uptime_rolling_30(session):
     result = session.execute(query).fetchone()
 
     kpi_insert(session, "Uptime Rolling 30 Days", "Field Team", "Team", result)
-def calculate_reactive_tickets_per_endpoint(session):
+async def calculate_reactive_tickets_per_endpoint(session):
     query = """
     SELECT CAST(COUNT(*) AS FLOAT) / NULLIF((SELECT COUNT(*) FROM endpoints), 0) AS tickets_per_endpoint
     FROM tickets

@@ -4,7 +4,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from weasyprint import HTML, CSS
 import os
 
-def generate_pdf_report(analytics, filename="report.pdf"):
+async def generate_pdf_report(analytics, filename="report.pdf"):
     """Generates a modern PDF using Jinja2 + WeasyPrint with error handling"""
 
     try:

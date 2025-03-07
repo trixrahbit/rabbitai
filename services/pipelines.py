@@ -16,7 +16,7 @@ from services.kpi_tasks import calculate_utilization
 engine = create_engine(SECONDARY_DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
-def run_kpi_pipeline():
+async def run_kpi_pipeline():
     """Continuously runs KPI calculations every 30 minutes."""
     while True:
         logging.info("🚀 Running KPI calculations...")
@@ -47,6 +47,6 @@ def run_kpi_pipeline():
         time.sleep(1800)  # ✅ Sleep before restarting the loop
 
 
-def start_kpi_background_update():
+async def start_kpi_background_update():
     thread = Thread(target=run_kpi_pipeline, daemon=True)
     thread.start()

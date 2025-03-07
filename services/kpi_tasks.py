@@ -4,7 +4,7 @@ from sqlalchemy import text
 from config import engine, get_secondary_db_connection
 
 
-def kpi_insert(session, kpi_name, category, type_, value):
+async def kpi_insert(session, kpi_name, category, type_, value):
     kpi_id_query = text("""
         SELECT id FROM kpis 
         WHERE name = :name AND category = :category AND type = :type
@@ -57,7 +57,7 @@ def kpi_insert(session, kpi_name, category, type_, value):
     session.commit()
 
 
-def get_start_end_of_week():
+async def get_start_end_of_week():
     """Get start (Sunday) and end (Saturday) of the current week."""
     today = datetime.today()
     start_of_week = today - timedelta(days=today.weekday() + 1)  # Sunday
@@ -65,7 +65,7 @@ def get_start_end_of_week():
     return start_of_week.date(), end_of_week.date()
 
 
-def calculate_utilization():
+async def calculate_utilization():
     """Calculate total hours worked per resource per week and update database."""
     start_date, end_date = get_start_end_of_week()
     session = get_secondary_db_connection()  # Use session from SQLAlchemy

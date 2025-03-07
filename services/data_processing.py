@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 # Set up a session factory for database interactions
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=secondary_engine)
-def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
+async def generate_analytics(device_data: List[DeviceData]) -> Dict[str, dict]:
     now = datetime.utcnow()
 
     # Define full match sets
@@ -114,14 +114,14 @@ async def handle_mytickets(data: str) -> dict:
         except httpx.HTTPStatusError as e:
             return {"response": f"HTTP error: {e.response.status_code} - {str(e)}"}
 
-def count_open_tickets(tickets: List[TicketData]) -> int:
+async def count_open_tickets(tickets: List[TicketData]) -> int:
     return sum(1 for ticket in tickets if ticket.status is not None and ticket.status != 5)
 
 
 # This section is for getting contracts, units, pricing, ticket counts, aggrevating and saving the results to a db on a timer so its always up to date
 
 
-def update_contract_summary():
+async def update_contract_summary():
     """Ensures the ContractSummary table stays up to date."""
     session = get_secondary_db_connection()
     try:
@@ -188,7 +188,7 @@ def update_contract_summary():
 
 
 # ✅ Fetch Contract Data & Ticket Counts
-def fetch_data():
+async def fetch_data():
     """Fetch contract summary data and ticket counts from Azure SQL."""
     conn = get_secondary_db_connection()
 
@@ -236,7 +236,7 @@ def fetch_data():
 
 
 # ✅ Calculate Monthly Revenue Using ContractSummary
-def calculate_monthly_revenue(contracts_df):
+async def calculate_monthly_revenue(contracts_df):
     """Generate monthly revenue per client per contract using ContractSummary data."""
     all_rows = []
 
@@ -269,7 +269,7 @@ def calculate_monthly_revenue(contracts_df):
 
 
 # ✅ Merge Revenue Data with Ticket Counts
-def merge_with_tickets(revenue_df, tickets_df):
+async def merge_with_tickets(revenue_df, tickets_df):
     """Merge ticket counts with revenue data based on contract start and end dates."""
     tickets_df["RevenueMonth"] = tickets_df.apply(lambda x: f"{x['TicketYear']}-{x['TicketMonth']:02d}-01", axis=1)
     tickets_df.drop(columns=["TicketYear", "TicketMonth"], inplace=True)
@@ -284,7 +284,7 @@ def merge_with_tickets(revenue_df, tickets_df):
 
 
 # ✅ Store Data in SQL
-def store_to_db(final_df):
+async def store_to_db(final_df):
     """Efficiently stores results in Azure SQL using SQLAlchemy."""
     session = get_secondary_db_connection()
 

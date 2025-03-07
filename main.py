@@ -82,8 +82,6 @@ async def validate_teams_token(auth_header: str):
         logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
 
-
-
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
     try:
@@ -103,7 +101,7 @@ async def count_tickets(request: Request):
         logging.error("Error processing request: %s", str(e))
         raise HTTPException(status_code=500, detail="Error processing JSON data")
 
-def calculate_resolution_time(create_date: Optional[str], resolved_date: Optional[str]):
+async def calculate_resolution_time(create_date: Optional[str], resolved_date: Optional[str]):
     if not create_date or not resolved_date:
         return None
     try:
@@ -113,8 +111,7 @@ def calculate_resolution_time(create_date: Optional[str], resolved_date: Optiona
     except ValueError:
         return None
 
-
-def check_sla_met(ticket):
+async def check_sla_met(ticket):
     return ticket.get("serviceLevelAgreementHasBeenMet") is True
 
 @app.post("/ticket-stats")
@@ -236,14 +233,13 @@ async def generate_report(device_data: List[DeviceData] = Body(...)):
         }
     }
 
-def cleanup_file(path: str):
+async def cleanup_file(path: str):
     if os.path.exists(path):
         try:
             os.remove(path)
             logging.info(f"Deleted file: {path}")
         except Exception as e:
             logging.error(f"Error deleting file: {e}")
-
 
 @app.get("/download/{filename}")
 async def download_report(filename: str):
@@ -263,7 +259,6 @@ async def download_report(filename: str):
     return StreamingResponse(file_iterator(), media_type="application/pdf", headers={
         "Content-Disposition": f"attachment; filename={filename}"
     })
-
 # Teams Commands Start Here
 @app.post("/command")
 async def handle_command(request: Request):
@@ -470,7 +465,7 @@ async def handle_command(request: Request):
         logging.error(f"Error processing command: {e}")
         raise HTTPException(status_code=500, detail="Failed to process command.")
 
-def parse_date(date_str: Optional[str]) -> Optional[datetime]:
+async def parse_date(date_str: Optional[str]) -> Optional[datetime]:
     """Convert ISO 8601 timestamps into datetime objects."""
     if not date_str:
         return None
@@ -651,8 +646,6 @@ async def process_contracts_in_background(input_data: List[Dict]):
     finally:
         conn.close()
         logging.info("🔌 Database connection closed.")
-
-
 @app.post("/process_contracts/")
 async def process_contracts(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
     """
@@ -762,7 +755,6 @@ async def process_units_in_background(input_data: List[Dict]):
         conn.close()
         logging.info("🔌 Database connection closed.")
 
-
 @app.post("/process_contract_units/")
 async def process_contract_units(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
     """
@@ -774,7 +766,6 @@ async def process_contract_units(input_data: List[Dict] = Body(...), background_
     background_tasks.add_task(process_units_in_background, input_data)
 
     return {"message": "✅ Received successfully. Processing in background."}
-
 
 async def process_timeentries_in_background(input_data: List[Dict]):
     """Background task to insert/merge time entry data into the database."""
@@ -915,7 +906,7 @@ async def process_timeentries_in_background(input_data: List[Dict]):
         conn.close()
         logging.info("🔌 Database connection closed.")
 
-def parse_datetime(date_str):
+async def parse_datetime(date_str):
     """Converts a date string into a proper datetime format or returns None."""
     if not date_str:
         return None
@@ -938,14 +929,14 @@ async def process_time_entries(input_data: List[Dict] = Body(...), background_ta
     return {"message": "✅ Received successfully. Processing in background."}
 
 @app.get("/update-client-revenue/")
-def update_client_revenue(background_tasks: BackgroundTasks):
+async def update_client_revenue(background_tasks: BackgroundTasks):
     """Trigger revenue update process in background."""
     logging.info("🔄 Manual trigger: Starting revenue update process...")
     background_tasks.add_task(run_pipeline)
     return {"message": "✅ Client revenue update scheduled!"}
 
 @app.on_event("startup")
-def startup_kpi_event():
+async def startup_kpi_event():
     """Start automatic updates when FastAPI starts."""
     logging.info("🚀 FastAPI startup: Initializing KPI update process...")
     start_kpi_background_update()

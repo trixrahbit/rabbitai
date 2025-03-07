@@ -37,7 +37,7 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
         logging.error(f"Invalid webhook response format: {e}")
         raise HTTPException(status_code=500, detail="Malformed ticket response.")
 
-def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
+async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     def check_sla(met_date_str, due_date_str):
         cst_tz = ZoneInfo('America/Chicago')
         try:
@@ -185,7 +185,7 @@ def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
     return sorted_tickets[:1]
 
-def format_date(date_str):
+async def format_date(date_str):
     cst_tz = ZoneInfo('America/Chicago')
     if date_str:
         try:
@@ -197,8 +197,8 @@ def format_date(date_str):
             return "Invalid Date"
     return "N/A"
 
-def construct_ticket_card(tickets: List[dict]) -> dict:
-    def get_priority_info(priority):
+async def construct_ticket_card(tickets: List[dict]) -> dict:
+    async def get_priority_info(priority):
         priority_map = {
             1: ("Critical", "attention"),  # Red
             2: ("High", "warning"),        # Yellow
@@ -208,7 +208,7 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         }
         return priority_map.get(priority, ("Unknown", "default"))
 
-    def get_status_text(status_id):
+    async def get_status_text(status_id):
         status_map = {
             1: "New",
             5: "Completed",
@@ -231,7 +231,7 @@ def construct_ticket_card(tickets: List[dict]) -> dict:
         }
         return status_map.get(status_id, f"Status ID {status_id}")
 
-    def format_timeline(ticket):
+    async def format_timeline(ticket):
         timeline = []
         cst_tz = ZoneInfo('America/Chicago')
         sla_results = ticket.get("sla_results", [])
