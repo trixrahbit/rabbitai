@@ -165,10 +165,10 @@ async def format_date(date_str):
 async def construct_ticket_card(tickets: List[dict]) -> dict:
     async def get_priority_info(priority):
         priority_map = {
-            1: ("Critical", "attention"),  # Red
-            2: ("High", "warning"),  # Yellow
-            3: ("Medium", "default"),
-            4: ("Low", "default"),
+            4: ("Critical", "attention"),  # Red
+            1: ("High", "warning"),  # Yellow
+            2: ("Medium", "default"),
+            3: ("Low", "default"),
             5: ("Very Low", "default")
         }
         return priority_map.get(priority, ("Unknown", "default"))
@@ -202,40 +202,47 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
         cst_tz = ZoneInfo('America/Chicago')
         sla_results = rawticket.get("sla_results", [])
 
-        for sla in sla_results:
-            sla_name = sla["sla_name"]
-            sla_met = sla["sla_met"]
-            due_date_formatted = sla["due_date_formatted"]
-            met_date_formatted = sla["met_date_formatted"]
-            due_date = sla.get("due_date")
-            met_date = sla.get("met_date")
+        logging.debug(f"🛠️ SLA Results for Ticket ID {rawticket.get('id')}: {sla_results}")
 
-            # Debug log for SLA
-            logging.debug(f"Formatting SLA - {sla_name}: sla_met={sla_met}, due_date={due_date_formatted}, met_date={met_date_formatted}")
+        if not sla_results:
+            logging.warning(f"⚠️ No SLA results found for Ticket ID {rawticket.get('id')}")
+            return [{
+                "type": "TextBlock",
+                "text": "No SLA Information Available",
+                "wrap": True,
+                "weight": "Lighter",
+                "spacing": "Small",
+                "size": "Medium",
+                "color": "attention"
+            }]
+
+        for sla in sla_results:
+            sla_name = sla.get("sla_name", "Unknown SLA")
+            sla_met = sla.get("sla_met", False)
+            due_date_formatted = sla.get("due_date_formatted", "N/A")
+            met_date_formatted = sla.get("met_date_formatted", "Not completed")
+            time_left_seconds = sla.get("time_left_seconds", None)
 
             now = datetime.now(cst_tz)
+            sla_status_text = "Not Met" if not sla_met else "Met"
+            sla_status_color = "attention" if not sla_met else "good"
 
-            if sla_met:
-                sla_status_text = "Met"
-                sla_status_color = "good"  # Green
-            elif met_date is None and due_date and due_date > now:
-                sla_status_text = "Not Yet Due"
-                sla_status_color = "default"  # Blue
-            elif met_date is None and due_date and due_date <= now:
-                sla_status_text = "Not Met"
-                sla_status_color = "attention"  # Red
-            else:
-                sla_status_text = "Not Met"
-                sla_status_color = "attention"  # Red
+            if met_date_formatted == "Not completed" and due_date_formatted != "N/A":
+                due_date = datetime.strptime(due_date_formatted, "%m-%d-%y %I:%M %p %Z").astimezone(cst_tz)
+                if due_date > now:
+                    sla_status_text = "Not Yet Due"
+                    sla_status_color = "default"
 
-            time_left_seconds = sla["time_left_seconds"]
+            # Debugging logs
+            logging.debug(
+                f"📌 SLA: {sla_name} | Met: {sla_met} | Due: {due_date_formatted} | Met Date: {met_date_formatted} | Time Left: {time_left_seconds}")
+
+            time_status = "N/A"
             if time_left_seconds is not None:
                 if time_left_seconds >= 0:
                     time_status = f"Time Left: {time_left_seconds / 3600:.2f} hours"
                 else:
                     time_status = f"Overdue by: {-time_left_seconds / 3600:.2f} hours"
-            else:
-                time_status = "N/A"
 
             timeline.append({
                 "type": "Container",
@@ -260,7 +267,7 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
                 ]
             })
 
-        return timeline  # ✅ Returns an iterable list
+        return timeline
 
     # Since we're only displaying one ticket, take the first one
     ticket = tickets[0]
