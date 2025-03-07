@@ -72,7 +72,7 @@ async def calculate_response_resolution_time():
     start_date, end_date = await get_start_end_of_week()
 
     # ✅ Correct usage of async session retrieval
-    async for session in get_secondary_db_connection():
+    async with get_secondary_db_connection() as session:
         try:
             logging.info(f"🔍 Fetching ticket data for {start_date} - {end_date}")
 
