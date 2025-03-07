@@ -9,7 +9,7 @@ async def calculate_endpoints_patched(session):
     """
     result = session.execute(query).fetchone()
 
-    kpi_insert(session, "Endpoints Patched", "Field Team", "Team", result)
+    await kpi_insert(session, "Endpoints Patched", "Field Team", "Team", result)
 async def calculate_uptime_rolling_30(session):
     query = """
     SELECT AVG(uptime_percentage) AS avg_uptime
@@ -18,7 +18,7 @@ async def calculate_uptime_rolling_30(session):
     """
     result = session.execute(query).fetchone()
 
-    kpi_insert(session, "Uptime Rolling 30 Days", "Field Team", "Team", result)
+    await kpi_insert(session, "Uptime Rolling 30 Days", "Field Team", "Team", result)
 async def calculate_reactive_tickets_per_endpoint(session):
     query = """
     SELECT CAST(COUNT(*) AS FLOAT) / NULLIF((SELECT COUNT(*) FROM endpoints), 0) AS tickets_per_endpoint
@@ -27,4 +27,4 @@ async def calculate_reactive_tickets_per_endpoint(session):
     """
     result = session.execute(query).fetchone()
 
-    kpi_insert(session, "Reactive Ticket per Endpoint", "Field Team", "Team", result)
+    await kpi_insert(session, "Reactive Ticket per Endpoint", "Field Team", "Team", result)
