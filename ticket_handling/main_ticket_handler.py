@@ -38,7 +38,7 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
         raise HTTPException(status_code=500, detail="Malformed ticket response.")
 
 async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
-    def check_sla(met_date_str, due_date_str):
+    async def check_sla(met_date_str, due_date_str):
         cst_tz = ZoneInfo('America/Chicago')
         try:
             # Parse due_date_str
@@ -86,7 +86,7 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
 
         return sla_met, time_diff_seconds, due_date_formatted, met_date_formatted
 
-    def calculate_weight(ticket):
+    async def calculate_weight(ticket):
         weight = 0
 
         # Priority Weighting
@@ -180,7 +180,7 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
         return weight
 
     for ticket in tickets:
-        ticket["weight"] = calculate_weight(ticket)
+        ticket["weight"] = await calculate_weight(ticket)
 
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
     return sorted_tickets[:1]

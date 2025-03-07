@@ -369,7 +369,7 @@ async def handle_command(request: Request):
                 logging.error(f"Failed to log 'getnextticket' command to database: {e}")
 
             # Construct Adaptive Card for Teams
-            adaptive_card = construct_ticket_card(top_tickets)
+            adaptive_card = await construct_ticket_card(top_tickets)
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
 
             return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
