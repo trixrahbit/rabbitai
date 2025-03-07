@@ -304,9 +304,9 @@ async def handle_command(request: Request):
                 )
 
             try:
-                async with get_db_connection() as conn:
-                    async with conn.begin():  # ✅ No need to assign `transaction`
-                        await conn.execute(  # ✅ Correct usage
+                async for conn in get_db_connection():
+                    async with conn.begin():
+                        await conn.execute(
                             text(
                                 "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
                                 "VALUES (:aadObjectId, :command, :command_data, :result_data)"
@@ -343,9 +343,9 @@ async def handle_command(request: Request):
             ticket_details = [{"ticket_id": t["id"], "title": t["title"], "points": t["weight"]} for t in top_tickets]
 
             try:
-                async with get_db_connection() as conn:
-                    async with conn.begin():  # ✅ This starts a transaction
-                        await conn.execute(  # ✅ Correct: Use `conn.execute()`
+                async for conn in get_db_connection():
+                    async with conn.begin():
+                        await conn.execute(
                             text(
                                 "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
                                 "VALUES (:aadObjectId, :command, :command_data, :result_data)"
@@ -357,7 +357,6 @@ async def handle_command(request: Request):
                                 "result_data": json.dumps({"tickets": ticket_details}),
                             },
                         )
-
             except Exception as e:
                 logging.error(f"Failed to log 'getnextticket' command to database: {e}")
 
@@ -410,6 +409,7 @@ async def handle_command(request: Request):
     except Exception as e:
         logging.error(f"Error processing command: {e}")
         raise HTTPException(status_code=500, detail="Failed to process command.")
+
 
 
 async def parse_date(date_str: Optional[str]) -> Optional[datetime]:
