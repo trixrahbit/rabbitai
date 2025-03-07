@@ -26,10 +26,13 @@ async def run_kpi_pipeline():
             try:
                 await calculate_utilization()
                 await calculate_response_resolution_time()
-                await calculate_sla_met(session)
-                await calculate_ticket_aging(session)
-                await calculate_avg_response_time(session)
-                await calculate_avg_resolution_time(session)
+
+                # ✅ Open a new session for calculate_sla_met()
+                async for session in get_secondary_db_connection():
+                    await calculate_sla_met(session)
+                    await calculate_ticket_aging(session)
+                    await calculate_avg_response_time(session)
+                    await calculate_avg_resolution_time(session)
 
                 logging.info("✅ KPI calculations completed successfully!")
 

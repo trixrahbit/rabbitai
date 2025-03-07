@@ -7,18 +7,20 @@ from services.kpi_tasks import kpi_insert, get_start_end_of_week
 
 QUEUE_IDS = [8, 29683537, 29683539, 29683540, 29683555]
 
-async def calculate_sla_met():
-    async with get_secondary_db_connection() as session:
-        query = text("""
-        SELECT COUNT(*) AS total_tickets,
-               SUM(CASE WHEN serviceLevelAgreementHasBeenMet = 1 THEN 1 ELSE 0 END) AS sla_met_count
-        FROM tickets
-        """)
-        result = await session.execute(query)
-        row = result.fetchone()  # ✅ Removed `await`
-        sla_met_count = row[1] if row and row[1] is not None else 0
+async def calculate_sla_met(session):
+    query = text("""
+    SELECT COUNT(*) AS total_tickets,
+           SUM(CASE WHEN serviceLevelAgreementHasBeenMet = 1 THEN 1 ELSE 0 END) AS sla_met_count
+    FROM tickets
+    """)
 
-        logging.info(f"✅ SLA Met: {sla_met_count}")
+    result = await session.execute(query)
+    row = result.fetchone()  # ✅ No need to `await`
+    sla_met_count = row[1] if row and row[1] is not None else 0
+
+    await kpi_insert(session, "SLA Met", "Service Desk", "Team", sla_met_count)
+    logging.info(f"✅ SLA Met: {sla_met_count}")
+
 
 async def calculate_ticket_aging():
     async with get_secondary_db_connection() as session:
