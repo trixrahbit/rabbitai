@@ -17,7 +17,7 @@ async def calculate_sla_met(session):
 
     sla_met_count = result[1] if result and result[1] is not None else 0  # ✅ Extract second value
 
-    kpi_insert(session, "SLA Met", "Service Desk", "Team", sla_met_count)
+    await kpi_insert(session, "SLA Met", "Service Desk", "Team", sla_met_count)
 
 
 
@@ -33,7 +33,7 @@ async def calculate_ticket_aging(session):
 
     aging_tickets = result[0] if result and result[0] is not None else 0  # ✅ Extract scalar
 
-    kpi_insert(session, "Ticket Aging Over 5", "Service Desk", "Team", aging_tickets)
+    await kpi_insert(session, "Ticket Aging Over 5", "Service Desk", "Team", aging_tickets)
 
 
 async def calculate_avg_response_time(session):
@@ -49,7 +49,7 @@ async def calculate_avg_response_time(session):
 
     avg_response_time = int(result[0]) if result and result[0] is not None else 0  # ✅ Store minutes as an integer
 
-    kpi_insert(session, "Avg Response Time", "Service Desk", "Team", avg_response_time)
+    await kpi_insert(session, "Avg Response Time", "Service Desk", "Team", avg_response_time)
 
 
 async def calculate_avg_resolution_time(session):
@@ -65,12 +65,12 @@ async def calculate_avg_resolution_time(session):
 
     avg_resolution_time = int(result[0]) if result and result[0] is not None else 0  # ✅ Store minutes as an integer
 
-    kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
+    await kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
 
 async def calculate_response_resolution_time():
     """Calculates response & resolution times per resource per week and updates the database."""
     start_date, end_date = get_start_end_of_week()
-    session = get_secondary_db_connection()
+    session = await get_secondary_db_connection()
 
     try:
         logging.info(f"🔍 Fetching ticket data for {start_date} - {end_date}")
@@ -156,7 +156,7 @@ async def calculate_support_calls(session):
     """
     result = session.execute(query).fetchone()
 
-    kpi_insert(session, "# of Support Calls", "Service Desk", "Team", result)
+    await kpi_insert(session, "# of Support Calls", "Service Desk", "Team", result)
 
 async def calculate_csat_rolling_30(session):
     query = """
@@ -166,4 +166,4 @@ async def calculate_csat_rolling_30(session):
     """
     result = session.execute(query).fetchone()
 
-    kpi_insert(session, "CSAT Rolling 30", "Service Desk", "Team", result)
+    await kpi_insert(session, "CSAT Rolling 30", "Service Desk", "Team", result)
