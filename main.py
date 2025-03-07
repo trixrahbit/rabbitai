@@ -496,9 +496,9 @@ async def process_contracts_in_background(input_data: List[Dict]):
             contract_id = contract.get("id")
             logging.info(f"🔄 Processing contract ID: {contract_id}")
 
-            start_dt = parse_date(contract.get("startDate"))
-            end_dt = parse_date(contract.get("endDate"))
-            last_modified_dt = parse_date(contract.get("lastModifiedDateTime")) or datetime.utcnow()
+            start_dt = await parse_date(contract.get("startDate"))
+            end_dt = await parse_date(contract.get("endDate"))
+            last_modified_dt = await parse_date(contract.get("lastModifiedDateTime")) or datetime.utcnow()
 
             query = text("""
             MERGE INTO dbo.Contracts AS target
@@ -679,9 +679,9 @@ async def process_units_in_background(input_data: List[Dict]):
 
             logging.info(f"🔄 Processing Contract Unit ID: {unit_id}")
 
-            start_dt = parse_date(unit.get("startDate"))
-            end_dt = parse_date(unit.get("endDate"))
-            approve_dt = parse_date(unit.get("approveAndPostDate"))
+            start_dt = await parse_date(unit.get("startDate"))
+            end_dt = await parse_date(unit.get("endDate"))
+            approve_dt = await parse_date(unit.get("approveAndPostDate"))
 
             query = text("""
             MERGE INTO dbo.ContractUnits AS target

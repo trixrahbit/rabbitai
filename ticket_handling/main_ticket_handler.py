@@ -141,7 +141,7 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             due_date_str = rawticket.get(due_field)
             logging.debug(f"SLA Field - {sla_name}: met_date={met_date_str}, due_date={due_date_str}")
 
-            sla_met, time_diff_seconds, due_date_formatted, met_date_formatted = check_sla(met_date_str, due_date_str)
+            sla_met, time_diff_seconds, due_date_formatted, met_date_formatted = await check_sla(met_date_str, due_date_str)
 
             logging.debug(
                 f"Appending SLA - {sla_name}: sla_met={sla_met}, due_date_formatted={due_date_formatted}, "
