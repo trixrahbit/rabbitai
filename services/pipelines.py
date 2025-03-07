@@ -30,7 +30,7 @@ async def run_kpi_pipeline():
                 # ✅ Open a new session for calculate_sla_met()
                 async for session in get_secondary_db_connection():
                     await calculate_sla_met(session)
-                    await calculate_ticket_aging(session)
+                    await calculate_ticket_aging()
                     await calculate_avg_response_time(session)
                     await calculate_avg_resolution_time(session)
 
