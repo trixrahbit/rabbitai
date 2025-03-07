@@ -348,20 +348,20 @@ async def handle_command(request: Request):
 
             # Log the command and result to the database
             try:
-                conn = await get_db_connection()
-                async with conn.begin() as transaction:
-                    await transaction.execute(
-                        text(
-                            "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
-                            "VALUES (:aadObjectId, :command, :command_data, :result_data)"
-                        ),
-                        {
-                            "aadObjectId": aad_object_id,
-                            "command": "getnextticket",
-                            "command_data": json.dumps({"command": "getnextticket"}),
-                            "result_data": json.dumps({"tickets": ticket_details}),
-                        },
-                    )
+                async with get_db_connection() as conn:
+                    async with conn.begin() as transaction:
+                        await transaction.execute(
+                            text(
+                                "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
+                                "VALUES (:aadObjectId, :command, :command_data, :result_data)"
+                            ),
+                            {
+                                "aadObjectId": aad_object_id,
+                                "command": "getnextticket",
+                                "command_data": json.dumps({"command": "getnextticket"}),
+                                "result_data": json.dumps({"tickets": ticket_details}),
+                            },
+                        )
             except Exception as e:
                 logging.error(f"Failed to log 'getnextticket' command to database: {e}")
 
