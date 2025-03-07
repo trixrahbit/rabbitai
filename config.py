@@ -26,10 +26,10 @@ DB_SECONDARY_NAME = settings.DB_SECONDARY_NAME
 OPENID_CONFIG_URL = "https://login.botframework.com/v1/.well-known/openidconfiguration"
 # Connection Strings for SQLAlchemy
 PRIMARY_DATABASE_URL = (
-    f"mssql+pyodbc://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_SERVER}/{settings.DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+    f"mssql+aioodbc://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_SERVER}/{settings.DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
 )
 SECONDARY_DATABASE_URL = (
-    f"mssql+pyodbc://{settings.DB_SECONDARY_USER}:{settings.DB_SECONDARY_PASSWORD}@{settings.DB_SERVER}/{settings.DB_SECONDARY_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+    f"mssql+aioodbc://{settings.DB_SECONDARY_USER}:{settings.DB_SECONDARY_PASSWORD}@{settings.DB_SERVER}/{settings.DB_SECONDARY_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
 )
 
 
