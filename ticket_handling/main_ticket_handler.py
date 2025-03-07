@@ -355,7 +355,7 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
         },
         {
             "type": "TextBlock",
-            "text": f"**Created Date:** {await format_date(ticket['createDate'])}",
+            "text": f"**Created Date:** *{await format_date(ticket['createDate'])}",
             "wrap": True,
             "spacing": "Small"
         },
