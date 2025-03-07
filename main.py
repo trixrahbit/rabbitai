@@ -210,7 +210,7 @@ async def generate_report(device_data: List[DeviceData] = Body(...)):
         }
         summary_list.append(device_summary)
 
-    analytics = generate_analytics(device_data)
+    analytics = await generate_analytics(device_data)
 
     # ✅ Convert unique_manufacturers from a list to a dictionary with counts
     if isinstance(analytics.get("counts", {}).get("unique_manufacturers"), list):
@@ -219,7 +219,7 @@ async def generate_report(device_data: List[DeviceData] = Body(...)):
             manufacturer_counts[manufacturer] = manufacturer_counts.get(manufacturer, 0) + 1
         analytics["counts"]["unique_manufacturers"] = manufacturer_counts  # Convert to dictionary
 
-    recommendations = generate_recommendations(analytics)
+    recommendations = await generate_recommendations(analytics)
 
     filename = f"rabbit_report_{uuid.uuid4()}.pdf"
     pdf_path = generate_pdf_report(analytics, filename=filename)
@@ -292,7 +292,7 @@ async def handle_command(request: Request):
 
             # Log the command and response to the database
             try:
-                conn = get_db_connection()
+                conn = await get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) VALUES (?, ?, ?, ?)",
@@ -345,7 +345,7 @@ async def handle_command(request: Request):
         # Process `getnextticket` command
         if command_text.startswith("getnextticket"):
             tickets = await fetch_tickets_from_webhook(aad_object_id)
-            top_tickets = assign_ticket_weights(tickets)
+            top_tickets = await assign_ticket_weights(tickets)
 
             # Prepare ticket details for logging
             ticket_details = [
@@ -355,7 +355,7 @@ async def handle_command(request: Request):
 
             # Log the command and result to the database
             try:
-                conn = get_db_connection()
+                conn = await get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) VALUES (?, ?, ?, ?)",
@@ -480,7 +480,7 @@ async def parse_date(date_str: Optional[str]) -> Optional[datetime]:
 
 async def process_contracts_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract data into the database."""
-    conn = get_secondary_db_connection()
+    conn = await get_secondary_db_connection()
 
     logging.info(f"🔍 Connection Type: {type(conn)}")
     logging.info(f"📦 Received {len(input_data)} contracts to process.")
@@ -660,7 +660,7 @@ async def process_contracts(input_data: List[Dict] = Body(...), background_tasks
 
 async def process_units_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract units into the database."""
-    conn = get_secondary_db_connection()
+    conn = await get_secondary_db_connection()
 
     logging.info(f"🔍 Connection Type: {type(conn)}")
     logging.info(f"📦 Received {len(input_data)} contract units to process.")
@@ -769,7 +769,7 @@ async def process_contract_units(input_data: List[Dict] = Body(...), background_
 
 async def process_timeentries_in_background(input_data: List[Dict]):
     """Background task to insert/merge time entry data into the database."""
-    conn = get_secondary_db_connection()
+    conn = await get_secondary_db_connection()
 
     logging.info(f"🔍 Connection Type: {type(conn)}")
     logging.info(f"📦 Received {len(input_data)} time entries to process.")
@@ -939,4 +939,4 @@ async def update_client_revenue(background_tasks: BackgroundTasks):
 async def startup_kpi_event():
     """Start automatic updates when FastAPI starts."""
     logging.info("🚀 FastAPI startup: Initializing KPI update process...")
-    start_kpi_background_update()
+    await start_kpi_background_update()

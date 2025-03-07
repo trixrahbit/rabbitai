@@ -1,12 +1,11 @@
 import logging
-import os
 import json
 import re
 from typing import List, Dict
 import httpx
 from config import logger, AZURE_API_KEY, AZURE_OPENAI_ENDPOINT, deployment_name
 # AI Processing
-def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[str, str]]]:
+async def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[str, str]]]:
     recommendations = {
         "device_recommendations": [],
         "strategic_plan": []
@@ -27,7 +26,7 @@ def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List[Dict[
 
     return recommendations
 
-def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
+async def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
     prompt = build_recommendation_prompt(issue_type, issue_details)
 
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment_name}/chat/completions?api-version=2023-05-15"
@@ -72,7 +71,7 @@ def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, st
             "recommendation": "Error: Unexpected response format from Azure OpenAI API."
         }
 
-def build_recommendation_prompt(issue_type: str, issue_details: List[Dict[str, str]]) -> str:
+async def build_recommendation_prompt(issue_type: str, issue_details: List[Dict[str, str]]) -> str:
     # Tailored prompts for generating a strategic plan
     if issue_type == "not_seen_recently":
         return (
