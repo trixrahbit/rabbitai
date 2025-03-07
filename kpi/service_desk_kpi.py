@@ -69,7 +69,7 @@ async def calculate_avg_resolution_time(session):
 
 async def calculate_response_resolution_time():
     """Calculates response & resolution times per resource per week and updates the database."""
-    start_date, end_date = get_start_end_of_week()
+    start_date, end_date = await get_start_end_of_week()
     session = await get_secondary_db_connection()
 
     try:
