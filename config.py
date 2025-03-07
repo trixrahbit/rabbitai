@@ -62,8 +62,9 @@ async def get_db_connection() -> AsyncSession:
 # Function to get an async session for the secondary database
 async def get_secondary_db_connection():
     """Provides an async database session."""
-    async with AsyncSessionLocal() as session:
-        yield session
+    async with SecondaryAsyncSessionLocal() as session:
+        yield session  # ✅ This ensures correct session handling
+
 
 # Logging configuration
 logging.basicConfig(level=logging.DEBUG)
