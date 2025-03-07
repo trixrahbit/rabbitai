@@ -276,6 +276,7 @@ async def download_report(filename: str):
 # Teams Commands Start Here
 @app.post("/command")
 async def handle_command(request: Request):
+    """Handles commands from Microsoft Teams."""
     auth_header = request.headers.get("Authorization")
     await validate_teams_token(auth_header)
 
@@ -291,21 +292,21 @@ async def handle_command(request: Request):
         if not command_text or not aad_object_id or not service_url or not conversation_id:
             raise ValueError("Missing required fields")
 
-        # Handle `askRabbit` command
+        # **Handle `askRabbit` Command**
         if command_text.startswith("askrabbit"):
             args = command_text[len("askrabbit"):].strip()
             result = await handle_sendtoai(args)
 
             response_text = result.get("response", "No response received.")
-            if isinstance(response_text, list):
+            if isinstance(response_text, list):  # Ensure it's not a list of dicts
                 response_text = " ".join(
                     [item["text"] for item in response_text if isinstance(item, dict) and "text" in item]
                 )
 
             try:
-                async for conn in get_db_connection():  # ✅ Use async for
-                    async with conn.begin():
-                        await conn.execute(
+                async with get_db_connection() as conn:
+                    async with conn.begin() as transaction:
+                        await transaction.execute(
                             text(
                                 "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
                                 "VALUES (:aadObjectId, :command, :command_data, :result_data)"
@@ -324,27 +325,27 @@ async def handle_command(request: Request):
                 "type": "AdaptiveCard",
                 "version": "1.2",
                 "body": [
-                    {"type": "TextBlock", "text": "**Rabbit AI Response**", "wrap": True, "weight": "Bolder",
-                     "size": "Medium"},
+                    {"type": "TextBlock", "text": "**Rabbit AI Response**", "wrap": True, "weight": "Bolder", "size": "Medium"},
                     {"type": "TextBlock", "text": f"**Question:** {args}", "wrap": True, "weight": "Bolder"},
                     {"type": "TextBlock", "text": f"**Answer:**\n\n{response_text}", "wrap": True}
                 ]
             }
 
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
+
             return JSONResponse(content={"status": "success", "response": response_text})
 
-        # Handle `getnextticket` command
+        # **Handle `getnextticket` Command**
         if command_text.startswith("getnextticket"):
-            tickets = await fetch_tickets_from_webhook(aad_object_id)  # ✅ Ensure `await`
-            top_tickets = await assign_ticket_weights(tickets)  # ✅ Ensure `await`
+            tickets = await fetch_tickets_from_webhook(aad_object_id)
+            top_tickets = await assign_ticket_weights(tickets)
 
             ticket_details = [{"ticket_id": t["id"], "title": t["title"], "points": t["weight"]} for t in top_tickets]
 
             try:
-                async for conn in get_db_connection():  # ✅ Use async for
-                    async with conn.begin():
-                        await conn.execute(
+                async with get_db_connection() as conn:
+                    async with conn.begin() as transaction:
+                        await transaction.execute(
                             text(
                                 "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
                                 "VALUES (:aadObjectId, :command, :command_data, :result_data)"
@@ -364,10 +365,10 @@ async def handle_command(request: Request):
 
             return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
 
-        # Handle `mytickets` command
+        # **Handle `mytickets` Command**
         if command_text.startswith("mytickets"):
             try:
-                tickets = await fetch_tickets_from_webhook(aad_object_id)  # ✅ Ensure `await`
+                tickets = await fetch_tickets_from_webhook(aad_object_id)
 
                 if not tickets:
                     return JSONResponse(content={"status": "success", "message": "No tickets assigned to you."})
@@ -383,20 +384,20 @@ async def handle_command(request: Request):
                     ticket_cards.append({
                         "type": "Container",
                         "items": [
-                            {"type": "TextBlock", "text": f"**Ticket ID:** {ticket_id}", "wrap": True,
-                             "weight": "Bolder"},
+                            {"type": "TextBlock", "text": f"**Ticket ID:** {ticket_id}", "wrap": True, "weight": "Bolder"},
                             {"type": "TextBlock", "text": f"**Title:** {title}", "wrap": True},
                             {"type": "TextBlock", "text": f"**Description:** {description}", "wrap": True},
                             {"type": "TextBlock", "text": f"**Status:** {status}", "wrap": True},
-                            {"type": "ActionSet",
-                             "actions": [{"type": "Action.OpenUrl", "title": "View Ticket", "url": ticket_url}]}
+                            {"type": "ActionSet", "actions": [{"type": "Action.OpenUrl", "title": "View Ticket", "url": ticket_url}]}
                         ]
                     })
 
-                adaptive_card = {"type": "AdaptiveCard", "version": "1.2", "body": [{"type": "TextBlock",
-                                                                                     "text": "**My Tickets**",
-                                                                                     "wrap": True, "weight": "Bolder",
-                                                                                     "size": "Large"}] + ticket_cards}
+                adaptive_card = {
+                    "type": "AdaptiveCard",
+                    "version": "1.2",
+                    "body": [{"type": "TextBlock", "text": "**My Tickets**", "wrap": True, "weight": "Bolder", "size": "Large"}] + ticket_cards
+                }
+
                 await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
 
                 return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
