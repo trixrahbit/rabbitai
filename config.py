@@ -59,6 +59,7 @@ async def get_db_connection() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session  # Allows proper cleanup after use
 
+@asynccontextmanager
 # Function to get an async session for the secondary database
 async def get_secondary_db_connection():
     """Provides an async database session."""
