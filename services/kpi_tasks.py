@@ -10,11 +10,8 @@ async def kpi_insert(session, kpi_name, category, type_, value):
         WHERE name = :name AND category = :category AND type = :type
     """)
 
-    kpi_id = await session.execute(kpi_id_query, {
-        "name": kpi_name,
-        "category": category,
-        "type": type_
-    }).scalar()
+    result = await session.execute(kpi_id_query, {"name": kpi_name, "category": category, "type": type_})
+    kpi_id = result.scalar()  # ✅ Corrected
 
     if kpi_id is None:
         logging.warning(f"⚠️ KPI '{kpi_name}' not found! Auto-inserting...")
@@ -24,26 +21,14 @@ async def kpi_insert(session, kpi_name, category, type_, value):
             VALUES (:name, '', :category, :type);
         """)
 
-        await session.execute(insert_kpi_query, {
-            "name": kpi_name,
-            "category": category,
-            "type": type_
-        })
-        session.commit()
+        await session.execute(insert_kpi_query, {"name": kpi_name, "category": category, "type": type_})
+        await session.commit()  # ✅ Ensure commit
 
-        # Fetch the new KPI ID
-        kpi_id = await session.execute(kpi_id_query, {
-            "name": kpi_name,
-            "category": category,
-            "type": type_
-        }).scalar()
+        result = await session.execute(kpi_id_query, {"name": kpi_name, "category": category, "type": type_})
+        kpi_id = result.scalar()  # ✅ Fetch newly inserted KPI ID
 
     if kpi_id is None:
         raise ValueError(f"❌ Failed to create KPI '{kpi_name}' in database!")
-
-    # ✅ Convert tuple to scalar
-    if isinstance(value, tuple):
-        value = value[0] if value else 0
 
     insert_value_query = text("""
         INSERT INTO kpi_values (kpi_id, value, date_recorded)
@@ -51,10 +36,7 @@ async def kpi_insert(session, kpi_name, category, type_, value):
     """)
 
     await session.execute(insert_value_query, {"kpi_id": kpi_id, "value": value})
-    session.commit()
-
-    await session.execute(insert_value_query, {"kpi_id": kpi_id, "value": value})
-    session.commit()
+    await session.commit()
 
 
 async def get_start_end_of_week():
@@ -84,8 +66,8 @@ async def calculate_utilization():
                 GROUP BY r.email, t.creatorUserID
             """)
 
-            result = await session.execute(query)
-            rows = result.fetchall()  # ✅ No `await` needed
+            result = await session.execute(query, {"start_date": start_date, "end_date": end_date})
+            rows = result.fetchall()  # ✅ No need to await
 
             if not rows:
                 logging.warning("⚠️ No time entries found for this week.")
@@ -106,14 +88,17 @@ async def calculate_utilization():
                         VALUES (:user_id, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
                 """)
 
-                await session.execute(upsert_query, {
-                    "user_id": user_id,
-                    "email": email,
-                    "weekStartDate": start_date,
-                    "weekEndDate": end_date,
-                    "totalHours": total_hours,
-                    "utilization": utilization_percentage
-                })
+                await session.execute(
+                    upsert_query,
+                    {
+                        "user_id": user_id,
+                        "email": email,
+                        "weekStartDate": start_date,
+                        "weekEndDate": end_date,
+                        "totalHours": total_hours,
+                        "utilization": utilization_percentage,
+                    },
+                )
 
             await session.commit()  # ✅ Explicit commit AFTER all inserts/updates
             logging.info("✅ Weekly Utilization Data Updated Successfully!")
