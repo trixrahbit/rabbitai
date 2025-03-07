@@ -47,9 +47,7 @@ async def run_kpi_pipeline():
         time.sleep(1800)  # ✅ Sleep before restarting the loop
 
 
-import asyncio
-from threading import Thread
-
-def start_kpi_background_update():
+async def start_kpi_background_update():
+    loop = asyncio.get_running_loop()
     thread = Thread(target=lambda: asyncio.run(run_kpi_pipeline()), daemon=True)
     thread.start()
