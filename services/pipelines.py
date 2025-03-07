@@ -22,7 +22,7 @@ async def run_kpi_pipeline():
     while True:
         logging.info("🚀 Running KPI calculations...")
 
-        async for session in get_secondary_db_connection():  # ✅ Correct async handling
+        async with get_secondary_db_connection() as session: # ✅ Correct async handling
             try:
                 await calculate_utilization()
                 await calculate_response_resolution_time()
