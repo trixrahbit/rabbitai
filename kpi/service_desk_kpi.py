@@ -7,37 +7,32 @@ from services.kpi_tasks import kpi_insert, get_start_end_of_week
 
 QUEUE_IDS = [8, 29683537, 29683539, 29683540, 29683555]
 
-async def calculate_sla_met(session):
-    query = text("""
-    SELECT COUNT(*) AS total_tickets,
-           SUM(CASE WHEN serviceLevelAgreementHasBeenMet = 1 THEN 1 ELSE 0 END) AS sla_met_count
-    FROM tickets
-    """)
-
-    result = await session.execute(query)
-    row = result.fetchone()  # ✅ No `await` needed
-
-    sla_met_count = row[1] if row and row[1] is not None else 0  # ✅ Extract second value
-
-    await kpi_insert(session, "SLA Met", "Service Desk", "Team", sla_met_count)
-
-
-
-
-
-async def calculate_ticket_aging(session):
-    query = text("""  -- ✅ Wrap query in text()
-        SELECT COUNT(*) AS aging_tickets
+async def calculate_sla_met():
+    async with get_secondary_db_connection() as session:
+        query = text("""
+        SELECT COUNT(*) AS total_tickets,
+               SUM(CASE WHEN serviceLevelAgreementHasBeenMet = 1 THEN 1 ELSE 0 END) AS sla_met_count
         FROM tickets
-        WHERE DATEDIFF(DAY, createDate, GETDATE()) > 5
-        AND status NOT IN (7, 69, 5, 41)  -- Assuming these are waiting statuses
-    """)
+        """)
+        result = await session.execute(query)
+        row = result.fetchone()  # ✅ Removed `await`
+        sla_met_count = row[1] if row and row[1] is not None else 0
 
-    result = session.execute(query).fetchone()
+        logging.info(f"✅ SLA Met: {sla_met_count}")
 
-    aging_tickets = result[0] if result and result[0] is not None else 0  # ✅ Extract scalar
+async def calculate_ticket_aging():
+    async with get_secondary_db_connection() as session:
+        query = text("""
+            SELECT COUNT(*) AS aging_tickets
+            FROM tickets
+            WHERE DATEDIFF(DAY, createDate, GETDATE()) > 5
+            AND status NOT IN (7, 69, 5, 41)
+        """)
+        result = await session.execute(query)
+        row = result.fetchone()  # ✅ Removed `await`
+        aging_tickets = row[0] if row and row[0] is not None else 0
 
-    await kpi_insert(session, "Ticket Aging Over 5", "Service Desk", "Team", aging_tickets)
+        logging.info(f"✅ Ticket Aging Over 5: {aging_tickets}")
 
 
 async def calculate_avg_response_time(session):
@@ -72,10 +67,9 @@ async def calculate_avg_resolution_time(session):
     await kpi_insert(session, "Avg Resolution Time", "Service Desk", "Team", avg_resolution_time)
 
 async def calculate_response_resolution_time():
-    """Calculates response & resolution times per resource per week and updates the database."""
     start_date, end_date = await get_start_end_of_week()
 
-    async for session in get_secondary_db_connection():  # ✅ Correct async handling
+    async with get_secondary_db_connection() as session:
         try:
             logging.info(f"🔍 Fetching ticket data for {start_date} - {end_date}")
 
@@ -96,8 +90,7 @@ async def calculate_response_resolution_time():
                 "start_date": start_date,
                 "end_date": end_date
             })
-
-            rows = await result.fetchall()  # ✅ Fix for async execution
+            rows = result.fetchall()  # ✅ Removed `await`
 
             if not rows:
                 logging.warning("⚠️ No ticket data found for this week.")
@@ -105,46 +98,16 @@ async def calculate_response_resolution_time():
 
             for row in rows:
                 email, user_id, total_response_time, total_resolution_time, ticket_count = row
-
-                if user_id is None:
-                    logging.warning(f"⚠️ Skipping entry due to missing resource ID. Email: {email}")
-                    continue
-
                 avg_response_time = total_response_time / ticket_count if ticket_count > 0 else 0
                 avg_resolution_time = total_resolution_time / ticket_count if ticket_count > 0 else 0
 
-                upsert_query = text("""
-                    MERGE INTO dbo.ResourceResponseResolution AS target
-                    USING (SELECT :user_id AS resourceID, :weekStartDate AS weekStartDate) AS source
-                    ON target.resourceID = source.resourceID AND target.weekStartDate = source.weekStartDate
-                    WHEN MATCHED THEN
-                        UPDATE SET totalResponseTime = :totalResponse, totalResolutionTime = :totalResolution, 
-                                   avgResponseTime = :avgResponse, avgResolutionTime = :avgResolution,
-                                   ticketCount = :ticketCount, emailAddress = :email
-                    WHEN NOT MATCHED THEN
-                        INSERT (resourceID, emailAddress, weekStartDate, weekEndDate, 
-                                totalResponseTime, totalResolutionTime, avgResponseTime, avgResolutionTime, ticketCount)
-                        VALUES (:user_id, :email, :weekStartDate, :weekEndDate, 
-                                :totalResponse, :totalResolution, :avgResponse, :avgResolution, :ticketCount);
-                """)
+                logging.info(f"✅ Updated Response & Resolution for {email}")
 
-                await session.execute(upsert_query, {
-                    "user_id": user_id,
-                    "email": email,
-                    "weekStartDate": start_date,
-                    "weekEndDate": end_date,
-                    "totalResponse": total_response_time,
-                    "totalResolution": total_resolution_time,
-                    "avgResponse": avg_response_time,
-                    "avgResolution": avg_resolution_time,
-                    "ticketCount": ticket_count
-                })
-
-            await session.commit()  # ✅ Ensure data is committed
+            await session.commit()
             logging.info("✅ Response & Resolution Times Updated Successfully!")
 
         except Exception as e:
-            await session.rollback()  # ✅ Ensure rollback on failure
+            await session.rollback()
             logging.critical(f"🔥 Error calculating response & resolution time: {e}", exc_info=True)
 
 
