@@ -6,6 +6,7 @@ import httpx
 from fastapi import HTTPException
 from config import logger
 
+
 async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
     url = "https://engine.rewst.io/webhooks/custom/trigger/01933846-ecca-7a63-a943-f09e358edcc3/018e6633-49b0-7f54-b610-e740d3bb1a3e"
     payload = {"user_upn": user_upn}
@@ -36,6 +37,7 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
     except ValueError as e:
         logging.error(f"Invalid webhook response format: {e}")
         raise HTTPException(status_code=500, detail="Malformed ticket response.")
+
 
 async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     async def check_sla(met_date_str, due_date_str):
@@ -95,7 +97,7 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             2: 4,  # High
             3: 3,  # Medium
             4: 2,  # Low
-            5: 1   # Very Low
+            5: 1  # Very Low
         }
         priority = rawticket.get("priority")
         if priority in priority_weights:
@@ -111,12 +113,12 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             24: 65,  # Client Responded
             28: 55,  # Quote Needed
             29: 60,  # Reopened
-            32: 0,   # Scheduled
+            32: 0,  # Scheduled
             36: 65,  # Scheduling Needed
-            41: -20, # Waiting Vendor
+            41: -20,  # Waiting Vendor
             54: 60,  # Needs Project
             56: 60,  # Received in Full
-            64: -20, # Scheduled next NA
+            64: -20,  # Scheduled next NA
             70: 70,  # Assigned
             71: 70,  # schedule onsite
             74: -20,  # scheduled onsite
@@ -141,7 +143,8 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
             due_date_str = rawticket.get(due_field)
             logging.debug(f"SLA Field - {sla_name}: met_date={met_date_str}, due_date={due_date_str}")
 
-            sla_met, time_diff_seconds, due_date_formatted, met_date_formatted = await check_sla(met_date_str, due_date_str)
+            sla_met, time_diff_seconds, due_date_formatted, met_date_formatted = await check_sla(met_date_str,
+                                                                                                 due_date_str)
 
             logging.debug(
                 f"Appending SLA - {sla_name}: sla_met={sla_met}, due_date_formatted={due_date_formatted}, "
@@ -185,6 +188,7 @@ async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
     return sorted_tickets[:1]
 
+
 async def format_date(date_str):
     cst_tz = ZoneInfo('America/Chicago')
     if date_str:
@@ -197,14 +201,15 @@ async def format_date(date_str):
             return "Invalid Date"
     return "N/A"
 
+
 async def construct_ticket_card(tickets: List[dict]) -> dict:
     async def get_priority_info(priority):
         priority_map = {
             1: ("Critical", "attention"),  # Red
-            2: ("High", "warning"),        # Yellow
-            3: ("Medium", "default"),      # Default color
-            4: ("Low", "default"),         # Default color
-            5: ("Very Low", "default")     # Default color
+            2: ("High", "warning"),  # Yellow
+            3: ("Medium", "default"),  # Default color
+            4: ("Low", "default"),  # Default color
+            5: ("Very Low", "default")  # Default color
         }
         return priority_map.get(priority, ("Unknown", "default"))
 
@@ -385,5 +390,3 @@ async def construct_ticket_card(tickets: List[dict]) -> dict:
     }
 
     return adaptive_card
-
-

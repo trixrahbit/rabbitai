@@ -123,7 +123,7 @@ async def count_open_tickets(tickets: List[TicketData]) -> int:
 
 async def update_contract_summary():
     """Ensures the ContractSummary table stays up to date."""
-    session = get_secondary_db_connection()
+    session = await get_secondary_db_connection()
     try:
         merge_query = text("""
             MERGE INTO dbo.ContractSummary AS target
@@ -190,7 +190,7 @@ async def update_contract_summary():
 # ✅ Fetch Contract Data & Ticket Counts
 async def fetch_data():
     """Fetch contract summary data and ticket counts from Azure SQL."""
-    conn = get_secondary_db_connection()
+    conn = await get_secondary_db_connection()
 
     contracts_query = """
     SELECT 
@@ -286,7 +286,7 @@ async def merge_with_tickets(revenue_df, tickets_df):
 # ✅ Store Data in SQL
 async def store_to_db(final_df):
     """Efficiently stores results in Azure SQL using SQLAlchemy."""
-    session = get_secondary_db_connection()
+    session = await get_secondary_db_connection()
 
     # ✅ Ensure critical fields have default values
     final_df.fillna({
@@ -336,10 +336,10 @@ async def store_to_db(final_df):
 
 
 # ✅ Pipeline Runner (Runs Every 30 Mins)
-def run_pipeline():
+async def run_pipeline():
     while True:
         logging.info("🔄 Updating Contract Summary...")
-        update_contract_summary()  # ✅ Ensure contract summary is up to date before fetching
+        await update_contract_summary()  # ✅ Ensure contract summary is up to date before fetching
 
         logging.info("🚀 Fetching Data...")
         contracts_df, tickets_df = fetch_data()
@@ -350,13 +350,13 @@ def run_pipeline():
             continue
 
         logging.info("💰 Calculating Monthly Revenue...")
-        revenue_df = calculate_monthly_revenue(contracts_df)
+        revenue_df = await calculate_monthly_revenue(contracts_df)
 
         logging.info("📊 Merging with Ticket Data...")
-        final_df = merge_with_tickets(revenue_df, tickets_df)
+        final_df = await merge_with_tickets(revenue_df, tickets_df)
 
         logging.info("💾 Storing Data in Database...")
-        store_to_db(final_df)
+        await store_to_db(final_df)
 
         logging.info("⏳ Sleeping for 30 minutes before next update...")
         time.sleep(1800)

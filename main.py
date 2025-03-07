@@ -24,6 +24,7 @@ from services.pipelines import start_kpi_background_update, Session
 from ticket_handling.main_ticket_handler import fetch_tickets_from_webhook, assign_ticket_weights, construct_ticket_card
 from fastapi import Body
 
+
 # Define the Middleware Class
 class MaxBodySizeMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, max_body_size: int):
@@ -36,9 +37,11 @@ class MaxBodySizeMiddleware(BaseHTTPMiddleware):
             raise HTTPException(status_code=413, detail="Request body too large")
         return await call_next(request)
 
+
 app = FastAPI()
 logging.basicConfig(filename="/var/www/rabbitai/rabbitai.log", level=logging.INFO)
 app.add_middleware(MaxBodySizeMiddleware, max_body_size=900_000_000)  # 100 MB
+
 
 def decode_jwt(token):
     try:
@@ -48,6 +51,7 @@ def decode_jwt(token):
         return header, payload
     except Exception as e:
         return {"error": f"Failed to decode token: {e}"}
+
 
 async def validate_teams_token(auth_header: str):
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -82,6 +86,7 @@ async def validate_teams_token(auth_header: str):
         logging.error(f"Token validation failed: {e}")
         raise HTTPException(status_code=403, detail=f"Token validation failed: {e}")
 
+
 @app.post("/count-tickets", dependencies=[Depends(get_api_key)])
 async def count_tickets(request: Request):
     try:
@@ -93,13 +98,15 @@ async def count_tickets(request: Request):
         elif isinstance(payload, dict):
             ticket_count = 1
         else:
-            raise HTTPException(status_code=400, detail="Invalid format: Expected a JSON array or single ticket object.")
+            raise HTTPException(status_code=400,
+                                detail="Invalid format: Expected a JSON array or single ticket object.")
 
         return {"ticket_count": ticket_count}
 
     except Exception as e:
         logging.error("Error processing request: %s", str(e))
         raise HTTPException(status_code=500, detail="Error processing JSON data")
+
 
 async def calculate_resolution_time(create_date: Optional[str], resolved_date: Optional[str]):
     if not create_date or not resolved_date:
@@ -111,8 +118,10 @@ async def calculate_resolution_time(create_date: Optional[str], resolved_date: O
     except ValueError:
         return None
 
+
 async def check_sla_met(ticket):
     return ticket.get("serviceLevelAgreementHasBeenMet") is True
+
 
 @app.post("/ticket-stats")
 async def ticket_stats(request: Request):
@@ -171,6 +180,7 @@ async def ticket_stats(request: Request):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/report/", dependencies=[Depends(get_api_key)])
 async def generate_report(device_data: List[DeviceData] = Body(...)):
@@ -233,6 +243,7 @@ async def generate_report(device_data: List[DeviceData] = Body(...)):
         }
     }
 
+
 async def cleanup_file(path: str):
     if os.path.exists(path):
         try:
@@ -240,6 +251,7 @@ async def cleanup_file(path: str):
             logging.info(f"Deleted file: {path}")
         except Exception as e:
             logging.error(f"Error deleting file: {e}")
+
 
 @app.get("/download/{filename}")
 async def download_report(filename: str):
@@ -259,6 +271,8 @@ async def download_report(filename: str):
     return StreamingResponse(file_iterator(), media_type="application/pdf", headers={
         "Content-Disposition": f"attachment; filename={filename}"
     })
+
+
 # Teams Commands Start Here
 @app.post("/command")
 async def handle_command(request: Request):
@@ -465,6 +479,7 @@ async def handle_command(request: Request):
         logging.error(f"Error processing command: {e}")
         raise HTTPException(status_code=500, detail="Failed to process command.")
 
+
 async def parse_date(date_str: Optional[str]) -> Optional[datetime]:
     """Convert ISO 8601 timestamps into datetime objects."""
     if not date_str:
@@ -477,6 +492,7 @@ async def parse_date(date_str: Optional[str]) -> Optional[datetime]:
         except ValueError:
             logging.error(f"🚨 Invalid date format: {date_str}, setting to default")
             return datetime.utcnow()  # Default to current timestamp instead of None
+
 
 async def process_contracts_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract data into the database."""
@@ -646,6 +662,8 @@ async def process_contracts_in_background(input_data: List[Dict]):
     finally:
         conn.close()
         logging.info("🔌 Database connection closed.")
+
+
 @app.post("/process_contracts/")
 async def process_contracts(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
     """
@@ -657,6 +675,7 @@ async def process_contracts(input_data: List[Dict] = Body(...), background_tasks
     background_tasks.add_task(process_contracts_in_background, input_data)
 
     return {"message": "✅ Received successfully. Processing in background."}
+
 
 async def process_units_in_background(input_data: List[Dict]):
     """Background task to insert/merge contract units into the database."""
@@ -755,8 +774,10 @@ async def process_units_in_background(input_data: List[Dict]):
         conn.close()
         logging.info("🔌 Database connection closed.")
 
+
 @app.post("/process_contract_units/")
-async def process_contract_units(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
+async def process_contract_units(input_data: List[Dict] = Body(...),
+                                 background_tasks: BackgroundTasks = BackgroundTasks()):
     """
     Accepts contract unit data, immediately responds with 200 OK, and processes database updates asynchronously.
     """
@@ -766,6 +787,7 @@ async def process_contract_units(input_data: List[Dict] = Body(...), background_
     background_tasks.add_task(process_units_in_background, input_data)
 
     return {"message": "✅ Received successfully. Processing in background."}
+
 
 async def process_timeentries_in_background(input_data: List[Dict]):
     """Background task to insert/merge time entry data into the database."""
@@ -906,6 +928,7 @@ async def process_timeentries_in_background(input_data: List[Dict]):
         conn.close()
         logging.info("🔌 Database connection closed.")
 
+
 async def parse_datetime(date_str):
     """Converts a date string into a proper datetime format or returns None."""
     if not date_str:
@@ -916,8 +939,10 @@ async def parse_datetime(date_str):
         logging.error(f"🚨 Invalid datetime format: {date_str}. Returning None.")
         return None
 
+
 @app.post("/process_time_entries/")
-async def process_time_entries(input_data: List[Dict] = Body(...), background_tasks: BackgroundTasks = BackgroundTasks()):
+async def process_time_entries(input_data: List[Dict] = Body(...),
+                               background_tasks: BackgroundTasks = BackgroundTasks()):
     """
     Accepts time entry data, immediately responds with 200 OK, and processes database updates asynchronously.
     """
@@ -928,12 +953,14 @@ async def process_time_entries(input_data: List[Dict] = Body(...), background_ta
 
     return {"message": "✅ Received successfully. Processing in background."}
 
+
 @app.get("/update-client-revenue/")
 async def update_client_revenue(background_tasks: BackgroundTasks):
     """Trigger revenue update process in background."""
     logging.info("🔄 Manual trigger: Starting revenue update process...")
     background_tasks.add_task(run_pipeline)
     return {"message": "✅ Client revenue update scheduled!"}
+
 
 @app.on_event("startup")
 async def startup_kpi_event():

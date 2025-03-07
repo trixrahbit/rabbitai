@@ -15,7 +15,7 @@ async def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List
         if devices:
             # Ensure devices is a list of dictionaries with 'device_name' key
             if isinstance(devices, list) and all(isinstance(device, dict) and "device_name" in device for device in devices):
-                recommendation = generate_ai_recommendation(issue_type, devices)
+                recommendation = await generate_ai_recommendation(issue_type, devices)
                 recommendations["strategic_plan"].append(recommendation)
             else:
                 logger.error(f"Unexpected data structure for devices in issue type {issue_type}: {devices}")
@@ -27,6 +27,7 @@ async def generate_recommendations(analytics: Dict[str, dict]) -> Dict[str, List
     return recommendations
 
 async def generate_ai_recommendation(issue_type: str, issue_details: List[Dict[str, str]]) -> Dict[str, str]:
+    global response
     prompt = build_recommendation_prompt(issue_type, issue_details)
 
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment_name}/chat/completions?api-version=2023-05-15"
@@ -144,7 +145,7 @@ async def handle_sendtoai(data: str) -> dict:
     try:
         # Send the request to Azure OpenAI
         async with httpx.AsyncClient() as client:
-            response = await client.post(
+            responses = await client.post(
                 url,
                 headers={
                     "Content-Type": "application/json",
@@ -152,10 +153,10 @@ async def handle_sendtoai(data: str) -> dict:
                 },
                 json=payload,
             )
-            response.raise_for_status()
+            responses.raise_for_status()
 
             # Parse the response
-            ai_result = response.json()["choices"][0]["message"]["content"].strip()
+            ai_result = responses.json()["choices"][0]["message"]["content"].strip()
             logging.info(f"Full AI Result: {ai_result}")
 
             # Separate text and code using regex
