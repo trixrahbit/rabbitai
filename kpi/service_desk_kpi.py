@@ -69,7 +69,8 @@ async def calculate_avg_resolution_time(session):
 async def calculate_response_resolution_time():
     start_date, end_date = await get_start_end_of_week()
 
-    async with get_secondary_db_connection() as session:
+    # ✅ Correct usage of async session retrieval
+    async for session in get_secondary_db_connection():
         try:
             logging.info(f"🔍 Fetching ticket data for {start_date} - {end_date}")
 
@@ -90,7 +91,7 @@ async def calculate_response_resolution_time():
                 "start_date": start_date,
                 "end_date": end_date
             })
-            rows = result.fetchall()  # ✅ Removed `await`
+            rows = result.fetchall()  # ✅ No need to `await`
 
             if not rows:
                 logging.warning("⚠️ No ticket data found for this week.")
@@ -109,6 +110,7 @@ async def calculate_response_resolution_time():
         except Exception as e:
             await session.rollback()
             logging.critical(f"🔥 Error calculating response & resolution time: {e}", exc_info=True)
+
 
 
 
