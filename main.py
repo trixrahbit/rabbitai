@@ -306,20 +306,20 @@ async def handle_command(request: Request):
 
             # Log the command and response to the database
             try:
-                conn = await get_db_connection()
-                async with conn.begin() as transaction:
-                    await transaction.execute(
-                        text(
-                            "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
-                            "VALUES (:aadObjectId, :command, :command_data, :result_data)"
-                        ),
-                        {
-                            "aadObjectId": aad_object_id,
-                            "command": "askRabbit",
-                            "command_data": json.dumps({"message": args}),
-                            "result_data": json.dumps({"response": response_text}),
-                        },
-                    )
+             async with get_db_connection() as conn:
+                 async with conn.begin():  # ✅ No need for `transaction`
+                     await conn.execute(
+                             text(
+                                "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
+                                "VALUES (:aadObjectId, :command, :command_data, :result_data)"
+                            ),
+                            {
+                                "aadObjectId": aad_object_id,
+                                "command": "askRabbit",
+                                "command_data": json.dumps({"message": args}),
+                                "result_data": json.dumps({"response": response_text}),
+                            },
+                         )
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
@@ -349,8 +349,8 @@ async def handle_command(request: Request):
             # Log the command and result to the database
             try:
                 async with get_db_connection() as conn:
-                    async with conn.begin() as transaction:
-                        await transaction.execute(
+                    async with conn.begin():  # No need to assign `transaction`
+                        await conn.execute(  # Use conn.execute() instead of transaction.execute()
                             text(
                                 "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
                                 "VALUES (:aadObjectId, :command, :command_data, :result_data)"
@@ -362,6 +362,7 @@ async def handle_command(request: Request):
                                 "result_data": json.dumps({"tickets": ticket_details}),
                             },
                         )
+
             except Exception as e:
                 logging.error(f"Failed to log 'getnextticket' command to database: {e}")
 
