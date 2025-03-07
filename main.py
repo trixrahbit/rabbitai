@@ -305,8 +305,8 @@ async def handle_command(request: Request):
 
             try:
                 async with get_db_connection() as conn:
-                    async with conn.begin() as transaction:
-                        await transaction.execute(
+                    async with conn.begin():  # ✅ No need to assign `transaction`
+                        await conn.execute(  # ✅ Correct usage
                             text(
                                 "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
                                 "VALUES (:aadObjectId, :command, :command_data, :result_data)"
@@ -344,8 +344,8 @@ async def handle_command(request: Request):
 
             try:
                 async with get_db_connection() as conn:
-                    async with conn.begin() as transaction:
-                        await transaction.execute(
+                    async with conn.begin():  # ✅ No need to assign `transaction`
+                        await conn.execute(  # ✅ Correct usage
                             text(
                                 "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
                                 "VALUES (:aadObjectId, :command, :command_data, :result_data)"
