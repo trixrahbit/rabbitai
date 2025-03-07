@@ -10,7 +10,7 @@ async def kpi_insert(session, kpi_name, category, type_, value):
         WHERE name = :name AND category = :category AND type = :type
     """)
 
-    kpi_id = session.execute(kpi_id_query, {
+    kpi_id = await session.execute(kpi_id_query, {
         "name": kpi_name,
         "category": category,
         "type": type_
@@ -24,7 +24,7 @@ async def kpi_insert(session, kpi_name, category, type_, value):
             VALUES (:name, '', :category, :type);
         """)
 
-        session.execute(insert_kpi_query, {
+        await session.execute(insert_kpi_query, {
             "name": kpi_name,
             "category": category,
             "type": type_
@@ -32,7 +32,7 @@ async def kpi_insert(session, kpi_name, category, type_, value):
         session.commit()
 
         # Fetch the new KPI ID
-        kpi_id = session.execute(kpi_id_query, {
+        kpi_id = await session.execute(kpi_id_query, {
             "name": kpi_name,
             "category": category,
             "type": type_
@@ -50,10 +50,10 @@ async def kpi_insert(session, kpi_name, category, type_, value):
         VALUES (:kpi_id, :value, GETDATE())
     """)
 
-    session.execute(insert_value_query, {"kpi_id": kpi_id, "value": value})
+    await session.execute(insert_value_query, {"kpi_id": kpi_id, "value": value})
     session.commit()
 
-    session.execute(insert_value_query, {"kpi_id": kpi_id, "value": value})
+    await session.execute(insert_value_query, {"kpi_id": kpi_id, "value": value})
     session.commit()
 
 
