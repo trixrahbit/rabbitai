@@ -20,17 +20,17 @@ async def run_kpi_pipeline():
     """Continuously runs KPI calculations every 30 minutes."""
     while True:
         logging.info("🚀 Running KPI calculations...")
-        session = get_secondary_db_connection()  # ✅ Get a new session per cycle
+        session = await get_secondary_db_connection()  # ✅ Get a new session per cycle
 
         try:
-            calculate_utilization()
-            calculate_response_resolution_time()
-            calculate_sla_met(session)
+            await calculate_utilization()
+            await calculate_response_resolution_time()
+            await calculate_sla_met(session)
             # calculate_csat_rolling_30(session)
-            calculate_ticket_aging(session)
+            await calculate_ticket_aging(session)
             # calculate_support_calls(session)
-            calculate_avg_response_time(session)
-            calculate_avg_resolution_time(session)
+            await calculate_avg_response_time(session)
+            await calculate_avg_resolution_time(session)
             # calculate_endpoints_patched(session)
             # calculate_uptime_rolling_30(session)
             # calculate_reactive_tickets_per_endpoint(session)
