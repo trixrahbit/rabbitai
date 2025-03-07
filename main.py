@@ -294,62 +294,44 @@ async def handle_command(request: Request):
 
         # Process `askRabbit` command
         if command_text.startswith("askrabbit"):
-            args = command_text[len("askRabbit"):].strip()
+            args = command_text[len("askrabbit"):].strip()
             result = await handle_sendtoai(args)
 
             # Extract response as a string
             response_text = result.get("response", "No response received.")
-
             if isinstance(response_text, list):  # Ensure it's not a list of dicts
                 response_text = " ".join(
-                    [item["text"] for item in response_text if isinstance(item, dict) and "text" in item])
+                    [item["text"] for item in response_text if isinstance(item, dict) and "text" in item]
+                )
 
             # Log the command and response to the database
             try:
                 conn = await get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) VALUES (?, ?, ?, ?)",
-                    aad_object_id,
-                    "askRabbit",
-                    json.dumps({"message": args}),
-                    json.dumps({"response": response_text})
-                )
-                conn.commit()
+                async with conn.begin() as transaction:
+                    await transaction.execute(
+                        text(
+                            "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
+                            "VALUES (:aadObjectId, :command, :command_data, :result_data)"
+                        ),
+                        {
+                            "aadObjectId": aad_object_id,
+                            "command": "askRabbit",
+                            "command_data": json.dumps({"message": args}),
+                            "result_data": json.dumps({"response": response_text}),
+                        },
+                    )
             except Exception as e:
                 logging.error(f"Failed to log 'askRabbit' command to database: {e}")
 
             # Properly formatted Adaptive Card
             body = [
-                {
-                    "type": "TextBlock",
-                    "text": "**Rabbit AI Response**",
-                    "wrap": True,
-                    "weight": "Bolder",
-                    "size": "Medium",
-                    "spacing": "Medium"
-                },
-                {
-                    "type": "TextBlock",
-                    "text": f"**Question:** {args}",
-                    "wrap": True,
-                    "weight": "Bolder",
-                    "spacing": "Small"
-                },
-                {
-                    "type": "TextBlock",
-                    "text": f"**Answer:**\n\n{response_text}",
-                    "wrap": True,
-                    "spacing": "Small"
-                }
+                {"type": "TextBlock", "text": "**Rabbit AI Response**", "wrap": True, "weight": "Bolder", "size": "Medium"},
+                {"type": "TextBlock", "text": f"**Question:** {args}", "wrap": True, "weight": "Bolder"},
+                {"type": "TextBlock", "text": f"**Answer:**\n\n{response_text}", "wrap": True}
             ]
 
             # Final Adaptive Card
-            adaptive_card = {
-                "type": "AdaptiveCard",
-                "version": "1.2",
-                "body": body
-            }
+            adaptive_card = {"type": "AdaptiveCard", "version": "1.2", "body": body}
 
             # Send Adaptive Card response to Teams
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
@@ -362,23 +344,24 @@ async def handle_command(request: Request):
             top_tickets = await assign_ticket_weights(tickets)
 
             # Prepare ticket details for logging
-            ticket_details = [
-                {"ticket_id": t["id"], "title": t["title"], "points": t["weight"]}
-                for t in top_tickets
-            ]
+            ticket_details = [{"ticket_id": t["id"], "title": t["title"], "points": t["weight"]} for t in top_tickets]
 
             # Log the command and result to the database
             try:
                 conn = await get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) VALUES (?, ?, ?, ?)",
-                    aad_object_id,
-                    "getnextticket",
-                    json.dumps({"command": "getnextticket"}),
-                    json.dumps({"tickets": ticket_details})
-                )
-                conn.commit()
+                async with conn.begin() as transaction:
+                    await transaction.execute(
+                        text(
+                            "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
+                            "VALUES (:aadObjectId, :command, :command_data, :result_data)"
+                        ),
+                        {
+                            "aadObjectId": aad_object_id,
+                            "command": "getnextticket",
+                            "command_data": json.dumps({"command": "getnextticket"}),
+                            "result_data": json.dumps({"tickets": ticket_details}),
+                        },
+                    )
             except Exception as e:
                 logging.error(f"Failed to log 'getnextticket' command to database: {e}")
 
@@ -408,61 +391,16 @@ async def handle_command(request: Request):
                     ticket_cards.append({
                         "type": "Container",
                         "items": [
-                            {
-                                "type": "TextBlock",
-                                "text": f"**Ticket ID:** {ticket_id}",
-                                "wrap": True,
-                                "weight": "Bolder",
-                                "spacing": "Small"
-                            },
-                            {
-                                "type": "TextBlock",
-                                "text": f"**Title:** {title}",
-                                "wrap": True,
-                                "spacing": "Small"
-                            },
-                            {
-                                "type": "TextBlock",
-                                "text": f"**Description:** {description}",
-                                "wrap": True,
-                                "spacing": "Small"
-                            },
-                            {
-                                "type": "TextBlock",
-                                "text": f"**Status:** {status}",
-                                "wrap": True,
-                                "spacing": "Small"
-                            },
-                            {
-                                "type": "ActionSet",
-                                "spacing": "Small",
-                                "actions": [
-                                    {
-                                        "type": "Action.OpenUrl",
-                                        "title": "View Ticket",
-                                        "url": ticket_url
-                                    }
-                                ]
-                            }
+                            {"type": "TextBlock", "text": f"**Ticket ID:** {ticket_id}", "wrap": True, "weight": "Bolder"},
+                            {"type": "TextBlock", "text": f"**Title:** {title}", "wrap": True},
+                            {"type": "TextBlock", "text": f"**Description:** {description}", "wrap": True},
+                            {"type": "TextBlock", "text": f"**Status:** {status}", "wrap": True},
+                            {"type": "ActionSet", "actions": [{"type": "Action.OpenUrl", "title": "View Ticket", "url": ticket_url}]}
                         ]
                     })
 
                 # Combine tickets into a single Adaptive Card
-                adaptive_card = {
-                    "type": "AdaptiveCard",
-                    "version": "1.2",
-                    "body": [
-                        {
-                            "type": "TextBlock",
-                            "text": "**My Tickets**",
-                            "wrap": True,
-                            "weight": "Bolder",
-                            "size": "Large",
-                            "spacing": "Medium"
-                        },
-                        *ticket_cards
-                    ]
-                }
+                adaptive_card = {"type": "AdaptiveCard", "version": "1.2", "body": [{"type": "TextBlock", "text": "**My Tickets**", "wrap": True, "weight": "Bolder", "size": "Large"}] + ticket_cards}
 
                 # Send Adaptive Card to Teams
                 await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
@@ -473,11 +411,10 @@ async def handle_command(request: Request):
                 logging.error(f"Error processing `mytickets` command: {e}")
                 raise HTTPException(status_code=500, detail="Failed to process `mytickets` command.")
 
-
-
     except Exception as e:
         logging.error(f"Error processing command: {e}")
         raise HTTPException(status_code=500, detail="Failed to process command.")
+
 
 
 async def parse_date(date_str: Optional[str]) -> Optional[datetime]:
