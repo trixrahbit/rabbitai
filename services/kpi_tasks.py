@@ -69,7 +69,7 @@ async def calculate_utilization():
     """Calculate total hours worked per resource per week and update database."""
     start_date, end_date = await get_start_end_of_week()
 
-    async with get_secondary_db_connection() as session:  # ✅ Correct async session handling
+    async for session in get_secondary_db_connection():  # ✅ Correct async session handling
         try:
             logging.info(f"🔍 Fetching time entries for {start_date} - {end_date}")
 
@@ -87,10 +87,9 @@ async def calculate_utilization():
             result = await session.execute(query, {
                 "start_date": start_date,
                 "end_date": end_date
-            })  # ✅ Use `await` for async execution
+            })
 
-            rows = result.fetchall()  # ❌ ERROR: `fetchall()` is not async-compatible
-            rows = await result.all()  # ✅ FIX: Use `await result.all()`
+            rows = await result.all()  # ✅ Fix for async execution
 
             if not rows:
                 logging.warning("⚠️ No time entries found for this week.")
@@ -118,7 +117,7 @@ async def calculate_utilization():
                     "weekEndDate": end_date,
                     "totalHours": total_hours,
                     "utilization": utilization_percentage
-                })  # ✅ Use `await`
+                })
 
             await session.commit()  # ✅ Explicit commit AFTER all inserts/updates
             logging.info("✅ Weekly Utilization Data Updated Successfully!")
