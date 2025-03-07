@@ -316,7 +316,7 @@ async def handle_command(request: Request):
             logging.debug(f"📝 AI Response: {response_text}")
 
             try:
-                async for conn in get_db_connection():
+                async with get_db_connection() as conn:  # ✅ FIXED: Use `async with` instead of `async for`
                     async with conn.begin():
                         await conn.execute(
                             text(
@@ -361,7 +361,7 @@ async def handle_command(request: Request):
             ticket_details = [{"ticket_id": t["id"], "title": t["title"], "points": t["weight"]} for t in top_tickets]
 
             try:
-                async for conn in get_db_connection():
+                async with get_db_connection() as conn:  # ✅ FIXED: Use `async with`
                     async with conn.begin():
                         await conn.execute(
                             text(
