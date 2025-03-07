@@ -69,7 +69,7 @@ async def calculate_utilization():
     """Calculate total hours worked per resource per week and update database."""
     start_date, end_date = await get_start_end_of_week()
 
-    async for session in get_secondary_db_connection():  # ✅ Correct async session handling
+    async with get_secondary_db_connection() as session:  # ✅ Correct
         try:
             logging.info(f"🔍 Fetching time entries for {start_date} - {end_date}")
 
