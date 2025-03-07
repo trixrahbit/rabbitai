@@ -68,7 +68,7 @@ async def get_start_end_of_week():
 async def calculate_utilization():
     """Calculate total hours worked per resource per week and update database."""
     start_date, end_date = await get_start_end_of_week()
-    session = await get_secondary_db_connection()  # Use session from SQLAlchemy
+    session: AsyncSession = await get_secondary_db_connection()  # ✅ Async session
 
     try:
         logging.info(f"🔍 Fetching time entries for {start_date} - {end_date}")
@@ -84,17 +84,18 @@ async def calculate_utilization():
             GROUP BY r.email, t.creatorUserID
         """)
 
-        result = session.execute(query, {
+        result = await session.execute(query, {
             "start_date": start_date,
             "end_date": end_date
-        }).fetchall()
+        })
+        rows = result.fetchall()  # ✅ Use `await` when fetching
 
-        if not result:
+        if not rows:
             logging.warning("⚠️ No time entries found for this week.")
             return
 
         # ✅ No explicit `session.begin()` required, just execute queries
-        for row in result:
+        for row in rows:
             email, user_id, total_hours = row
             utilization_percentage = (total_hours / 40) * 100  # Based on 40-hour workweek
 
@@ -109,7 +110,7 @@ async def calculate_utilization():
                     VALUES (:user_id, :email, :weekStartDate, :weekEndDate, :totalHours, :utilization);
             """)
 
-            session.execute(upsert_query, {
+            await session.execute(upsert_query, {
                 "user_id": user_id,
                 "email": email,
                 "weekStartDate": start_date,
@@ -118,15 +119,15 @@ async def calculate_utilization():
                 "utilization": utilization_percentage
             })
 
-        session.commit()  # ✅ Explicit commit AFTER all inserts/updates
+        await session.commit()  # ✅ Explicit commit AFTER all inserts/updates
         logging.info("✅ Weekly Utilization Data Updated Successfully!")
 
     except Exception as e:
-        session.rollback()  # ✅ Rollback on error
+        await session.rollback()  # ✅ Rollback on error
         logging.critical(f"🔥 Error calculating utilization: {e}", exc_info=True)
 
     finally:
-        session.close()  # Ensure session is closed
+        await session.close()  # ✅ Ensure session is properly closed
 
 
 

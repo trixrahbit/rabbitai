@@ -99,7 +99,7 @@ class DeviceData(BaseModel):
     cybercns_id: Optional[Union[str, int]] = "N/A"
     itglue_id: Optional[str] = None
     manufacturer_name: Optional[str] = None
-    model_name: Optional[str] = None
+    device_model_name: Optional[str] = None
     serial_number: Optional[str] = None
 
     # Integration flags
