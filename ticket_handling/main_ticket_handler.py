@@ -12,181 +12,141 @@ async def fetch_tickets_from_webhook(user_upn: str) -> List[dict]:
     payload = {"user_upn": user_upn}
     headers = {"Content-Type": "application/json"}
 
+    logging.debug(f"[fetch_tickets_from_webhook] Requesting tickets for: {user_upn}")
+    logging.debug(f"[fetch_tickets_from_webhook] Request payload: {payload}")
+
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=300) as client:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
+
+            logging.debug(f"[fetch_tickets_from_webhook] Response Status: {response.status_code}")
+            logging.debug(f"[fetch_tickets_from_webhook] Response Body: {response.text}")
+
             data = response.json()
 
-            # Extract the list of tickets from the nested format
+            # Ensure response contains 'my_ticket'
+            if "my_ticket" not in data:
+                logging.error(f"[fetch_tickets_from_webhook] Missing 'my_ticket' key in response.")
+                logging.error(f"[fetch_tickets_from_webhook] Full Response: {data}")
+                raise ValueError("Malformed response: Missing 'my_ticket' key.")
+
             tickets = data.get("my_ticket", [])
             if not isinstance(tickets, list):
+                logging.error(f"[fetch_tickets_from_webhook] Expected 'my_ticket' to be a list but got {type(tickets)}")
                 raise ValueError("Malformed response: 'my_ticket' is not a list.")
+
+            logging.info(f"[fetch_tickets_from_webhook] Retrieved {len(tickets)} tickets before filtering.")
 
             # Exclude tickets with specified queueIDs
             excluded_queue_ids = {29683506, 29683552, 29683546, 29683535}
-            tickets = [
-                ticket for ticket in tickets
-                if ticket.get('queueID') not in excluded_queue_ids
+            filtered_tickets = [
+                ticket for ticket in tickets if ticket.get("queueID") not in excluded_queue_ids
             ]
 
-            return tickets
+            logging.info(f"[fetch_tickets_from_webhook] {len(filtered_tickets)} tickets after filtering.")
+
+            return filtered_tickets
+
     except httpx.HTTPStatusError as e:
-        logging.error(f"Failed to fetch tickets from webhook: {e.response.text}")
-        raise HTTPException(status_code=500, detail="Error fetching tickets.")
+        logging.error(f"[fetch_tickets_from_webhook] HTTP Error: {e.response.status_code} - {e.response.text}")
+        raise HTTPException(status_code=500, detail=f"Error fetching tickets: {e.response.text}")
     except ValueError as e:
-        logging.error(f"Invalid webhook response format: {e}")
+        logging.error(f"[fetch_tickets_from_webhook] Invalid Webhook Response: {e}")
         raise HTTPException(status_code=500, detail="Malformed ticket response.")
+    except Exception as e:
+        logging.critical(f"[fetch_tickets_from_webhook] Unexpected error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Unexpected error fetching tickets.")
+
 
 
 async def assign_ticket_weights(tickets: List[dict]) -> List[dict]:
+    logging.info(f"[assign_ticket_weights] Processing {len(tickets)} tickets for weight assignment.")
+
     async def check_sla(met_date_str, due_date_str):
         cst_tz = ZoneInfo('America/Chicago')
+
         try:
             # Parse due_date_str
-            if due_date_str and due_date_str.strip():
-                due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).astimezone(cst_tz)
-            else:
-                due_date = None
+            due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).astimezone(cst_tz) if due_date_str else None
+            met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00")).astimezone(cst_tz) if met_date_str else None
 
-            # Parse met_date_str
-            if met_date_str and met_date_str.strip():
-                met_date = datetime.fromisoformat(met_date_str.replace("Z", "+00:00")).astimezone(cst_tz)
-            else:
-                met_date = None
-
-            # Debug logging
-            logging.debug(f"Parsed due_date (CST): {due_date}")
-            logging.debug(f"Parsed met_date (CST): {met_date}")
+            logging.debug(f"[check_sla] due_date: {due_date}, met_date: {met_date}")
 
         except ValueError as e:
-            logging.error(f"Invalid datetime format: {e}")
-            return False, None, "N/A", "Not completed"  # Return explicit values for SLA fields
+            logging.error(f"[check_sla] Invalid datetime format: {e}")
+            return False, None, "N/A", "Not completed"
 
-        # Initialize variables
         sla_met = False
         time_diff_seconds = None
 
-        # SLA logic
         if due_date:
             if met_date:
-                # SLA is met if met_date <= due_date
                 sla_met = met_date <= due_date
                 time_diff_seconds = (due_date - met_date).total_seconds()
             else:
-                # SLA is not met if met_date is missing
                 sla_met = False
                 now = datetime.now(cst_tz)
                 time_diff_seconds = (due_date - now).total_seconds()
         else:
-            # due_date is None, cannot calculate SLA
-            logging.debug("Due date is None, returning N/A for SLA calculation.")
+            logging.debug("[check_sla] Due date is None, returning N/A for SLA calculation.")
             return False, None, "N/A", "Not completed"
 
-        due_date_formatted = due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A"
-        met_date_formatted = met_date.strftime("%m-%d-%y %-I:%M %p %Z") if met_date else "Not completed"
+        return sla_met, time_diff_seconds, due_date.strftime("%m-%d-%y %-I:%M %p %Z") if due_date else "N/A", met_date.strftime("%m-%d-%y %-I:%M %p %Z") if met_date else "Not completed"
 
-        return sla_met, time_diff_seconds, due_date_formatted, met_date_formatted
+    async def calculate_weight(ticket):
+        try:
+            weight = 0
+            ticket_id = ticket.get("id", "Unknown")
+            logging.debug(f"[calculate_weight] Calculating weight for Ticket ID: {ticket_id}")
 
-    async def calculate_weight(rawticket):
-        weight = 0
+            priority = ticket.get("priority", "N/A")
+            status = ticket.get("status", "N/A")
 
-        # Priority Weighting
-        priority_weights = {
-            1: 5,  # Critical
-            2: 4,  # High
-            3: 3,  # Medium
-            4: 2,  # Low
-            5: 1  # Very Low
-        }
-        priority = rawticket.get("priority")
-        if priority in priority_weights:
-            weight += priority_weights[priority]
+            priority_weights = {1: 5, 2: 4, 3: 3, 4: 2, 5: 1}
+            status_weights = {1: 50, 5: -10, 7: -20, 11: 70, 21: 60, 24: 65, 28: 55, 29: 60, 32: 0, 36: 65, 41: -20, 54: 60, 56: 60, 64: -20, 70: 70, 71: 70, 74: -20, 38: -400}
 
-        # Status Weighting
-        status_weights = {
-            1: 50,  # New
-            5: -10,  # Completed
-            7: -20,  # Waiting Client
-            11: 70,  # Escalated
-            21: 60,  # Working issue now
-            24: 65,  # Client Responded
-            28: 55,  # Quote Needed
-            29: 60,  # Reopened
-            32: 0,  # Scheduled
-            36: 65,  # Scheduling Needed
-            41: -20,  # Waiting Vendor
-            54: 60,  # Needs Project
-            56: 60,  # Received in Full
-            64: -20,  # Scheduled next NA
-            70: 70,  # Assigned
-            71: 70,  # schedule onsite
-            74: -20,  # scheduled onsite
-            38: -400  # Waiting on Hold
-        }
-        status = rawticket.get("status")
-        if status in status_weights:
-            weight += status_weights[status]
-        else:
-            weight += 10  # Default weight
+            weight += priority_weights.get(priority, 0)
+            weight += status_weights.get(status, 10)
 
-        # SLA Calculations
-        sla_fields = [
-            ("firstResponseDateTime", "firstResponseDueDateTime", "First Response"),
-            ("resolutionPlanDateTime", "resolutionPlanDueDateTime", "Resolution Plan"),
-            ("resolvedDateTime", "resolvedDueDateTime", "Resolution")
-        ]
+            sla_fields = [("firstResponseDateTime", "firstResponseDueDateTime", "First Response"),
+                          ("resolutionPlanDateTime", "resolutionPlanDueDateTime", "Resolution Plan"),
+                          ("resolvedDateTime", "resolvedDueDateTime", "Resolution")]
 
-        sla_results = []
-        for met_field, due_field, sla_name in sla_fields:
-            met_date_str = rawticket.get(met_field)
-            due_date_str = rawticket.get(due_field)
-            logging.debug(f"SLA Field - {sla_name}: met_date={met_date_str}, due_date={due_date_str}")
+            for met_field, due_field, sla_name in sla_fields:
+                met_date_str = ticket.get(met_field)
+                due_date_str = ticket.get(due_field)
+                logging.debug(f"[calculate_weight] SLA Field {sla_name}: met_date={met_date_str}, due_date={due_date_str}")
 
-            sla_met, time_diff_seconds, due_date_formatted, met_date_formatted = await check_sla(met_date_str,
-                                                                                                 due_date_str)
+                sla_met, time_diff_seconds, due_date_formatted, met_date_formatted = await check_sla(met_date_str, due_date_str)
+                logging.debug(f"[calculate_weight] SLA {sla_name}: Met={sla_met}, Due={due_date_formatted}, Met={met_date_formatted}")
 
-            logging.debug(
-                f"Appending SLA - {sla_name}: sla_met={sla_met}, due_date_formatted={due_date_formatted}, "
-                f"met_date_formatted={met_date_formatted}"
-            )
+                if not sla_met:
+                    weight += 100  # Penalize for unmet SLA
 
-            sla_results.append({
-                "sla_name": sla_name,
-                "sla_met": sla_met,
-                "time_left_seconds": time_diff_seconds,
-                "due_date_formatted": due_date_formatted,
-                "met_date_formatted": met_date_formatted,
-                "due_date": due_date_formatted,
-                "met_date": met_date_formatted,
-            })
+            create_date_str = ticket.get("createDate")
+            if create_date_str:
+                try:
+                    create_date = datetime.fromisoformat(create_date_str.replace("Z", "+00:00"))
+                    days_since_creation = (datetime.now(timezone.utc) - create_date).days
+                    weight += days_since_creation * 10
+                    logging.debug(f"[calculate_weight] Ticket {ticket_id} Age: {days_since_creation} days, Final Weight: {weight}")
+                except ValueError:
+                    logging.error(f"[calculate_weight] Invalid createDate format: {create_date_str}")
 
-            if not sla_met:
-                weight += 100  # Penalize for unmet SLA
+            return weight
 
-        rawticket["sla_results"] = sla_results
-
-        # Age of Ticket Weighting
-        create_date_str = rawticket.get("createDate")
-        if create_date_str:
-            try:
-                create_date = datetime.fromisoformat(create_date_str.replace("Z", "+00:00"))
-                if create_date.tzinfo is None:
-                    create_date = create_date.replace(tzinfo=timezone.utc)
-                now_utc = datetime.now(timezone.utc)
-                days_since_creation = (now_utc - create_date).days
-                weight += days_since_creation * 10
-                logger.debug(f"Ticket ID {rawticket.get('id')} age: {days_since_creation} days")
-            except ValueError:
-                logger.error(f"Invalid createDate: {create_date_str}")
-
-        return weight
+        except Exception as e:
+            logging.critical(f"[calculate_weight] Unexpected error for Ticket ID: {ticket_id} - {e}", exc_info=True)
+            return 0  # Default weight in case of failure
 
     for ticket in tickets:
         ticket["weight"] = await calculate_weight(ticket)
 
     sorted_tickets = sorted(tickets, key=lambda t: t["weight"], reverse=True)
+    logging.info(f"[assign_ticket_weights] Top Ticket ID: {sorted_tickets[0]['id']} Weight: {sorted_tickets[0]['weight']}")
     return sorted_tickets[:1]
+
 
 
 async def format_date(date_str):

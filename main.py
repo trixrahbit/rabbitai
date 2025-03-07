@@ -273,16 +273,21 @@ async def download_report(filename: str):
     })
 
 
-# Teams Commands Start Here
 @app.post("/command")
 async def handle_command(request: Request):
     """Handles commands from Microsoft Teams."""
+    logging.info("🚀 Received a command request from Teams.")
+
+    # Step 1: Validate Authorization Header
     auth_header = request.headers.get("Authorization")
+    logging.debug(f"🔑 Authorization Header: {auth_header}")
+
     await validate_teams_token(auth_header)
 
     try:
+        # Step 2: Parse Payload
         payload = await request.json()
-        logging.debug(f"Received payload: {json.dumps(payload, indent=2)}")
+        logging.debug(f"📩 Received Payload: {json.dumps(payload, indent=2)}")
 
         command_text = payload.get("text", "").strip().lower()
         aad_object_id = payload.get("from", {}).get("aadObjectId")
@@ -290,11 +295,16 @@ async def handle_command(request: Request):
         conversation_id = payload.get("conversation", {}).get("id")
 
         if not command_text or not aad_object_id or not service_url or not conversation_id:
-            raise ValueError("Missing required fields")
+            raise ValueError("🚨 Missing required fields in payload!")
+
+        logging.info(f"🔹 Command Received: {command_text}")
+        logging.debug(f"👤 AAD Object ID: {aad_object_id}, 📡 Service URL: {service_url}, 💬 Conversation ID: {conversation_id}")
 
         # **Handle `askRabbit` Command**
         if command_text.startswith("askrabbit"):
             args = command_text[len("askrabbit"):].strip()
+            logging.info(f"🤖 Processing `askRabbit` command with args: {args}")
+
             result = await handle_sendtoai(args)
 
             response_text = result.get("response", "No response received.")
@@ -302,6 +312,8 @@ async def handle_command(request: Request):
                 response_text = " ".join(
                     [item["text"] for item in response_text if isinstance(item, dict) and "text" in item]
                 )
+
+            logging.debug(f"📝 AI Response: {response_text}")
 
             try:
                 async for conn in get_db_connection():
@@ -318,8 +330,9 @@ async def handle_command(request: Request):
                                 "result_data": json.dumps({"response": response_text}),
                             },
                         )
+                        logging.info("✅ `askRabbit` command logged successfully!")
             except Exception as e:
-                logging.error(f"Failed to log 'askRabbit' command to database: {e}")
+                logging.error(f"❌ Failed to log 'askRabbit' command to database: {e}", exc_info=True)
 
             adaptive_card = {
                 "type": "AdaptiveCard",
@@ -332,268 +345,88 @@ async def handle_command(request: Request):
             }
 
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
+            logging.info("📩 AI response sent to Teams!")
 
-            return JSONResponse(content={"status": "success", "response": response_text})
+            return {"status": "success", "response": response_text}
 
         # **Handle `getnextticket` Command**
         if command_text.startswith("getnextticket"):
+            logging.info("🎫 Processing `getnextticket` command...")
             tickets = await fetch_tickets_from_webhook(aad_object_id)
+            logging.debug(f"📊 Tickets Retrieved: {len(tickets)}")
+
             top_tickets = await assign_ticket_weights(tickets)
+            logging.debug(f"🏆 Top Ticket(s): {top_tickets}")
 
             ticket_details = [{"ticket_id": t["id"], "title": t["title"], "points": t["weight"]} for t in top_tickets]
 
-            # try:
-            #     async for conn in get_db_connection():
-            #         async with conn.begin():
-            #             await conn.execute(
-            #                 text(
-            #                     "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
-            #                     "VALUES (:aadObjectId, :command, :command_data, :result_data)"
-            #                 ),
-            #                 {
-            #                     "aadObjectId": aad_object_id,
-            #                     "command": "getnextticket",
-            #                     "command_data": json.dumps({"command": "getnextticket"}),
-            #                     "result_data": json.dumps({"tickets": ticket_details}),
-            #                 },
-            #             )
-            # except Exception as e:
-            #     logging.error(f"Failed to log 'getnextticket' command to database: {e}")
+            try:
+                async for conn in get_db_connection():
+                    async with conn.begin():
+                        await conn.execute(
+                            text(
+                                "INSERT INTO CommandLogs (aadObjectId, command, command_data, result_data) "
+                                "VALUES (:aadObjectId, :command, :command_data, :result_data)"
+                            ),
+                            {
+                                "aadObjectId": aad_object_id,
+                                "command": "getnextticket",
+                                "command_data": json.dumps({"command": "getnextticket"}),
+                                "result_data": json.dumps({"tickets": ticket_details}),
+                            },
+                        )
+                        logging.info("✅ `getnextticket` command logged successfully!")
+            except Exception as e:
+                logging.error(f"❌ Failed to log 'getnextticket' command to database: {e}", exc_info=True)
 
             adaptive_card = await construct_ticket_card(top_tickets)
             await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
+            logging.info("📩 Ticket details sent to Teams!")
 
-            return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
+            return {"status": "success", "message": "Tickets sent to Teams."}
 
         # **Handle `mytickets` Command**
         if command_text.startswith("mytickets"):
-            try:
-                tickets = await fetch_tickets_from_webhook(aad_object_id)
+            logging.info("📋 Processing `mytickets` command...")
+            tickets = await fetch_tickets_from_webhook(aad_object_id)
 
-                if not tickets:
-                    return JSONResponse(content={"status": "success", "message": "No tickets assigned to you."})
+            if not tickets:
+                logging.info("✅ No tickets assigned to user.")
+                return {"status": "success", "message": "No tickets assigned to you."}
 
-                ticket_cards = []
-                for ticket in tickets:
-                    ticket_id = ticket.get("id", "Unknown")
-                    title = ticket.get("title", "Untitled")
-                    description = ticket.get("description", "No description available.")[:200] + "..."
-                    status = ticket.get("status", "Unknown")
-                    ticket_url = f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket_id}&ticketId={ticket_id}"
+            ticket_cards = []
+            for ticket in tickets:
+                ticket_id = ticket.get("id", "Unknown")
+                title = ticket.get("title", "Untitled")
+                description = ticket.get("description", "No description available.")[:200] + "..."
+                status = ticket.get("status", "Unknown")
+                ticket_url = f"https://ww15.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?workspace=False&ids%5B0%5D={ticket_id}&ticketId={ticket_id}"
 
-                    ticket_cards.append({
-                        "type": "Container",
-                        "items": [
-                            {"type": "TextBlock", "text": f"**Ticket ID:** {ticket_id}", "wrap": True, "weight": "Bolder"},
-                            {"type": "TextBlock", "text": f"**Title:** {title}", "wrap": True},
-                            {"type": "TextBlock", "text": f"**Description:** {description}", "wrap": True},
-                            {"type": "TextBlock", "text": f"**Status:** {status}", "wrap": True},
-                            {"type": "ActionSet", "actions": [{"type": "Action.OpenUrl", "title": "View Ticket", "url": ticket_url}]}
-                        ]
-                    })
+                ticket_cards.append({
+                    "type": "Container",
+                    "items": [
+                        {"type": "TextBlock", "text": f"**Ticket ID:** {ticket_id}", "wrap": True, "weight": "Bolder"},
+                        {"type": "TextBlock", "text": f"**Title:** {title}", "wrap": True},
+                        {"type": "TextBlock", "text": f"**Description:** {description}", "wrap": True},
+                        {"type": "TextBlock", "text": f"**Status:** {status}", "wrap": True},
+                        {"type": "ActionSet", "actions": [{"type": "Action.OpenUrl", "title": "View Ticket", "url": ticket_url}]}
+                    ]
+                })
 
-                adaptive_card = {
-                    "type": "AdaptiveCard",
-                    "version": "1.2",
-                    "body": [{"type": "TextBlock", "text": "**My Tickets**", "wrap": True, "weight": "Bolder", "size": "Large"}] + ticket_cards
-                }
-
-                await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
-
-                return JSONResponse(content={"status": "success", "message": "Tickets sent to Teams."})
-
-            except Exception as e:
-                logging.error(f"Error processing `mytickets` command: {e}")
-                raise HTTPException(status_code=500, detail="Failed to process `mytickets` command.")
-
-    except Exception as e:
-        logging.error(f"Error processing command: {e}")
-        raise HTTPException(status_code=500, detail="Failed to process command.")
-
-
-
-async def parse_date(date_str: Optional[str]) -> Optional[datetime]:
-    """Convert ISO 8601 timestamps into datetime objects."""
-    if not date_str:
-        return None
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ")  # Handles fractional seconds
-    except ValueError:
-        try:
-            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")  # Handles 'Z' format without milliseconds
-        except ValueError:
-            logging.error(f"🚨 Invalid date format: {date_str}, setting to default")
-            return datetime.utcnow()  # Default to current timestamp instead of None
-
-
-async def process_contracts_in_background(input_data: List[Dict]):
-    """Background task to insert/merge contract data into the database."""
-    conn = await get_secondary_db_connection()
-
-    logging.info(f"🔍 Connection Type: {type(conn)}")
-    logging.info(f"📦 Received {len(input_data)} contracts to process.")
-    if not input_data:
-        logging.warning("⚠️ No contract data received. Exiting function.")
-        conn.close()
-        return
-
-    logging.info(f"📦 First contract data sample: {input_data[:2]}")  # ✅ Log sample contracts
-
-    try:
-        for contract in input_data:
-            contract_id = contract.get("id")
-            logging.info(f"🔄 Processing contract ID: {contract_id}")
-
-            start_dt = await parse_date(contract.get("startDate"))
-            end_dt = await parse_date(contract.get("endDate"))
-            last_modified_dt = await parse_date(contract.get("lastModifiedDateTime")) or datetime.utcnow()
-
-            query = text("""
-            MERGE INTO dbo.Contracts AS target
-            USING (SELECT
-                :id AS id,
-                :contractName AS contractName,
-                :companyID AS companyID,
-                :status AS status,
-                :endDate AS endDate,
-                :setupFee AS setupFee,
-                :contactID AS contactID,
-                :startDate AS startDate,
-                :contactName AS contactName,
-                :description AS description,
-                :isCompliant AS isCompliant,
-                :contractType AS contractType,
-                :estimatedCost AS estimatedCost,
-                :opportunityID AS opportunityID,
-                :contractNumber AS contractNumber,
-                :estimatedHours AS estimatedHours,
-                :billToCompanyID AS billToCompanyID,
-                :contractCategory AS contractCategory,
-                :estimatedRevenue AS estimatedRevenue,
-                :billingPreference AS billingPreference,
-                :isDefaultContract AS isDefaultContract,
-                :renewedContractID AS renewedContractID,
-                :contractPeriodType AS contractPeriodType,
-                :overageBillingRate AS overageBillingRate,
-                :exclusionContractID AS exclusionContractID,
-                :purchaseOrderNumber AS purchaseOrderNumber,
-                :lastModifiedDateTime AS lastModifiedDateTime,
-                :setupFeeBillingCodeID AS setupFeeBillingCodeID,
-                :billToCompanyContactID AS billToCompanyContactID,
-                :contractExclusionSetID AS contractExclusionSetID,
-                :serviceLevelAgreementID AS serviceLevelAgreementID,
-                :internalCurrencySetupFee AS internalCurrencySetupFee,
-                :organizationalLevelAssociationID AS organizationalLevelAssociationID,
-                :internalCurrencyOverageBillingRate AS internalCurrencyOverageBillingRate,
-                :timeReportingRequiresStartAndStopTimes AS timeReportingRequiresStartAndStopTimes
-            ) AS source
-            ON target.contractName = source.contractName AND target.companyID = source.companyID  
-
-            WHEN MATCHED THEN
-                UPDATE SET
-                    id = source.id,
-                    status = source.status,
-                    endDate = source.endDate,
-                    setupFee = source.setupFee,
-                    contactID = source.contactID,
-                    startDate = source.startDate,
-                    contactName = source.contactName,
-                    description = source.description,
-                    isCompliant = source.isCompliant,
-                    contractType = source.contractType,
-                    estimatedCost = source.estimatedCost,
-                    opportunityID = source.opportunityID,
-                    contractNumber = source.contractNumber,
-                    estimatedHours = source.estimatedHours,
-                    billToCompanyID = source.billToCompanyID,
-                    contractCategory = source.contractCategory,
-                    estimatedRevenue = source.estimatedRevenue,
-                    billingPreference = source.billingPreference,
-                    isDefaultContract = source.isDefaultContract,
-                    renewedContractID = source.renewedContractID,
-                    contractPeriodType = source.contractPeriodType,
-                    overageBillingRate = source.overageBillingRate,
-                    exclusionContractID = source.exclusionContractID,
-                    purchaseOrderNumber = source.purchaseOrderNumber,
-                    lastModifiedDateTime = source.lastModifiedDateTime,
-                    setupFeeBillingCodeID = source.setupFeeBillingCodeID,
-                    billToCompanyContactID = source.billToCompanyContactID,
-                    contractExclusionSetID = source.contractExclusionSetID,
-                    serviceLevelAgreementID = source.serviceLevelAgreementID,
-                    internalCurrencySetupFee = source.internalCurrencySetupFee,
-                    organizationalLevelAssociationID = source.organizationalLevelAssociationID,
-                    internalCurrencyOverageBillingRate = source.internalCurrencyOverageBillingRate,
-                    timeReportingRequiresStartAndStopTimes = source.timeReportingRequiresStartAndStopTimes
-
-            WHEN NOT MATCHED THEN
-                INSERT (
-                    id, contractName, companyID, status, endDate, setupFee, contactID, startDate, contactName, description, isCompliant,
-                    contractType, estimatedCost, opportunityID, contractNumber, estimatedHours, billToCompanyID, contractCategory,
-                    estimatedRevenue, billingPreference, isDefaultContract, renewedContractID, contractPeriodType, overageBillingRate,
-                    exclusionContractID, purchaseOrderNumber, lastModifiedDateTime, setupFeeBillingCodeID, billToCompanyContactID,
-                    contractExclusionSetID, serviceLevelAgreementID, internalCurrencySetupFee, organizationalLevelAssociationID,
-                    internalCurrencyOverageBillingRate, timeReportingRequiresStartAndStopTimes
-                )
-                VALUES (
-                    source.id, source.contractName, source.companyID, source.status, source.endDate, source.setupFee, source.contactID, source.startDate,
-                    source.contactName, source.description, source.isCompliant, source.contractType, source.estimatedCost, source.opportunityID,
-                    source.contractNumber, source.estimatedHours, source.billToCompanyID, source.contractCategory, source.estimatedRevenue,
-                    source.billingPreference, source.isDefaultContract, source.renewedContractID, source.contractPeriodType,
-                    source.overageBillingRate, source.exclusionContractID, source.purchaseOrderNumber, source.lastModifiedDateTime,
-                    source.setupFeeBillingCodeID, source.billToCompanyContactID, source.contractExclusionSetID, source.serviceLevelAgreementID,
-                    source.internalCurrencySetupFee, source.organizationalLevelAssociationID, source.internalCurrencyOverageBillingRate,
-                    source.timeReportingRequiresStartAndStopTimes
-                );
-            """)
-
-            values = {
-                "id": contract_id,
-                "contractName": contract.get("contractName", ""),
-                "companyID": contract.get("companyID", 0),
-                "status": contract.get("status", ""),
-                "endDate": end_dt,
-                "setupFee": contract.get("setupFee", 0),
-                "contactID": contract.get("contactID", 0),
-                "startDate": start_dt,
-                "contactName": contract.get("contactName", ""),
-                "description": contract.get("description", ""),
-                "isCompliant": contract.get("isCompliant", False),
-                "contractType": contract.get("contractType", ""),
-                "estimatedCost": contract.get("estimatedCost", 0),
-                "opportunityID": contract.get("opportunityID", None),
-                "contractNumber": contract.get("contractNumber", ""),
-                "estimatedHours": contract.get("estimatedHours", 0),
-                "billToCompanyID": contract.get("billToCompanyID", 0),
-                "contractCategory": contract.get("contractCategory", ""),
-                "estimatedRevenue": contract.get("estimatedRevenue", 0),
-                "billingPreference": contract.get("billingPreference", ""),
-                "isDefaultContract": contract.get("isDefaultContract", False),
-                "renewedContractID": contract.get("renewedContractID", None),
-                "contractPeriodType": contract.get("contractPeriodType", 0),  # 👈 Ensure this field always has a value
-                "overageBillingRate": contract.get("overageBillingRate", 0),
-                "exclusionContractID": contract.get("exclusionContractID", None),
-                "purchaseOrderNumber": contract.get("purchaseOrderNumber", ""),
-                "lastModifiedDateTime": last_modified_dt,
-                "setupFeeBillingCodeID": contract.get("setupFeeBillingCodeID", None),
-                "billToCompanyContactID": contract.get("billToCompanyContactID", None),
-                "contractExclusionSetID": contract.get("contractExclusionSetID", None),
-                "serviceLevelAgreementID": contract.get("serviceLevelAgreementID", None),
-                "internalCurrencySetupFee": contract.get("internalCurrencySetupFee", 0),
-                "organizationalLevelAssociationID": contract.get("organizationalLevelAssociationID", None),
-                "internalCurrencyOverageBillingRate": contract.get("internalCurrencyOverageBillingRate", 0),
-                "timeReportingRequiresStartAndStopTimes": contract.get("timeReportingRequiresStartAndStopTimes", False)
+            adaptive_card = {
+                "type": "AdaptiveCard",
+                "version": "1.2",
+                "body": [{"type": "TextBlock", "text": "**My Tickets**", "wrap": True, "weight": "Bolder", "size": "Large"}] + ticket_cards
             }
 
-            try:
-                result = conn.execute(query, values)
-                conn.commit()
-                logging.info(f"✅ Query executed. Affected rows: {result.rowcount}")
-            except Exception as e:
-                logging.critical(f"🔥 Error executing query: {e}", exc_info=True)
+            await send_message_to_teams(service_url, conversation_id, aad_object_id, adaptive_card)
+            logging.info("📩 User's ticket list sent to Teams!")
 
-    finally:
-        conn.close()
-        logging.info("🔌 Database connection closed.")
+            return {"status": "success", "message": "Tickets sent to Teams."}
+
+    except Exception as e:
+        logging.error(f"❌ Error processing command: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to process command.")
 
 
 @app.post("/process_contracts/")
