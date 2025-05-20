@@ -1,4 +1,6 @@
+import os
 import time
+import uuid
 from threading import Thread
 import httpx
 import pandas as pd
@@ -331,10 +333,6 @@ async def store_to_db(final_df):
         session.close()
 
 
-
-
-
-
 # ✅ Pipeline Runner (Runs Every 30 Mins)
 async def run_pipeline():
     while True:
@@ -360,6 +358,23 @@ async def run_pipeline():
 
         logging.info("⏳ Sleeping for 30 minutes before next update...")
         time.sleep(1800)
+
+async def download_teams_file(content_url: str, bearer_token: str,
+                              dst_dir: str = "/tmp") -> str:
+    filename  = f"teams_policy_{uuid.uuid4()}.pdf"
+    dst_path  = os.path.join(dst_dir, filename)
+
+    async with httpx.AsyncClient() as client:
+        r = await client.get(content_url,
+                             headers={"Authorization": f"Bearer {bearer_token}"})
+        r.raise_for_status()
+        with open(dst_path, "wb") as f:
+            f.write(r.content)
+
+    logging.info(f"📥  Saved Teams attachment → {dst_path}")
+    return dst_path
+
+
 
 
 # ✅ Run Pipeline in Background

@@ -249,3 +249,25 @@ class ResourceResponseResolution(BaseModel):
     avgResponseTime: float
     avgResolutionTime: float
     ticketCount: int
+
+class Policies(BaseModel):
+    id: str                # your UUID for the policy
+    tenantId: int
+    filename: str
+    uploadedUtc: datetime
+
+    class Config:
+        orm_mode = True
+        populate_by_name = True
+
+
+class PolicyRequirements(BaseModel):
+    id: Optional[int] = None       # auto‐increment PK
+    policyId: str                  # UUID tying back to Policies.id
+    requirementText: str
+    category: str
+    createdUtc: datetime
+
+    class Config:
+        orm_mode = True
+        populate_by_name = True
