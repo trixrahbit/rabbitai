@@ -15,7 +15,7 @@ from security.auth import get_api_key
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from services.ai_processing import generate_recommendations, handle_sendtoai
-from services.bot_actions import send_message_to_teams
+from services.bot_actions import send_message_to_teams, get_bot_token
 from services.data_processing import generate_analytics, run_pipeline, download_teams_file
 from services.pdf_service import generate_pdf_report
 import uuid
@@ -449,33 +449,44 @@ async def handle_command(request: Request):
 
             # 2️⃣ Download
             content_url = atts[0]["contentUrl"]
-            token = auth_header.split(" ", 1)[1]
-            local_pdf = await download_teams_file(content_url, token)
+            bot_token   = await get_bot_token()          # ⚡ NEW
+            local_pdf   = await download_teams_file(content_url, bot_token)
 
             # 3️⃣ Extract text
-            text = ""
-            with pdfplumber.open(local_pdf) as pdf:
-                for page in pdf.pages:
-                    text += page.extract_text() + "\n"
+            try:
+                # 3️⃣ Extract text
+                text = ""
+                with pdfplumber.open(local_pdf) as pdf:
+                    for page in pdf.pages:
+                        text += page.extract_text() + "\n"
 
-            # 4️⃣ Chat with OpenAI
-            from azure_openai import secondary_query_openai
-            # (we assume you’ve updated secondary_query_openai per our last step so that it
-            # automatically wraps SYSTEM_PROMPT + your text in the messages payload)
-            resp = await secondary_query_openai(text, max_tokens=2000, temperature=0)
+                # 4️⃣ Chat with OpenAI
+                from azure_openai import secondary_query_openai
+                analysis = await secondary_query_openai(
+                    [
+                        {"role": "system",
+                         "content": (
+                             "You are an insurance-policy analyst. "
+                             "Summarise mandatory security controls as bullet points."
+                         )},
+                        {"role": "user", "content": text},
+                    ],
+                    max_tokens=1500,
+                    temperature=0
+                )
 
-            # 5️⃣ Send back to Teams
-            # We'll post the raw JSON response; you can pretty‑print or batch it as you like
-            card = {
-                "type": "AdaptiveCard",
-                "version": "1.2",
-                "body": [
-                    {"type": "TextBlock", "text": "📋 **Policy Analysis Report**", "weight": "Bolder", "size": "Medium"},
-                    {"type": "TextBlock", "text": f"```json\n{resp}\n```", "wrap": True}
-                ]
-            }
-            await send_message_to_teams(service_url, conversation_id, aad_object_id, card)
-            return {"status": "success", "report": resp}
+            except Exception as e:
+                logging.exception("❌ Policy analysis failed")
+                fail_card = {
+                    "type": "AdaptiveCard",
+                    "version": "1.2",
+                    "body": [{"type": "TextBlock",
+                              "text": f"❌ Failed to analyse policy: {e}",
+                              "wrap": True}]
+                }
+                await send_message_to_teams(service_url, conversation_id,
+                                            aad_object_id, fail_card)
+                return {"status": "error", "message": str(e)}
 
 
     except Exception as e:
