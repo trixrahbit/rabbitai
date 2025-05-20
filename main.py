@@ -428,13 +428,24 @@ async def handle_command(request: Request):
         if command_text.startswith("reviewinsurance"):
             logging.info("📄 Processing `reviewinsurance` command…")
 
-            # 1️⃣ Validate
-            atts = payload.get("attachments", [])
+            # 🔍 1. Find attachments (root OR in 'value')
+            atts = (
+                payload.get("attachments")
+                or payload.get("value", {}).get("attachments")
+                or []
+            )
+
             if len(atts) != 1 or atts[0].get("contentType") != "application/pdf":
-                err = "Please attach exactly one PDF cyber‑insurance policy."
-                await send_message_to_teams(service_url, conversation_id, aad_object_id,
-                                            {"type": "message", "text": err})
+                err = "⚠️ Please attach **one** PDF cyber-insurance policy."
+                card = {
+                    "type": "AdaptiveCard",
+                    "version": "1.2",
+                    "body": [{"type": "TextBlock", "text": err, "wrap": True}]
+                }
+                await send_message_to_teams(service_url, conversation_id,
+                                            aad_object_id, card)
                 return {"status": "error", "message": err}
+
 
             # 2️⃣ Download
             content_url = atts[0]["contentUrl"]
